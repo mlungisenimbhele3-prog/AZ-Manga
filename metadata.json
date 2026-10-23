@@ -1,6 +1,6 @@
 {
   "name": "AZ Oververse",
-  "description": "Produced by Mlungiseni Mbhele. Next-gen manga publishing and reading platform with Manga of the Year awards, 70% creator revenue share via VISA \u0026 South African banks, ad-supported chapters, and premium subscriptions.",
+  "description": "Produced by Mlungiseni Mbhele. Next-gen manga publishing and reading platform with full-screen Left-to-Right reader, Manga of the Year awards, and 70% creator revenue share via Google AdMob & Google Play Billing.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

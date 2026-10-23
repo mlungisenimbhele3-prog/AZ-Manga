@@ -35,7 +35,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
 
   if (!isOpen) return null;
 
-  const appUrl = 'https://ais-pre-2gzwiumq3db3tvpnp45izm-401335544603.europe-west2.run.app';
+  const appUrl = 'https://az-oververse.ai.studio';
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
     appUrl
   )}&bgcolor=0e1117&color=ffd700&margin=10`;

@@ -11,13 +11,15 @@
 import { safeStorage } from './safeStorage';
 
 export interface WebViewerSettings {
+  homeUrl: string;           // 'https://az-oververse.ai.studio'
   zoomDisplay: boolean;      // false = Unchecked (hide on-screen zoom display)
   supportZoom: boolean;      // false = Unchecked (stops enlarge/shrink gestures)
   useWideViewPort: boolean;  // true  = Checked (wide responsive viewport)
-  userAgent: string;        // 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome... Mobile'
+  userAgent: string;         // 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome... Mobile'
 }
 
 export const DEFAULT_WEBVIEWER_SETTINGS: WebViewerSettings = {
+  homeUrl: 'https://az-oververse.ai.studio',
   zoomDisplay: false,       // Uncheck ZoomDisplay
   supportZoom: false,       // Uncheck SupportZoom (stops enlarge/shrink)
   useWideViewPort: true,    // Check UseWideViewPort = TRUE
@@ -124,6 +126,7 @@ export function getWebViewerConfig(): WebViewerSettings {
     const saved = safeStorage.getJSON<WebViewerSettings | null>(STORAGE_KEY, null);
     if (saved) {
       return {
+        homeUrl: 'https://az-oververse.ai.studio',
         zoomDisplay: saved.zoomDisplay ?? DEFAULT_WEBVIEWER_SETTINGS.zoomDisplay,
         supportZoom: saved.supportZoom ?? DEFAULT_WEBVIEWER_SETTINGS.supportZoom,
         useWideViewPort: saved.useWideViewPort ?? DEFAULT_WEBVIEWER_SETTINGS.useWideViewPort,

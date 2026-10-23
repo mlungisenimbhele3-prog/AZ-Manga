@@ -32,11 +32,8 @@ export const GlobalPublishShareModal: React.FC<GlobalPublishShareModalProps> = (
   const [copiedEmbed, setCopiedEmbed] = useState(false);
   const [showQR, setShowQR] = useState(false);
 
-  // The primary shared production URL
-  const publicShareUrl =
-    typeof window !== 'undefined' && window.location.origin
-      ? `${window.location.origin}`
-      : 'https://ais-pre-2gzwiumq3db3tvpnp45izm-401335544603.europe-west2.run.app';
+  // Official published production URL
+  const publicShareUrl = 'https://az-oververse.ai.studio';
 
   const shareTitle = 'AZ OVERVERSE - Manga of the Year Awards & Global Reader';
   const shareText =

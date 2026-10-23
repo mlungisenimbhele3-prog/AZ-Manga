@@ -29,6 +29,7 @@ interface WebViewerModalProps {
 export const WebViewerModal: React.FC<WebViewerModalProps> = ({ isOpen, onClose }) => {
   const [settings, setSettings] = useState<WebViewerSettings>(getWebViewerConfig());
   const [copiedUa, setCopiedUa] = useState<boolean>(false);
+  const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
   const [testZoomAttempted, setTestZoomAttempted] = useState<boolean>(false);
   const [currentViewportWidth, setCurrentViewportWidth] = useState<number>(window.innerWidth);
 
@@ -58,6 +59,12 @@ export const WebViewerModal: React.FC<WebViewerModalProps> = ({ isOpen, onClose 
     navigator.clipboard.writeText(settings.userAgent);
     setCopiedUa(true);
     setTimeout(() => setCopiedUa(false), 2500);
+  };
+
+  const handleCopyHomeUrl = () => {
+    navigator.clipboard.writeText(settings.homeUrl || 'https://az-oververse.ai.studio');
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2500);
   };
 
   return (
@@ -120,6 +127,39 @@ export const WebViewerModal: React.FC<WebViewerModalProps> = ({ isOpen, onClose 
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 px-1">
               Active WebViewer Properties
             </h3>
+
+            {/* 0. HomeUrl */}
+            <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-4 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm font-bold text-white">HomeUrl</span>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    PRODUCTION LIVE
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyHomeUrl}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs transition"
+                  >
+                    {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                    <span>{copiedUrl ? 'Copied!' : 'Copy URL'}</span>
+                  </button>
+                  <a
+                    href={settings.homeUrl || 'https://az-oververse.ai.studio'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 transition"
+                    title="Open https://az-oververse.ai.studio"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+              <div className="rounded-xl bg-slate-950 border border-slate-800/80 p-3 font-mono text-xs text-emerald-300 break-all select-all">
+                {settings.homeUrl || 'https://az-oververse.ai.studio'}
+              </div>
+            </div>
 
             {/* 1. ZoomDisplay */}
             <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -324,7 +364,8 @@ settings.setBuiltInZoomControls(false);
 settings.setSupportZoom(false);        // Uncheck SupportZoom (stops enlarge/shrink)
 settings.setUseWideViewPort(true);     // Check UseWideViewPort = TRUE
 settings.setLoadWithOverviewMode(true);
-settings.setUserAgentString("${settings.userAgent}");`}
+settings.setUserAgentString("${settings.userAgent}");
+webView.loadUrl("${settings.homeUrl || 'https://az-oververse.ai.studio'}");`}
             </pre>
           </div>
         </div>
