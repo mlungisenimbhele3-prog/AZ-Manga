@@ -1,0 +1,36 @@
+{
+  "id": "/",
+  "name": "AZ OVERVERSE",
+  "short_name": "AZ OVERVERSE",
+  "description": "Produced by Mlungiseni Mbhele. Read manga free with ads, MOTY 2026 awards, and publish chapters with 70% creator payouts via Google Play Billing & SA banks.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0a0d14",
+  "background_color": "#0e1117",
+  "categories": ["books", "entertainment", "comics"],
+  "lang": "en",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

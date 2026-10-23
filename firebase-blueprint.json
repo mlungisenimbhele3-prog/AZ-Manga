@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "User Profile",
+      "description": "User profile with authentication and reading metadata",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "bio": { "type": "string" },
+        "role": { "type": "string", "enum": ["reader", "creator", "admin"] },
+        "isCreator": { "type": "boolean" },
+        "penName": { "type": "string" },
+        "followersCount": { "type": "number" },
+        "followingCount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "readingProgress": {
+      "title": "Reading Progress",
+      "description": "User reading state and progress per manga series",
+      "type": "object",
+      "properties": {
+        "mangaId": { "type": "string" },
+        "mangaTitle": { "type": "string" },
+        "chapterId": { "type": "string" },
+        "chapterNumber": { "type": "number" },
+        "chapterTitle": { "type": "string" },
+        "pageNumber": { "type": "number" },
+        "totalPages": { "type": "number" },
+        "progressPercent": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["mangaId", "chapterNumber"]
+    },
+    "bookmark": {
+      "title": "Bookmark",
+      "description": "Bookmarked favorite manga series",
+      "type": "object",
+      "properties": {
+        "mangaId": { "type": "string" },
+        "mangaTitle": { "type": "string" },
+        "coverImage": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["mangaId"]
+    },
+    "readingPreference": {
+      "title": "Reading Preferences",
+      "description": "Reader preferences including theme, text size, and scroll direction",
+      "type": "object",
+      "properties": {
+        "theme": { "type": "string", "enum": ["dark", "light", "amoled", "sepia"] },
+        "textSize": { "type": "string", "enum": ["small", "medium", "large", "xlarge"] },
+        "readingDirection": { "type": "string", "enum": ["vertical", "horizontal_rtl", "horizontal_ltr", "single"] },
+        "autoScroll": { "type": "boolean" },
+        "autoScrollSpeed": { "type": "number" },
+        "soundEffects": { "type": "boolean" },
+        "hapticFeedback": { "type": "boolean" }
+      },
+      "required": ["theme", "textSize", "readingDirection"]
+    },
+    "chatMessage": {
+      "title": "Chat Message",
+      "description": "Direct message or group chat message",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderAvatar": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "groupId": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "reactions": { "type": "string" }
+      },
+      "required": ["senderId", "text"]
+    },
+    "chatGroup": {
+      "title": "Chat Group",
+      "description": "Manga fan club or reader group circle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "icon": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "membersCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "createdBy"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "userProfile",
+      "description": "User profiles with email, role, and social stats"
+    },
+    "/users/{userId}/reading_progress/{mangaId}": {
+      "schema": "readingProgress",
+      "description": "User chapter and page reading progress"
+    },
+    "/users/{userId}/bookmarks/{mangaId}": {
+      "schema": "bookmark",
+      "description": "User bookmarked manga series"
+    },
+    "/users/{userId}/preferences/settings": {
+      "schema": "readingPreference",
+      "description": "User reader preferences (theme, text size, scroll)"
+    },
+    "/chat_messages/{messageId}": {
+      "schema": "chatMessage",
+      "description": "Global direct and group messages"
+    },
+    "/chat_groups/{groupId}": {
+      "schema": "chatGroup",
+      "description": "Reader groups and fan clubs"
+    }
+  }
+}
