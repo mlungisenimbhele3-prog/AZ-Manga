@@ -1,42 +1,43 @@
 # AZ OVERVERSE 🇿🇦 👑
 > **The Premier Pan-African Manga Publishing & Reading Platform**  
 > **Produced & Created by Mlungiseni Mbhele**  
-> GitHub Repository: [`mlungisenimbhele3-prog/manga-publisher-app`](https://github.com/mlungisenimbhele3-prog/manga-publisher-app)
+> Live Platform: [`https://az-oververse.ai.studio`](https://az-oververse.ai.studio)  
+> GitHub Repository: [`mlungisenimbhele3-prog/AZ-Manga`](https://github.com/mlungisenimbhele3-prog/AZ-Manga)
 
 ---
 
 ## 📱 About AZ OVERVERSE
 **AZ OVERVERSE** is an indigenous, next-generation Pan-African manga serialization ecosystem built for African and global creators. It features:
-- **Dual Reading Engine**: Seamless **AZ Vertical Webtoon** and authentic **RTL Tankobon** page modes with hardware-accelerated 120Hz/60Hz physics.
-- **70% Creator Revenue Share**: Direct author payouts via South African bank EFT (FNB, Standard Bank, Capitec, Nedbank, Absa), and VISA/Mastercard.
+- **Dual Reading Engine**: Seamless **Left-to-Right (LTR) Manga** and **AZ Vertical Webtoon** page modes with hardware-accelerated 120Hz/60Hz physics.
+- **70% Creator Revenue Share**: Direct author monetization powered exclusively by **Google AdMob** (persistent banner & rewarded chapter unlocks) and **Google Play Billing**.
 - **AZ Backdrop & Originals**: Independent creator self-publishing desk with official IP promotion pathways.
 - **Manga of the Year Gala 2026**: Reader's Choice voting and category awards.
-- **Capacitor Android Native App**: Pre-configured with hardware WebView rasterization and AdMob monetizations.
+- **Capacitor Android Native App**: Pre-configured with hardware WebView rasterization and Google Mobile Ads SDK.
 
 ---
 
-## 📦 Direct Android APK Download
-Download the latest pre-compiled Android debug package directly from GitHub Actions CI/CD:
-👉 **[Download Latest `app-debug.apk`](https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/latest/download/app-debug.apk)**
+## 📦 Signed Google Play Store Release Bundle (`.aab`)
+Download the latest cryptographically signed Android App Bundle (`app-release.aab` published as `AZ-Oververse-PlayStore.aab`) directly from GitHub Releases:
+👉 **[Download `AZ-Oververse-PlayStore.aab`](https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/latest/download/AZ-Oververse-PlayStore.aab)**
 
-Release notes and automated builds:  
-👉 **[GitHub Releases Page](https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases)**
+Release notes and SHA-256 checksums:  
+👉 **[GitHub Releases Page](https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases)**
 
 ---
 
 ## 🚀 Quick Start & Development
 
 ### Prerequisites
-- **Node.js**: v20 or higher
+- **Node.js**: v22 or higher
 - **npm**: v10+
-- **JDK**: Java 17 (Temurin recommended) for Android builds
-- **Android Studio / SDK**: Android SDK Platform 34+
+- **JDK**: Java 21 (Temurin) for Android Gradle 9.3.1 builds
+- **Android SDK**: API Level 35 (Android 15)
 
 ### Installation
 ```bash
 # Clone this repository
-git clone https://github.com/mlungisenimbhele3-prog/manga-publisher-app.git
-cd manga-publisher-app
+git clone https://github.com/mlungisenimbhele3-prog/AZ-Manga.git
+cd AZ-Manga
 
 # Install dependencies
 npm install
@@ -52,22 +53,18 @@ npm run build
 
 ---
 
-## 🤖 Android Build & CI/CD Pipeline
+## 🤖 Android Signed Release AAB & CI/CD Pipeline
 
-The project includes automated GitHub Actions in [`.github/workflows/build-apk.yml`](.github/workflows/build-apk.yml) that automatically compile and publish the Android APK on every push to `main`.
+The project includes automated GitHub Actions in [`.github/workflows/build-release-aab.yml`](.github/workflows/build-release-aab.yml) that compile, sign (`app-release.aab`), verify (`jarsigner`), and publish **`AZ-Oververse-PlayStore.aab`** to GitHub Releases on every push to `main`.
 
-### Local Android Compilation
+### Local Signed AAB Compilation
 ```bash
-# 1. Build web assets & sync Capacitor
+npm run build:aab
+# Or manually:
 npm run build
 npx cap sync android
-
-# 2. Compile APK using Gradle (Java 17)
-cd android
-./gradlew :app:assembleDebug
-
-# APK will be generated at:
-# android/app/build/outputs/apk/debug/app-debug.apk
+cd android && ./gradlew :app:bundleRelease -x lint -x lintVitalRelease
+# Output: android/app/build/outputs/bundle/release/app-release.aab
 ```
 
 ---

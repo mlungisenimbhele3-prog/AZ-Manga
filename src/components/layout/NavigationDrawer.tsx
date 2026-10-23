@@ -916,20 +916,20 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 </button>
               )}
 
-              {/* GitHub Repository & Android Debug APK Release */}
+              {/* GitHub Repository & Signed Google Play Release AAB */}
               <a
                 id="drawer-github-repo-link"
-                href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app"
+                href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/latest/download/AZ-Oververse-PlayStore.aab"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-cyan-500/30 text-xs text-cyan-300 hover:text-white hover:border-cyan-400 hover:bg-cyan-950/20 transition"
               >
                 <div className="flex items-center gap-2">
                   <ExternalLink className="w-4 h-4 text-cyan-400" />
-                  <span>GitHub: manga-publisher-app</span>
+                  <span>AZ-Oververse-PlayStore.aab</span>
                 </div>
                 <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                  APK CI
+                  PLAY AAB
                 </span>
               </a>
             </div>

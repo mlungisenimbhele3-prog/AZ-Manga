@@ -354,22 +354,22 @@ export const ProductivityCommandPalette: React.FC<ProductivityCommandPaletteProp
     },
     {
       id: 'github-repo-link',
-      title: 'Copy GitHub Repository Link: mlungisenimbhele3-prog/manga-publisher-app',
+      title: 'Copy GitHub Repository Link: mlungisenimbhele3-prog/AZ-Manga',
       category: 'Developer & CI/CD',
       icon: <Globe className="w-4 h-4 text-cyan-400" />,
       action: () => {
-        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/manga-publisher-app').catch(() => {});
+        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/AZ-Manga').catch(() => {});
         onClose();
         onOpenGlobalShare?.();
       },
     },
     {
-      id: 'download-debug-apk',
-      title: 'Copy Android app-debug.apk Release Link',
+      id: 'download-release-aab',
+      title: 'Copy Google Play Release Bundle Link (AZ-Oververse-PlayStore.aab)',
       category: 'Developer & CI/CD',
       icon: <Smartphone className="w-4 h-4 text-emerald-400" />,
       action: () => {
-        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/latest/download/app-debug.apk').catch(() => {});
+        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/latest/download/AZ-Oververse-PlayStore.aab').catch(() => {});
         onClose();
         onOpenGlobalShare?.();
       },

@@ -184,43 +184,43 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                 </button>
               </div>
 
-              {/* Direct Debug APK Download via GitHub Release */}
+              {/* Signed Google Play Release AAB Download via GitHub Releases */}
               <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="rounded-md bg-cyan-500 text-black px-2 py-0.5 text-[10px] font-black uppercase">
-                      Direct APK
+                      Signed Play AAB
                     </span>
                     <h4 className="text-sm font-bold text-white">
-                      Download Android APK (GitHub Releases)
+                      Google Play Release Bundle (AZ-Oververse-PlayStore.aab)
                     </h4>
                   </div>
                   <p className="text-xs text-slate-300 max-w-md leading-relaxed">
-                    Direct package built from <code className="text-cyan-300 font-mono text-[11px]">mlungisenimbhele3-prog/manga-publisher-app</code> via CI with Java 17 &amp; Gradle 9.3.1.
+                    Signed production <code className="text-cyan-300 font-mono text-[11px]">app-release.aab</code> built from <code className="text-cyan-300 font-mono text-[11px]">mlungisenimbhele3-prog/AZ-Manga</code> (API 35, JDK 21 &amp; Gradle 9.3.1) ready for Google Play Console upload.
                   </p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                   <a
-                    id="android-apk-direct-download-link"
-                    href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/latest/download/app-debug.apk"
+                    id="android-aab-direct-download-link"
+                    href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/latest/download/AZ-Oververse-PlayStore.aab"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-black font-black text-xs px-5 py-3 shadow-lg shadow-cyan-950/60 transition whitespace-nowrap"
+                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-black font-black text-xs px-5 py-3 shadow-lg shadow-cyan-950/60 transition whitespace-nowrap shrink-0"
                   >
-                    <Download className="w-4 h-4" />
-                    <span>Download app-debug.apk</span>
+                    <Download className="w-4 h-4 shrink-0" />
+                    <span>Download AZ-Oververse-PlayStore.aab</span>
                   </a>
                   <a
                     id="github-repo-link-btn"
-                    href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app"
+                    href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs px-4 py-3 transition whitespace-nowrap"
-                    title="View GitHub Repository"
+                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs px-4 py-3 transition whitespace-nowrap shrink-0"
+                    title="View GitHub Releases"
                   >
-                    <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>View Repository</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    <span>GitHub Releases</span>
                   </a>
                 </div>
               </div>

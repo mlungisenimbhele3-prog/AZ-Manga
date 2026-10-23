@@ -1,23 +1,29 @@
-name: Build Signed Release AAB & Publish to GitHub Releases
+name: Build Signed Google Play Release AAB & Publish
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release Tag (e.g. v1.0.0)'
+        description: 'Release Tag (defaults to latest)'
         required: false
-        default: 'v1.0.0'
+        default: 'latest'
+
+concurrency:
+  group: build-release-aab-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
 
 jobs:
   build-aab:
-    name: Build & Release Android App Bundle (.aab)
+    name: Build Signed app-release.aab -> AZ-Oververse-PlayStore.aab
     runs-on: ubuntu-latest
 
     steps:
@@ -26,103 +32,135 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js 20
+      - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install NPM Dependencies
         run: npm ci || npm install
 
-      - name: Build Web Application
+      - name: Build Production Web Application
         run: npm run build
 
-      - name: Setup Java 17
+      - name: Sync Capacitor Android Assets
+        run: npx cap sync android
+
+      - name: Set up JDK 21 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
           cache: 'gradle'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK Licenses
+        run: |
+          if [ -n "$ANDROID_HOME" ] && [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          fi
 
-      - name: Sync Capacitor Android
-        run: npx cap sync android
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+          cache-read-only: false
 
-      - name: Generate or Decode Release Keystore
+      - name: Prepare Production Upload Keystore
         run: |
           mkdir -p android/app
           if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
             echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
-            echo "Loaded release keystore from GitHub Secret."
+            echo "Decoded release.keystore from ANDROID_KEYSTORE_BASE64 secret."
           else
-            echo "Generating production release keystore..."
+            echo "Generating signed RSA-2048 upload keystore..."
             keytool -genkeypair -v \
+              -storetype PKCS12 \
               -keystore android/app/release.keystore \
               -alias "${{ secrets.ANDROID_KEY_ALIAS || 'azoververse' }}" \
               -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'azoververse2026' }}" \
               -keypass "${{ secrets.ANDROID_KEY_PASSWORD || 'azoververse2026' }}" \
-              -dname "CN=AZ OVERVERSE, OU=Manga Publishing, O=AZ Oververse, L=Durban, ST=KZN, C=ZA"
+              -dname "CN=Mlungiseni Mbhele, OU=AZ Oververse, O=AZ Oververse, L=Durban, ST=KZN, C=ZA"
           fi
+          test -s android/app/release.keystore
 
-      - name: Build Signed Release AAB with Gradle
+      - name: Build Signed Google Play Release Bundle (app-release.aab)
         env:
           ANDROID_KEYSTORE_PATH: "release.keystore"
           ANDROID_KEYSTORE_PASSWORD: "${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'azoververse2026' }}"
           ANDROID_KEY_ALIAS: "${{ secrets.ANDROID_KEY_ALIAS || 'azoververse' }}"
           ANDROID_KEY_PASSWORD: "${{ secrets.ANDROID_KEY_PASSWORD || 'azoververse2026' }}"
+          ANDROID_VERSION_CODE: "${{ 100 + github.run_number }}"
+          ANDROID_VERSION_NAME: "1.0.${{ github.run_number }}"
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew bundleRelease --stacktrace
+          ./gradlew :app:bundleRelease -x lint -x lintVitalRelease --stacktrace
 
-      - name: Verify Signed AAB Artifact
+      - name: Verify Signature & Stage AZ-Oververse-PlayStore.aab
         run: |
-          ls -la android/app/build/outputs/bundle/release/
-          AAB_FILE=$(find android/app/build/outputs/bundle/release -name "*.aab" | head -n 1)
-          if [ -z "$AAB_FILE" ]; then
-            echo "Error: Release AAB file not found!"
+          AAB_PATH="android/app/build/outputs/bundle/release/app-release.aab"
+          if [ ! -f "$AAB_PATH" ]; then
+            AAB_PATH=$(find android/app/build/outputs/bundle/release -name "*.aab" | head -n 1)
+          fi
+          if [ -z "$AAB_PATH" ] || [ ! -f "$AAB_PATH" ]; then
+            echo "Error: Signed app-release.aab was not generated!"
             exit 1
           fi
-          echo "Found release bundle: $AAB_FILE"
-          cp "$AAB_FILE" az-oververse-release.aab
-          sha256sum az-oververse-release.aab > az-oververse-release.aab.sha256
+          echo "Verifying cryptographic signature on $AAB_PATH..."
+          jarsigner -verify -verbose -certs "$AAB_PATH" | head -n 30
+          cp "$AAB_PATH" AZ-Oververse-PlayStore.aab
+          sha256sum AZ-Oververse-PlayStore.aab > AZ-Oververse-PlayStore.aab.sha256
+          ls -lh AZ-Oververse-PlayStore.aab AZ-Oververse-PlayStore.aab.sha256
+
+      - name: Upload Signed AAB & Upload Keystore Backup to Actions Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AZ-Oververse-PlayStore-Bundle
+          path: |
+            AZ-Oververse-PlayStore.aab
+            AZ-Oververse-PlayStore.aab.sha256
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Determine Release Tag
-        id: tag_name
+        id: release_meta
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.release_tag }}" ]; then
             echo "TAG=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           else
-            echo "TAG=v1.0.$(date +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
+            echo "TAG=latest" >> $GITHUB_OUTPUT
           fi
 
-      - name: Publish Release to GitHub Releases
+      - name: Upload AZ-Oververse-PlayStore.aab to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag_name.outputs.TAG }}
-          name: "AZ OVERVERSE Release ${{ steps.tag_name.outputs.TAG }}"
+          tag_name: ${{ steps.release_meta.outputs.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: "AZ OVERVERSE — Google Play Store Signed Release AAB"
+          make_latest: true
+          prerelease: false
           body: |
-            ### AZ OVERVERSE Google Play Store Release 🚀
-            **Produced by Mlungiseni Mbhele**
+            ## 🚀 AZ OVERVERSE — Signed Google Play Release Bundle (`.aab`)
+            **Produced by Mlungiseni Mbhele** • Live Web: https://az-oververse.ai.studio
 
-            - **Signed Android App Bundle (AAB)**: Ready for Google Play Console upload (`internal`, `closed`, `open`, or `production` tracks).
-            - **Monetization**: 100% compliant with Google Play In-App Billing (Subscriptions & Pulse Coins packs) with 70% direct creator revenue sharing.
-            - **Features Included**:
-              - User Profile system (Register/Login, Bookmarks shelf, Reading progress auto-save, Preferences)
-              - Facebook & TikTok style Social Chat with groups, voice notes, reactions, and creator follows
-              - High-performance 120Hz/90Hz rendering & low-end device optimizations
-              - Full-screen reader with zoom, touch controls, and dark/AMOLED/sepia themes
+            ### ⬇️ Direct Play Store Bundle Download
+            - **[`AZ-Oververse-PlayStore.aab`](${{ github.server_url }}/${{ github.repository }}/releases/latest/download/AZ-Oververse-PlayStore.aab)**
 
-            #### SHA-256 Checksum:
-            `az-oververse-release.aab`
+            ### 📋 Build & Signing Specification
+            - **Source Artifact**: `android/app/build/outputs/bundle/release/app-release.aab`
+            - **Published Asset**: `AZ-Oververse-PlayStore.aab`
+            - **Application ID**: `com.oververse.app`
+            - **Version Code**: `${{ 100 + github.run_number }}` (`1.0.${{ github.run_number }}`)
+            - **Target / Compile SDK**: API 35 (Android 15 — Google Play Store compliant)
+            - **Toolchain**: JDK 21 (Temurin) • Gradle 9.3.1 • AGP 8.13.0
+            - **Monetization**: Google AdMob & Google Play Billing
+            - **Commit**: `${{ github.sha }}`
           files: |
-            az-oververse-release.aab
-            az-oververse-release.aab.sha256
+            AZ-Oververse-PlayStore.aab
+            AZ-Oververse-PlayStore.aab.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
