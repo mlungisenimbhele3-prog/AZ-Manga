@@ -2,7 +2,7 @@
 > **The Premier Pan-African Manga Publishing & Reading Platform**  
 > **Produced & Created by Mlungiseni Mbhele**  
 > Live Platform: [`https://az-oververse.ai.studio`](https://az-oververse.ai.studio)  
-> GitHub Repository: [`mlungisenimbhele3-prog/AZ-Manga`](https://github.com/mlungisenimbhele3-prog/AZ-Manga)
+> Public GitHub Repository: [`mlungisenimbhele3-prog/AZ-Manga`](https://github.com/mlungisenimbhele3-prog/AZ-Manga)
 
 ---
 
@@ -16,12 +16,16 @@
 
 ---
 
-## 📦 Signed Google Play Store Release Bundle (`.aab`)
-Download the latest cryptographically signed Android App Bundle (`app-release.aab` published as `AZ-Oververse-PlayStore.aab`) directly from GitHub Releases:
-👉 **[Download `AZ-Oververse-PlayStore.aab`](https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/latest/download/AZ-Oververse-PlayStore.aab)**
+## 📦 Public Release `v1.0.0` — Android APK & Google Play Bundle (`.aab`)
 
-Release notes and SHA-256 checksums:  
-👉 **[GitHub Releases Page](https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases)**
+Download the official **`v1.0.0`** Android builds directly from GitHub Releases (no sign-in required when repository visibility is Public):
+
+- 👉 **Direct Install Debug APK (`app-debug.apk`)**:  
+  [`https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-debug.apk`](https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-debug.apk)
+- 👉 **Signed Google Play Release Bundle (`app-release.aab`)**:  
+  [`https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-release.aab`](https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-release.aab)
+- 👉 **Release `v1.0.0` Notes & SHA-256 Checksums**:  
+  [`https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/tag/v1.0.0`](https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/tag/v1.0.0)
 
 ---
 
@@ -53,26 +57,24 @@ npm run build
 
 ---
 
-## 🤖 Android Signed Release AAB & CI/CD Pipeline
+## 🤖 Automated GitHub Release `v1.0.0` Pipeline
 
-The project includes automated GitHub Actions in [`.github/workflows/build-release-aab.yml`](.github/workflows/build-release-aab.yml) that compile, sign (`app-release.aab`), verify (`jarsigner`), and publish **`AZ-Oververse-PlayStore.aab`** to GitHub Releases on every push to `main`.
+The workflow [`.github/workflows/build-release-aab.yml`](.github/workflows/build-release-aab.yml) automatically runs on every push to `main`:
+1. Builds the production web bundle (`npm run build`) and syncs Capacitor Android (`npx cap sync android`).
+2. Compiles **both** `app-debug.apk` (`:app:assembleDebug`) and cryptographically signed `app-release.aab` (`:app:bundleRelease`, API 35, JDK 21, Gradle 9.3.1).
+3. Publishes non-draft, latest Release **`v1.0.0`** with public downloadable `app-debug.apk`, `app-release.aab`, and `SHA256SUMS.txt`.
 
-### Local Signed AAB Compilation
+### One-Command Local Push + Public Repo + `v1.0.0` Release (with GitHub CLI)
 ```bash
-npm run build:aab
-# Or manually:
-npm run build
-npx cap sync android
-cd android && ./gradlew :app:bundleRelease -x lint -x lintVitalRelease
-# Output: android/app/build/outputs/bundle/release/app-release.aab
+npm run release:v1
 ```
 
 ---
 
 ## 🛠️ Tech Stack
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, Motion (Framer Motion), Lucide Icons
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS v4, Motion, Lucide Icons
 - **Backend / Server**: Express 4, Node.js, TSX
-- **Mobile Runtime**: Capacitor 8, Android WebView API 21+ with 120Hz display modes
+- **Mobile Runtime**: Capacitor 6, Android SDK 35 WebView with 120Hz display modes
 - **Storage & Monetization**: Google Play Billing, Google AdMob, Firebase, Supabase
 
 ---

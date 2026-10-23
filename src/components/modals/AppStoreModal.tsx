@@ -184,43 +184,55 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                 </button>
               </div>
 
-              {/* Signed Google Play Release AAB Download via GitHub Releases */}
-              <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              {/* GitHub Public Release v1.0.0: BOTH app-debug.apk & app-release.aab */}
+              <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-4 sm:p-5 space-y-4">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-md bg-cyan-500 text-black px-2 py-0.5 text-[10px] font-black uppercase">
-                      Signed Play AAB
-                    </span>
-                    <h4 className="text-sm font-bold text-white">
-                      Google Play Release Bundle (AZ-Oververse-PlayStore.aab)
-                    </h4>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-cyan-300 font-semibold">
+                    <span>Release v1.0.0</span>
+                    <span aria-hidden="true">·</span>
+                    <span>mlungisenimbhele3-prog/AZ-Manga</span>
+                    <span aria-hidden="true">·</span>
+                    <span>Public Assets</span>
                   </div>
-                  <p className="text-xs text-slate-300 max-w-md leading-relaxed">
-                    Signed production <code className="text-cyan-300 font-mono text-[11px]">app-release.aab</code> built from <code className="text-cyan-300 font-mono text-[11px]">mlungisenimbhele3-prog/AZ-Manga</code> (API 35, JDK 21 &amp; Gradle 9.3.1) ready for Google Play Console upload.
+                  <h4 className="text-sm font-bold text-white">
+                    Android Direct APK &amp; Signed Google Play Bundle
+                  </h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Download <code className="text-emerald-300 font-mono text-[11px]">app-debug.apk</code> for direct Android device testing or signed <code className="text-cyan-300 font-mono text-[11px]">app-release.aab</code> (API 35, JDK 21 &amp; Gradle 9.3.1) for Google Play Console submission.
                   </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
                   <a
-                    id="android-aab-direct-download-link"
-                    href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/latest/download/AZ-Oververse-PlayStore.aab"
+                    id="android-apk-direct-download-link"
+                    href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-debug.apk"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-black font-black text-xs px-5 py-3 shadow-lg shadow-cyan-950/60 transition whitespace-nowrap shrink-0"
+                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs px-4 py-2.5 shadow-lg shadow-emerald-950/50 transition whitespace-nowrap"
                   >
                     <Download className="w-4 h-4 shrink-0" />
-                    <span>Download AZ-Oververse-PlayStore.aab</span>
+                    <span>Download app-debug.apk</span>
+                  </a>
+                  <a
+                    id="android-aab-direct-download-link"
+                    href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-release.aab"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs px-4 py-2.5 shadow-lg shadow-cyan-950/50 transition whitespace-nowrap"
+                  >
+                    <Download className="w-4 h-4 shrink-0" />
+                    <span>Download app-release.aab</span>
                   </a>
                   <a
                     id="github-repo-link-btn"
-                    href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases"
+                    href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/tag/v1.0.0"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs px-4 py-3 transition whitespace-nowrap shrink-0"
-                    title="View GitHub Releases"
+                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs px-4 py-2.5 transition whitespace-nowrap"
+                    title="View Release v1.0.0 on GitHub"
                   >
                     <ExternalLink className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                    <span>GitHub Releases</span>
+                    <span>Release v1.0.0</span>
                   </a>
                 </div>
               </div>

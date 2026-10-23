@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+*.apk
+*.aab
+*.sha256
+SHA256SUMS.txt
+*.keystore
+

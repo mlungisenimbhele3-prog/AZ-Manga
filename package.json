@@ -16,7 +16,8 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "build:aab": "bash scripts/build-signed-aab.sh"
+    "build:aab": "bash scripts/build-signed-aab.sh",
+    "release:v1": "bash scripts/build-signed-aab.sh"
   },
   "dependencies": {
     "@capacitor-community/admob": "^6.2.0",
