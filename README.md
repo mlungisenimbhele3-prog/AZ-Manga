@@ -2,7 +2,7 @@
 > **The Premier Pan-African Manga Publishing & Reading Platform**  
 > **Produced & Created by Mlungiseni Mbhele**  
 > Live Platform: [`https://az-oververse.ai.studio`](https://az-oververse.ai.studio)  
-> Public GitHub Repository: [`mlungisenimbhele3-prog/AZ-Manga`](https://github.com/mlungisenimbhele3-prog/AZ-Manga)
+> Public GitHub Repository: [`mlungisenimbhele3-prog/manga-publisher-app`](https://github.com/mlungisenimbhele3-prog/manga-publisher-app)
 
 ---
 
@@ -21,11 +21,11 @@
 Download the official **`v1.0.0`** Android builds directly from GitHub Releases (no sign-in required when repository visibility is Public):
 
 - 👉 **Direct Install Debug APK (`app-debug.apk`)**:  
-  [`https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-debug.apk`](https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-debug.apk)
+  [`https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-debug.apk`](https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-debug.apk)
 - 👉 **Signed Google Play Release Bundle (`app-release.aab`)**:  
-  [`https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-release.aab`](https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-release.aab)
+  [`https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-release.aab`](https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-release.aab)
 - 👉 **Release `v1.0.0` Notes & SHA-256 Checksums**:  
-  [`https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/tag/v1.0.0`](https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/tag/v1.0.0)
+  [`https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/tag/v1.0.0`](https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/tag/v1.0.0)
 
 ---
 
@@ -34,14 +34,14 @@ Download the official **`v1.0.0`** Android builds directly from GitHub Releases 
 ### Prerequisites
 - **Node.js**: v22 or higher
 - **npm**: v10+
-- **JDK**: Java 21 (Temurin) for Android Gradle 9.3.1 builds
+- **JDK**: Java 21 (Temurin) for Android Gradle 8.11.1 builds
 - **Android SDK**: API Level 35 (Android 15)
 
 ### Installation
 ```bash
 # Clone this repository
-git clone https://github.com/mlungisenimbhele3-prog/AZ-Manga.git
-cd AZ-Manga
+git clone https://github.com/mlungisenimbhele3-prog/manga-publisher-app.git
+cd manga-publisher-app
 
 # Install dependencies
 npm install
@@ -61,7 +61,7 @@ npm run build
 
 The workflow [`.github/workflows/build-release-aab.yml`](.github/workflows/build-release-aab.yml) automatically runs on every push to `main`:
 1. Builds the production web bundle (`npm run build`) and syncs Capacitor Android (`npx cap sync android`).
-2. Compiles **both** `app-debug.apk` (`:app:assembleDebug`) and cryptographically signed `app-release.aab` (`:app:bundleRelease`, API 35, JDK 21, Gradle 9.3.1).
+2. Compiles **both** `app-debug.apk` (`:app:assembleDebug`) and cryptographically signed `app-release.aab` (`:app:bundleRelease`, API 35, JDK 21, Gradle 8.11.1, AGP 8.7.3).
 3. Publishes non-draft, latest Release **`v1.0.0`** with public downloadable `app-debug.apk`, `app-release.aab`, and `SHA256SUMS.txt`.
 
 ### One-Command Local Push + Public Repo + `v1.0.0` Release (with GitHub CLI)

@@ -42,6 +42,8 @@ import { GlobalPublishShareModal } from './components/common/GlobalPublishShareM
 import { AiReportModal } from './components/modals/AiReportModal';
 import { detectAiContent, scanMangaList } from './utils/aiDetector';
 import { BottomNav } from './components/layout/BottomNav';
+import { OfflineIndicator } from './components/layout/OfflineIndicator';
+import { AppStoreModal } from './components/modals/AppStoreModal';
 import { ChatsPage } from './components/chat/ChatsPage';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import { TermsOfService } from './pages/TermsOfService';
@@ -441,6 +443,7 @@ export default function App() {
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isFcmModalOpen, setIsFcmModalOpen] = useState(false);
   const [isWebViewerModalOpen, setIsWebViewerModalOpen] = useState(false);
+  const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isApplyMangakaOpen, setIsApplyMangakaOpen] = useState(false);
   const [isMangakaDashboardOpen, setIsMangakaDashboardOpen] = useState(false);
@@ -1120,6 +1123,7 @@ export default function App() {
         onOpenSecurityDefense={() => setIsSecurityModalOpen(true)}
         onOpenFcmNotifications={() => setIsFcmModalOpen(true)}
         onOpenWebViewerModal={() => setIsWebViewerModalOpen(true)}
+        onOpenStoreModal={() => setIsStoreModalOpen(true)}
         unreadNotificationsCount={unreadNotificationsCount}
         performanceTier={performanceTier}
         searchQuery={searchQuery}
@@ -1841,6 +1845,15 @@ export default function App() {
         variant="persistent-bottom"
         onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
       />
+
+      {/* PWAApp Hub & Google Play / iOS Packaging Modal */}
+      <AppStoreModal
+        isOpen={isStoreModalOpen}
+        onClose={() => setIsStoreModalOpen(false)}
+      />
+
+      {/* Offline Connectivity Indicator */}
+      <OfflineIndicator />
 
       {/* AZ OVERVERSE SPLASH SCREEN (Header AZ Logo + Dark Theme) */}
       {showSplash && (

@@ -8,9 +8,14 @@ export const OfflineIndicator: React.FC = () => {
   if (isOnline) return null;
 
   return (
-    <div className="fixed bottom-5 left-5 z-50 flex items-center gap-2.5 rounded-2xl border border-amber-500/40 bg-amber-950/90 px-4 py-2.5 text-xs font-bold text-amber-200 shadow-2xl backdrop-blur-md animate-pulse">
-      <WifiOff className="w-4 h-4 text-amber-400" />
-      <span>Offline Mode — Cached manga pages & local data active.</span>
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-24 left-4 z-50 flex items-center gap-2.5 rounded-xl border border-amber-500/40 bg-slate-900/95 px-3.5 py-2 text-xs font-semibold text-amber-200 shadow-xl backdrop-blur-md"
+    >
+      <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+      <WifiOff className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+      <span>Offline Mode — Cached OVERVERSE data active</span>
     </div>
   );
 };

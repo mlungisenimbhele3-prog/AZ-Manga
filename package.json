@@ -5,7 +5,7 @@
   "description": "AZ OVERVERSE - Pan-African Manga Publishing Platform produced by Mlungiseni Mbhele",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mlungisenimbhele3-prog/AZ-Manga.git"
+    "url": "https://github.com/mlungisenimbhele3-prog/manga-publisher-app.git"
   },
   "homepage": "https://az-oververse.ai.studio",
   "type": "module",

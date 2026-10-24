@@ -12,9 +12,11 @@ import {
   ShieldCheck,
   ShieldAlert,
   Crown,
+  Smartphone,
   X,
 } from 'lucide-react';
 import { NavigationDrawer } from './NavigationDrawer';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface NavbarProps {
   currentLanguage: 'en' | 'zu' | 'af';
@@ -181,12 +183,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </div>
 
-        {/* (3) Right: ••• 3 dots menu button */}
-        <div className="relative flex items-center" ref={moreMenuRef}>
+        {/* (3) Right: Compact PWA Install action (auto-hidden when standalone) + ••• 3 dots menu button */}
+        <div className="relative flex items-center gap-2" ref={moreMenuRef}>
+          <PWAInstallButton compact onOpenStoreModal={onOpenStoreModal} />
+
           <button
             id="header-more-menu-btn"
             onClick={() => setIsMoreMenuOpen((prev) => !prev)}
-            className={`flex items-center justify-center p-2 rounded-xl border transition active:scale-95 shadow-sm ${
+            className={`min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl border transition active:scale-95 shadow-sm ${
               isMoreMenuOpen
                 ? 'bg-amber-500/20 border-amber-500 text-amber-400 ring-2 ring-amber-500/30'
                 : 'bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/50 hover:bg-slate-800'
@@ -257,6 +261,34 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <span className="text-amber-400 text-xs font-bold">Open →</span>
                 </button>
+
+                {/* PWA Install Button & App Hub */}
+                <PWAInstallButton
+                  fullWidth
+                  alwaysShowInMenu
+                  onOpenStoreModal={() => {
+                    setIsMoreMenuOpen(false);
+                    onOpenStoreModal?.();
+                  }}
+                />
+
+                {onOpenStoreModal && (
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      onOpenStoreModal();
+                    }}
+                    className="min-h-[44px] w-full flex items-center justify-between rounded-xl p-2.5 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 text-left transition"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <span className="text-xs font-semibold text-slate-200">
+                        OVERVERSE App &amp; TWA Hub
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-cyan-400">com.oververse.app</span>
+                  </button>
+                )}
 
                 {/* Shield/Security icon */}
                 {onOpenSecurityDefense && (
@@ -469,6 +501,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       onOpenSecurityDefense={onOpenSecurityDefense}
       onOpenFcmNotifications={onOpenFcmNotifications}
       onOpenWebViewerModal={onOpenWebViewerModal}
+      onOpenStoreModal={onOpenStoreModal}
       performanceTier={performanceTier}
       isOledMode={isOledMode}
       toggleOledMode={toggleOledMode}

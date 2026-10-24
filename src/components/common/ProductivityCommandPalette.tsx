@@ -354,11 +354,11 @@ export const ProductivityCommandPalette: React.FC<ProductivityCommandPaletteProp
     },
     {
       id: 'github-repo-link',
-      title: 'Copy GitHub Repository Link: mlungisenimbhele3-prog/AZ-Manga',
+      title: 'Copy GitHub Repository Link: mlungisenimbhele3-prog/manga-publisher-app',
       category: 'Developer & CI/CD',
       icon: <Globe className="w-4 h-4 text-cyan-400" />,
       action: () => {
-        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/AZ-Manga').catch(() => {});
+        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/manga-publisher-app').catch(() => {});
         onClose();
         onOpenGlobalShare?.();
       },
@@ -369,7 +369,7 @@ export const ProductivityCommandPalette: React.FC<ProductivityCommandPaletteProp
       category: 'Developer & CI/CD',
       icon: <Smartphone className="w-4 h-4 text-emerald-400" />,
       action: () => {
-        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-debug.apk').catch(() => {});
+        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-debug.apk').catch(() => {});
         onClose();
         onOpenGlobalShare?.();
       },
@@ -380,7 +380,7 @@ export const ProductivityCommandPalette: React.FC<ProductivityCommandPaletteProp
       category: 'Developer & CI/CD',
       icon: <Smartphone className="w-4 h-4 text-cyan-400" />,
       action: () => {
-        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-release.aab').catch(() => {});
+        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-release.aab').catch(() => {});
         onClose();
         onOpenGlobalShare?.();
       },

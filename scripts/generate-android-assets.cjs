@@ -44,6 +44,8 @@ const LAUNCHER_TARGETS = [
   // Web / PWA Assets
   { path: 'public/pwa-192x192.png', size: 192, type: 'standard' },
   { path: 'public/pwa-512x512.png', size: 512, type: 'standard' },
+  { path: 'public/pwa-maskable-192x192.png', size: 192, type: 'maskable' },
+  { path: 'public/pwa-maskable-512x512.png', size: 512, type: 'maskable' },
   { path: 'public/apple-touch-icon.png', size: 180, type: 'standard' },
   { path: 'public/favicon.png', size: 64, type: 'standard' },
 ];
@@ -53,7 +55,7 @@ async function generateSplash(target, masterBuffer) {
   const logoDimension = Math.round(Math.min(width, height) * 0.72);
 
   const resizedLogo = await sharp(masterBuffer)
-    .resize(logoDimension, logoDimension, { fit: 'contain', background: { r: 10, g: 13, b: 20, alpha: 1 } })
+    .resize(logoDimension, logoDimension, { fit: 'contain', background: { r: 15, g: 23, b: 42, alpha: 1 } })
     .toBuffer();
 
   const left = Math.round((width - logoDimension) / 2);
@@ -67,7 +69,7 @@ async function generateSplash(target, masterBuffer) {
       width,
       height,
       channels: 4,
-      background: { r: 10, g: 13, b: 20, alpha: 1 }, // #0a0d14
+      background: { r: 15, g: 23, b: 42, alpha: 1 }, // #0f172a
     },
   })
     .composite([
@@ -105,6 +107,28 @@ async function generateLauncherIcon(target, masterBuffer) {
         height: size,
         channels: 4,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .composite([{ input: innerLogo, top: offset, left: offset }])
+      .png()
+      .toFile(outPath);
+  } else if (type === 'maskable') {
+    // Maskable PWA icon: 74% central safe zone (13% padding on all sides) over full-bleed #0f172a
+    const innerSize = Math.round(size * 0.74);
+    const circleMask = `<svg width="${innerSize}" height="${innerSize}"><circle cx="${innerSize / 2}" cy="${innerSize / 2}" r="${innerSize / 2}" fill="#fff" /></svg>`;
+    const innerLogoRaw = await sharp(masterBuffer).resize(innerSize, innerSize).toBuffer();
+    const innerLogo = await sharp(innerLogoRaw)
+      .composite([{ input: Buffer.from(circleMask), blend: 'dest-in' }])
+      .png()
+      .toBuffer();
+    const offset = Math.round((size - innerSize) / 2);
+
+    await sharp({
+      create: {
+        width: size,
+        height: size,
+        channels: 4,
+        background: { r: 15, g: 23, b: 42, alpha: 1 }, // #0f172a
       },
     })
       .composite([{ input: innerLogo, top: offset, left: offset }])

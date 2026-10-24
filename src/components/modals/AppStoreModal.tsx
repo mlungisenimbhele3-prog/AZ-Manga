@@ -190,7 +190,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                   <div className="flex flex-wrap items-center gap-2 text-xs text-cyan-300 font-semibold">
                     <span>Release v1.0.0</span>
                     <span aria-hidden="true">·</span>
-                    <span>mlungisenimbhele3-prog/AZ-Manga</span>
+                    <span>mlungisenimbhele3-prog/manga-publisher-app</span>
                     <span aria-hidden="true">·</span>
                     <span>Public Assets</span>
                   </div>
@@ -198,14 +198,14 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                     Android Direct APK &amp; Signed Google Play Bundle
                   </h4>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Download <code className="text-emerald-300 font-mono text-[11px]">app-debug.apk</code> for direct Android device testing or signed <code className="text-cyan-300 font-mono text-[11px]">app-release.aab</code> (API 35, JDK 21 &amp; Gradle 9.3.1) for Google Play Console submission.
+                    Download <code className="text-emerald-300 font-mono text-[11px]">app-debug.apk</code> for direct Android device testing or signed <code className="text-cyan-300 font-mono text-[11px]">app-release.aab</code> (API 35, JDK 21 &amp; Gradle 8.11.1) for Google Play Console submission.
                   </p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
                   <a
                     id="android-apk-direct-download-link"
-                    href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-debug.apk"
+                    href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-debug.apk"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs px-4 py-2.5 shadow-lg shadow-emerald-950/50 transition whitespace-nowrap"
@@ -215,7 +215,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                   </a>
                   <a
                     id="android-aab-direct-download-link"
-                    href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-release.aab"
+                    href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-release.aab"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs px-4 py-2.5 shadow-lg shadow-cyan-950/50 transition whitespace-nowrap"
@@ -225,7 +225,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                   </a>
                   <a
                     id="github-repo-link-btn"
-                    href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/tag/v1.0.0"
+                    href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/tag/v1.0.0"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs px-4 py-2.5 transition whitespace-nowrap"
@@ -247,7 +247,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                     <div>
                       <h5 className="text-xs font-bold text-white">Google Play Store Submission Profile</h5>
                       <p className="text-[11px] text-slate-400">
-                        Package: <code className="text-emerald-400">za.co.mangapulse.app</code>
+                        Package: <code className="text-emerald-400">com.oververse.app</code>
                       </p>
                     </div>
                   </div>
@@ -356,8 +356,8 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                 {/* iOS App Store / Capacitor Metadata */}
                 <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-xs space-y-1">
                   <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                    <span>iOS Bundle Identifier:</span>
-                    <code className="text-amber-400">za.co.mangapulse.app</code>
+                    <span>Bundle / Package ID:</span>
+                    <code className="text-amber-400">com.oververse.app</code>
                   </div>
                   <div className="flex items-center justify-between text-slate-400 text-[11px]">
                     <span>Developer Team:</span>
@@ -386,7 +386,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                   <button
                     onClick={() =>
                       copyToClipboard(
-                        `npm i -g @bubblewrap/cli && bubblewrap init --manifest=${appUrl}/manifest.webmanifest && bubblewrap build`,
+                        `npm i -g @bubblewrap/cli && bubblewrap init --manifest=${appUrl}/manifest.json && bubblewrap build`,
                         'bubblewrap',
                         'Play Store Command'
                       )
@@ -409,7 +409,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
 
                 <div className="rounded-xl bg-black/80 border border-slate-800 p-3 font-mono text-[11px] text-emerald-400 overflow-x-auto">
                   <code>
-                    npx @bubblewrap/cli init --manifest={appUrl}/manifest.webmanifest
+                    npx @bubblewrap/cli init --manifest={appUrl}/manifest.json
                     <br />
                     npx @bubblewrap/cli build
                   </code>

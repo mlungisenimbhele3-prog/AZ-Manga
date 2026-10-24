@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Make mlungisenimbhele3-prog/AZ-Manga public, push all code, and publish Release v1.0.0
+# Make mlungisenimbhele3-prog/manga-publisher-app public, push all code, and publish Release v1.0.0
 # with BOTH app-debug.apk and signed app-release.aab
 # Produced by Mlungiseni Mbhele - AZ OVERVERSE
 set -e
@@ -12,7 +12,7 @@ KEYSTORE_PATH="android/app/release.keystore"
 KEY_ALIAS="${ANDROID_KEY_ALIAS:-azoververse}"
 KEY_PASS="${ANDROID_KEY_PASSWORD:-azoververse2026}"
 STORE_PASS="${ANDROID_KEYSTORE_PASSWORD:-azoververse2026}"
-REPO_SLUG="${GITHUB_REPOSITORY:-mlungisenimbhele3-prog/AZ-Manga}"
+REPO_SLUG="${GITHUB_REPOSITORY:-mlungisenimbhele3-prog/manga-publisher-app}"
 RELEASE_TAG="${RELEASE_TAG:-v1.0.0}"
 
 # 1. Make repository public & push all current code if GitHub CLI is available

@@ -54,46 +54,65 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: Accept Android SDK Licenses
+      - name: Accept Android SDK Licenses & Ensure API 35
         run: |
-          if [ -n "$ANDROID_HOME" ] && [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          SDKMANAGER=""
+          if [ -n "$SDK_ROOT" ] && [ -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          elif command -v sdkmanager >/dev/null 2>&1; then
+            SDKMANAGER="$(command -v sdkmanager)"
+          fi
+          if [ -n "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses > /dev/null || true
+            "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" > /dev/null || true
           fi
 
-      - name: Set up Gradle 9.3.1
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.3.1'
-          cache-read-only: false
-
       - name: Prepare Production Upload Keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           mkdir -p android/app
-          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
+          ALIAS_VAL="${KEY_ALIAS:-azoververse}"
+          SPASS_VAL="${STORE_PASS:-azoververse2026}"
+          KPASS_VAL="${KEY_PASS:-azoververse2026}"
+
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 --decode > android/app/release.keystore
             echo "Decoded release.keystore from ANDROID_KEYSTORE_BASE64 secret."
           else
             echo "Generating signed RSA-2048 PKCS12 upload keystore..."
             keytool -genkeypair -v \
               -storetype PKCS12 \
               -keystore android/app/release.keystore \
-              -alias "${{ secrets.ANDROID_KEY_ALIAS || 'azoververse' }}" \
+              -alias "$ALIAS_VAL" \
               -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'azoververse2026' }}" \
-              -keypass "${{ secrets.ANDROID_KEY_PASSWORD || 'azoververse2026' }}" \
+              -storepass "$SPASS_VAL" \
+              -keypass "$KPASS_VAL" \
               -dname "CN=Mlungiseni Mbhele, OU=AZ Oververse, O=AZ Oververse, L=Durban, ST=KZN, C=ZA"
           fi
           test -s android/app/release.keystore
 
       - name: Build BOTH app-debug.apk and Signed app-release.aab
+        id: build_android
         env:
-          ANDROID_KEYSTORE_PATH: "release.keystore"
-          ANDROID_KEYSTORE_PASSWORD: "${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'azoververse2026' }}"
-          ANDROID_KEY_ALIAS: "${{ secrets.ANDROID_KEY_ALIAS || 'azoververse' }}"
-          ANDROID_KEY_PASSWORD: "${{ secrets.ANDROID_KEY_PASSWORD || 'azoververse2026' }}"
-          ANDROID_VERSION_CODE: "${{ 100 + github.run_number }}"
-          ANDROID_VERSION_NAME: "1.0.0"
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          VERSION_CODE=$((100 + ${GITHUB_RUN_NUMBER:-1}))
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+          export ANDROID_KEYSTORE_PATH="release.keystore"
+          export ANDROID_KEY_ALIAS="${KEY_ALIAS:-azoververse}"
+          export ANDROID_KEYSTORE_PASSWORD="${STORE_PASS:-azoververse2026}"
+          export ANDROID_KEY_PASSWORD="${KEY_PASS:-azoververse2026}"
+          export ANDROID_VERSION_CODE="$VERSION_CODE"
+          export ANDROID_VERSION_NAME="1.0.0"
+
           cd android
           chmod +x gradlew
           ./gradlew :app:assembleDebug :app:bundleRelease -x lint -x lintVitalRelease --stacktrace
@@ -141,13 +160,15 @@ jobs:
 
       - name: Determine Release Tag (v1.0.0)
         id: release_meta
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.release_tag }}" ]; then
-            echo "TAG=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$INPUT_TAG" ]; then
+            echo "TAG=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           else
-            echo "TAG=v1.0.0" >> $GITHUB_OUTPUT
+            echo "TAG=v1.0.0" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish Public GitHub Release v1.0.0 with app-debug.apk & app-release.aab
@@ -164,15 +185,15 @@ jobs:
             **Produced by Mlungiseni Mbhele** • Live Web Platform: [https://az-oververse.ai.studio](https://az-oververse.ai.studio)
 
             ### ⬇️ Direct Public Downloads (`v1.0.0`)
-            - **Direct Install APK (`app-debug.apk`)**: [`https://github.com/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-debug.apk`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-debug.apk)
-            - **Signed Google Play Bundle (`app-release.aab`)**: [`https://github.com/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-release.aab`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-release.aab)
+            - **Direct Install APK (`app-debug.apk`)**: [`${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-debug.apk`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-debug.apk)
+            - **Signed Google Play Bundle (`app-release.aab`)**: [`${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-release.aab`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-release.aab)
 
             ### 📋 Build & Signing Specification
             - **Application ID**: `com.oververse.app`
-            - **Version**: `1.0.0` (Version Code `${{ 100 + github.run_number }}`)
+            - **Version**: `1.0.0` (Version Code `${{ steps.build_android.outputs.VERSION_CODE }}`)
             - **Reading Mode**: Left-to-Right (`LTR`) Manga + AZ Vertical Webtoon
             - **Target / Compile SDK**: API 35 (Android 15 — Google Play Store compliant)
-            - **Toolchain**: JDK 21 (Temurin) • Gradle 9.3.1 • AGP 8.13.0
+            - **Toolchain**: JDK 21 (Temurin) • Gradle 8.11.1 • AGP 8.7.3
             - **Monetization**: Google AdMob & Google Play Billing
             - **Commit**: `${{ github.sha }}`
           files: |

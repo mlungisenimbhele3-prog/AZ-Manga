@@ -2,7 +2,7 @@
   "id": "/",
   "name": "OVERVERSE",
   "short_name": "OVERVERSE",
-  "description": "OVERVERSE: Next-generation manga publishing and reading platform. Enjoy high-speed vertical reader, support creators, and read offline.",
+  "description": "OVERVERSE: Next-generation manga publishing and reading platform. Read Left-to-Right manga chapters offline, support creators, and publish originals.",
   "package_name": "com.oververse.app",
   "start_url": "/",
   "scope": "/",
@@ -35,7 +35,13 @@
       "purpose": "any"
     },
     {
-      "src": "/pwa-512x512.png",
+      "src": "/pwa-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -47,21 +53,21 @@
       "short_name": "Favorites",
       "description": "View your saved manga collection",
       "url": "/?filter=favorites",
-      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Creator Studio",
       "short_name": "Publish",
       "description": "Upload new manga chapters & view earnings",
       "url": "/?action=creator_dashboard",
-      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "MOTY Awards '26",
+      "name": "MOTY Awards",
       "short_name": "Awards",
       "description": "View Manga of the Year winners",
       "url": "/?action=awards",
-      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

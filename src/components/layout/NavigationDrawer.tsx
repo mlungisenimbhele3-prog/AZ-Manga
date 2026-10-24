@@ -33,6 +33,7 @@ import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { SubscriptionTier, UserSubscription } from '../../types';
 import { getReadingStreak, ReadingStreakData, getWeeklyStreakDays } from '../../utils/readingStreak';
 import { isUserApprovedMangaka, getMangakaApplicationByEmail } from '../../utils/mangakaManager';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface NavigationDrawerProps {
   isOpen: boolean;
@@ -55,6 +56,7 @@ interface NavigationDrawerProps {
   onOpenSecurityDefense?: () => void;
   onOpenFcmNotifications?: () => void;
   onOpenWebViewerModal?: () => void;
+  onOpenStoreModal?: () => void;
   performanceTier?: string;
   isOledMode?: boolean;
   toggleOledMode?: () => void;
@@ -87,6 +89,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   onOpenSecurityDefense,
   onOpenFcmNotifications,
   onOpenWebViewerModal,
+  onOpenStoreModal,
   performanceTier = 'balanced',
   isOledMode,
   toggleOledMode,
@@ -916,10 +919,37 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 </button>
               )}
 
+              {/* Install OVERVERSE PWA & Google Play TWA Hub */}
+              <PWAInstallButton
+                fullWidth
+                alwaysShowInMenu
+                onOpenStoreModal={() => {
+                  onClose();
+                  onOpenStoreModal?.();
+                }}
+              />
+
+              {onOpenStoreModal && (
+                <button
+                  id="drawer-pwa-store-hub-btn"
+                  onClick={() => {
+                    onClose();
+                    onOpenStoreModal();
+                  }}
+                  className="min-h-[44px] w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-cyan-500/30 text-xs text-cyan-300 hover:text-white hover:border-cyan-400 hover:bg-cyan-950/20 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <span>OVERVERSE PWA &amp; Play Store Hub</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-cyan-300">com.oververse.app</span>
+                </button>
+              )}
+
               {/* GitHub Release v1.0.0 Public Assets: app-debug.apk & app-release.aab */}
               <a
                 id="drawer-github-apk-link"
-                href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-debug.apk"
+                href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-debug.apk"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="min-h-[44px] w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-emerald-500/30 text-xs text-emerald-300 hover:text-white hover:border-emerald-400 hover:bg-emerald-950/20 transition"
@@ -935,7 +965,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
 
               <a
                 id="drawer-github-repo-link"
-                href="https://github.com/mlungisenimbhele3-prog/AZ-Manga/releases/download/v1.0.0/app-release.aab"
+                href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-release.aab"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="min-h-[44px] w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-cyan-500/30 text-xs text-cyan-300 hover:text-white hover:border-cyan-400 hover:bg-cyan-950/20 transition"

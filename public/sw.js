@@ -1,59 +1,52 @@
-// OVERVERSE Progressive Web App Service Worker
-const CACHE_NAME = 'oververse-v4';
+// OVERVERSE Progressive Web App Service Worker (Fallback / Static Reference)
+const CACHE_NAME = 'oververse-pwa-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/manifest.webmanifest',
   '/favicon.png',
   '/icon.svg',
   '/pwa-192x192.png',
   '/pwa-512x512.png',
+  '/pwa-maskable-192x192.png',
+  '/pwa-maskable-512x512.png',
   '/apple-touch-icon.png',
   '/master-logo.png'
 ];
 
-// Install: Pre-cache core app shell assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[SW] Core precache partial warning:', err);
-      });
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll(STATIC_ASSETS).catch((err) => {
+        console.warn('[OVERVERSE SW] Precache partial warning:', err);
+      })
+    )
   );
   self.skipWaiting();
 });
 
-// Activate: Clean up older cache versions and claim clients
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => {
-            console.log('[SW] Removing old cache:', key);
-            return caches.delete(key);
-          })
-      );
-    }).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== CACHE_NAME && !key.startsWith('workbox-'))
+            .map((key) => caches.delete(key))
+        )
+      )
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetch: Strategy depending on request type
 self.addEventListener('fetch', (event) => {
   const request = event.request;
-
-  // Only handle GET requests
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-
-  // Only handle standard http/https requests
   if (!url.protocol.startsWith('http')) return;
 
-  // 1. Skip caching for Vite dev/virtual modules (/@*), Service Worker scripts, and live backend APIs
   if (
     url.hostname.includes('firestore.googleapis.com') ||
     url.hostname.includes('identitytoolkit.googleapis.com') ||
@@ -66,83 +59,84 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/@') ||
     url.pathname.startsWith('/__vite') ||
     url.pathname.startsWith('/src/') ||
-    url.pathname.startsWith('/node_modules/') ||
-    url.searchParams.has('import') ||
-    url.searchParams.has('t')
+    url.pathname.startsWith('/node_modules/')
   ) {
     return;
   }
 
-  // 2. Google Fonts & Static CDN assets: Cache-First
-  if (url.hostname.includes('fonts.googleapis.com') ||
-      url.hostname.includes('fonts.gstatic.com')) {
+  // Google Fonts: Cache-First
+  if (
+    url.hostname.includes('fonts.googleapis.com') ||
+    url.hostname.includes('fonts.gstatic.com')
+  ) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
-        return fetch(request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        return fetch(request).then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
-          return networkResponse;
+          return response;
         });
       })
     );
     return;
   }
 
-  // 3. Images (Unsplash, local media): Stale-While-Revalidate
-  if (request.destination === 'image' || url.pathname.match(/\.(png|jpg|jpeg|svg|webp|gif|ico)$/i)) {
+  // Manga covers, chapter pages, and icons: Stale-While-Revalidate
+  if (
+    request.destination === 'image' ||
+    /\.(png|jpg|jpeg|svg|webp|gif|ico)$/i.test(url.pathname)
+  ) {
     event.respondWith(
       caches.match(request).then((cached) => {
-        const fetchPromise = fetch(request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              const clone = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        const networkFetch = fetch(request)
+          .then((response) => {
+            if (response && response.status === 200) {
+              const copy = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
             }
-            return networkResponse;
+            return response;
           })
           .catch(() => cached);
-        return cached || fetchPromise;
+        return cached || networkFetch;
       })
     );
     return;
   }
 
-  // 4. HTML Navigation requests: Network-First with Cache Fallback
+  // App navigation: Network-First with offline shell fallback
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
-          return networkResponse;
+          return response;
         })
-        .catch(() => {
-          return caches.match(request).then((cached) => {
-            return cached || caches.match('/index.html');
-          });
-        })
+        .catch(() =>
+          caches.match(request).then((cached) => cached || caches.match('/index.html'))
+        )
     );
     return;
   }
 
-  // 5. Default: Stale-While-Revalidate
+  // Static scripts, styles, and manifest: Stale-While-Revalidate
   event.respondWith(
     caches.match(request).then((cached) => {
-      const fetchPromise = fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+      const networkFetch = fetch(request)
+        .then((response) => {
+          if (response && (response.status === 200 || response.type === 'opaque')) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
-          return networkResponse;
+          return response;
         })
         .catch(() => cached);
-      return cached || fetchPromise;
+      return cached || networkFetch;
     })
   );
 });
