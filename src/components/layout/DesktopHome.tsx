@@ -1,6 +1,8 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import { Manga } from '../../types';
 import { MangaCard } from '../manga/MangaCard';
+import { MangaGrid } from '../manga/MangaGrid';
 import { MangaCoverImage } from '../common/MangaCoverImage';
 import { SouthAfricaFlameLogo } from '../common/SouthAfricaFlameLogo';
 import { RecommendationsTray } from '../recommendations/RecommendationsTray';
@@ -468,9 +470,33 @@ export const DesktopHome: React.FC<DesktopHomeProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="flex items-stretch gap-4 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-amber-500/30 overscroll-x-contain smooth-scroll-container">
+                <motion.div
+                  key={`desktop-orig-track-${selectedFilter}-${searchQuery}`}
+                  initial="hidden"
+                  animate="visible"
+                  variants={{
+                    hidden: { opacity: 0 },
+                    visible: {
+                      opacity: 1,
+                      transition: { staggerChildren: 0.05, delayChildren: 0.02 },
+                    },
+                  }}
+                  className="flex items-stretch gap-4 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-amber-500/30 overscroll-x-contain smooth-scroll-container"
+                >
                   {originalSeries.map((manga, idx) => (
-                    <div key={`desktop-orig-${manga.id}-${idx}`} className="w-56 shrink-0">
+                    <motion.div
+                      key={`desktop-orig-${manga.id}-${idx}`}
+                      variants={{
+                        hidden: { opacity: 0, y: 18, scale: 0.96 },
+                        visible: {
+                          opacity: 1,
+                          y: 0,
+                          scale: 1,
+                          transition: { duration: 0.32, ease: [0.16, 1, 0.3, 1] },
+                        },
+                      }}
+                      className="w-56 shrink-0"
+                    >
                       <MangaCard
                         manga={manga}
                         isFavorite={favoriteIds.includes(manga.id)}
@@ -478,9 +504,9 @@ export const DesktopHome: React.FC<DesktopHomeProps> = ({
                         onSelect={onSelectDetailManga}
                         onOpenAiReport={(_e, m) => onOpenAiReport?.(m)}
                       />
-                    </div>
+                    </motion.div>
                   ))}
-                </div>
+                </motion.div>
               )}
             </div>
 
@@ -524,35 +550,29 @@ export const DesktopHome: React.FC<DesktopHomeProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 gap-4">
-                  {canvasSeries.map((manga, idx) => (
-                    <MangaCard
-                      key={`desktop-canvas-${manga.id}-${idx}`}
-                      manga={manga}
-                      isFavorite={favoriteIds.includes(manga.id)}
-                      onToggleFavorite={(_e, id) => onToggleFavorite(id)}
-                      onSelect={onSelectDetailManga}
-                      onOpenAiReport={(_e, m) => onOpenAiReport?.(m)}
-                    />
-                  ))}
-                </div>
+                <MangaGrid
+                  mangaList={canvasSeries}
+                  favoriteIds={favoriteIds}
+                  onToggleFavorite={onToggleFavorite}
+                  onSelect={onSelectDetailManga}
+                  onOpenAiReport={onOpenAiReport}
+                  columns={4}
+                  filterKey={`desktop-backdrop-${selectedFilter}-${searchQuery}`}
+                />
               )}
             </div>
           </div>
         ) : (
           /* Filtered or Search View: Standard 4-column Grid */
-          <div className="grid grid-cols-4 gap-4">
-            {filteredManga.map((manga, idx) => (
-              <MangaCard
-                key={`desktop-filtered-${manga.id}-${idx}`}
-                manga={manga}
-                isFavorite={favoriteIds.includes(manga.id)}
-                onToggleFavorite={(_e, id) => onToggleFavorite(id)}
-                onSelect={onSelectDetailManga}
-                onOpenAiReport={(_e, m) => onOpenAiReport?.(m)}
-              />
-            ))}
-          </div>
+          <MangaGrid
+            mangaList={filteredManga}
+            favoriteIds={favoriteIds}
+            onToggleFavorite={onToggleFavorite}
+            onSelect={onSelectDetailManga}
+            onOpenAiReport={onOpenAiReport}
+            columns={4}
+            filterKey={`desktop-filtered-${selectedFilter}-${searchQuery}`}
+          />
         )}
 
         {/* Creator 70% Revenue Share Banner */}

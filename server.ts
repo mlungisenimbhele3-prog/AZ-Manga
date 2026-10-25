@@ -21,17 +21,29 @@ async function startServer() {
     next();
   });
 
-  // DEFENSE 3: Body parsing limit (Supports cover uploads)
+  // DEFENSE 3: Body parsing limit (Supports cover uploads) + graceful malformed JSON shield
   app.use(express.json({ limit: '10mb' }));
-  
-  // Serve public/covers directory statically
+  app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err && err.type === 'entity.parse.failed') {
+      return res.status(400).json({ error: 'Invalid JSON request payload' });
+    }
+    return next(err);
+  });
+
+  // Serve public/covers directory statically with caching
   const coversStaticPath = path.join(process.cwd(), 'public', 'covers');
-  app.use('/covers', express.static(coversStaticPath));
-  
+  app.use(
+    '/covers',
+    express.static(coversStaticPath, {
+      maxAge: '7d',
+      etag: true,
+    })
+  );
+
   // Rate limiting with IPv6 subnet handling and proxy normalization
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    max: 150, // limit each IP per windowMs
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => {
@@ -57,7 +69,11 @@ async function startServer() {
 
   const PORT = 3000;
 
-  // API routes
+  // Lightweight health check endpoint
+  app.get('/api/health', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ status: 'ok', timestamp: Date.now() });
+  });
 
   // Upload Cover Image endpoint (persists in public/covers and returns real https URL)
   app.post("/api/upload-cover", async (req, res) => {
@@ -82,7 +98,7 @@ async function startServer() {
       }
       
       const filePath = path.join(coversDir, safeFileName);
-      fs.writeFileSync(filePath, buffer);
+      await fs.promises.writeFile(filePath, buffer);
 
       // Return a real absolute HTTPS URL
       const host = req.get('host') || 'localhost:3000';
@@ -108,8 +124,6 @@ async function startServer() {
     }
   });
 
-
-
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -119,8 +133,27 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.use(
+      express.static(distPath, {
+        etag: true,
+        setHeaders: (res, filePath) => {
+          const normalized = filePath.replace(/\\/g, '/');
+          if (normalized.includes('/assets/')) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else if (
+            normalized.endsWith('/sw.js') ||
+            normalized.endsWith('/manifest.json') ||
+            normalized.endsWith('/index.html')
+          ) {
+            res.setHeader('Cache-Control', 'no-cache');
+          } else {
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+          }
+        },
+      })
+    );
+    app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, Smartphone, Apple, Share, X } from 'lucide-react';
+import { Download, Apple, Share, X } from 'lucide-react';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 
 export interface PWAInstallButtonProps {
   onOpenStoreModal?: () => void;
@@ -65,8 +66,12 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                     <X className="w-4 h-4" />
                   </button>
 
-                  <div className="flex items-center gap-2.5 mb-3 pr-8">
-                    <Smartphone className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <div className="flex items-center gap-3 mb-3 pr-8">
+                    <img
+                      src={APP_LOGO_SRC}
+                      alt="AZ OVERVERSE"
+                      className="h-9 w-9 rounded-xl object-cover border border-slate-700 shrink-0"
+                    />
                     <h3 className="text-base font-bold text-white">Install OVERVERSE</h3>
                   </div>
 
@@ -105,9 +110,18 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                     <X className="w-4 h-4" />
                   </button>
 
-                  <div className="flex items-center gap-2.5 mb-3 pr-8">
-                    <Apple className="w-5 h-5 text-amber-400 shrink-0" />
-                    <h3 className="text-base font-bold text-white">Install on iPhone / iPad</h3>
+                  <div className="flex items-center gap-3 mb-3 pr-8">
+                    <img
+                      src={APP_LOGO_SRC}
+                      alt="AZ OVERVERSE"
+                      className="h-9 w-9 rounded-xl object-cover border border-slate-700 shrink-0"
+                    />
+                    <div>
+                      <h3 className="text-base font-bold text-white">Install on iPhone / iPad</h3>
+                      <span className="text-[11px] text-amber-400 inline-flex items-center gap-1">
+                        <Apple className="w-3 h-3" /> Safari Home Screen
+                      </span>
+                    </div>
                   </div>
 
                   <p className="text-xs text-slate-300 leading-relaxed space-y-2">

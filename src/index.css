@@ -23,6 +23,16 @@ button, a, input, select, textarea {
   touch-action: manipulation;
 }
 
+/* Accessible & Visible Keyboard Focus Rings */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(251, 191, 36, 0.85);
+  outline-offset: 2px;
+}
+
 /* Smooth Momentum Scrolling Across All Containers */
 .overflow-y-auto,
 .overflow-x-auto,
@@ -31,9 +41,8 @@ button, a, input, select, textarea {
   overscroll-behavior: contain;
 }
 
-/* Smooth GPU accelerated rendering without memory blowout on low-end phones */
+/* Clean image rendering without CLS from unscoped content-visibility */
 img {
-  content-visibility: auto;
   image-rendering: auto;
 }
 
@@ -60,48 +69,44 @@ img {
   background: rgba(245, 158, 11, 0.8);
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* 120Hz / High-Refresh ProMotion Fluid Scroll Physics */
 .smooth-scroll-container,
 .fluid-scroller {
-  scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  will-change: scroll-position;
 }
 
-/* Hardware Acceleration Layer for Ultra/High End devices */
+/* Scoped Hardware Acceleration Layer (applied selectively, never to universal *) */
 .gpu-layer {
   transform: translate3d(0, 0, 0);
-  -webkit-transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  perspective: 1000px;
 }
 
-/* Fast Rendering & Virtual Containment for Manga Grids & Pages */
+/* Fast Rendering & Scoped Virtual Containment for Manga Grids & Pages */
 .manga-grid-item {
-  contain: layout style paint;
+  contain: layout style;
   content-visibility: auto;
-  contain-intrinsic-size: 320px;
+  contain-intrinsic-size: auto 340px;
 }
 
 .manga-page-container {
   contain: layout paint;
   content-visibility: auto;
-  contain-intrinsic-size: 680px;
+  contain-intrinsic-size: auto 680px;
 }
 
-/* HIGH-END / ULTRA 120Hz ANDROID EXPERIENCE */
+/* HIGH-END / ULTRA 120Hz EXPERIENCE */
 html.tier-ultra,
 html.tier-high {
-  scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
-}
-
-html.tier-ultra .smooth-scroll-container,
-html.tier-high .smooth-scroll-container {
-  will-change: transform, scroll-position;
-  transform: translateZ(0);
 }
 
 /* Dynamic Viewport Height Support (100dvh for mobile address bar resilience) */
@@ -125,7 +130,6 @@ html.tier-high .smooth-scroll-container {
 }
 
 /* LITE SAVER MODE (Low-End Phone / Budget Mali-Adreno GPU / Low RAM) */
-/* Disables GPU-crushing backdrop-blur filters, heavy box-shadows, and VRAM compositing bloat */
 html.lite-mode-active .backdrop-blur-md,
 html.lite-mode-active .backdrop-blur-sm,
 html.lite-mode-active .backdrop-blur-lg,
@@ -140,12 +144,9 @@ html.lite-mode-active .shadow-xl {
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4) !important;
 }
 
-/* Inhibit VRAM texture blowout on low-end budget GPUs (Mali-400/G52, Adreno 505) */
 html.lite-mode-active .gpu-layer {
   transform: none !important;
-  -webkit-transform: none !important;
   backface-visibility: visible !important;
-  perspective: none !important;
 }
 
 html.lite-mode-active * {
@@ -154,11 +155,20 @@ html.lite-mode-active * {
   transition-duration: 0.01ms !important;
 }
 
-/* Responsive animations with hardware compositor */
+/* Compositor-only entrance animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes fadeInScale {
   from {
     opacity: 0;
-    transform: scale(0.96) translate3d(0, 4px, 0);
+    transform: scale(0.97) translate3d(0, 4px, 0);
   }
   to {
     opacity: 1;
@@ -166,14 +176,43 @@ html.lite-mode-active * {
   }
 }
 
+@keyframes slideRight {
+  from {
+    opacity: 0.85;
+    transform: translate3d(-16px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .animate-fadeInScale {
-  animation: fadeInScale 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeInScale 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slideRight {
+  animation: slideRight 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Respect OS-level Reduced Motion Preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Dual-page tankobon manga container for foldable phones, tablets, and 4K displays */
 .dual-page-spread {
   display: flex;
-  flex-direction: row; /* Left-to-right (LTR) manga spread */
+  flex-direction: row;
   justify-content: center;
   align-items: center;
   width: 100%;
@@ -181,7 +220,7 @@ html.lite-mode-active * {
   margin: 0 auto;
 }
 
-/* WebViewer Component Rules: Uncheck ZoomDisplay & SupportZoom (Stop enlarge/shrink) */
+/* WebViewer Component Rules */
 html.webviewer-hide-zoom-display {
   touch-action: pan-y pinch-zoom;
 }
@@ -190,7 +229,6 @@ html.webviewer-hide-zoom-display input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
 }
 
-/* Hide on-screen zoom displays and buttons when ZoomDisplay is Unchecked */
 .webviewer-hide-zoom-display .webviewer-zoom-control,
 .webviewer-hide-zoom-display .zoom-display-badge {
   display: none !important;
@@ -198,7 +236,7 @@ html.webviewer-hide-zoom-display input[type="range"]::-webkit-slider-thumb {
 
 /* Enforce Wide ViewPort without horizontal overflow */
 body {
-  width: 100vw;
+  width: 100%;
   max-width: 100%;
   overflow-x: hidden;
 }
@@ -232,9 +270,6 @@ html.theme-light {
   color: #0f172a !important;
 }
 
-/* -------------------------------------------------------------
-   DEVICE PERFORMANCE & STABILITY OPTIMIZATIONS
-   ------------------------------------------------------------- */
 /* Lower-end Devices: eliminate GPU memory stalls & composite overhead */
 .tier-lite-saver,
 html.lite-mode-active {
@@ -249,18 +284,3 @@ html.lite-mode-active * {
   text-shadow: none !important;
   will-change: auto !important;
 }
-
-/* Higher-end Devices: 120Hz / 90Hz hardware composite layer acceleration */
-.tier-ultra *,
-.tier-high * {
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.tier-ultra .manga-page-img,
-.tier-high .manga-page-img {
-  transform: translateZ(0);
-  will-change: transform;
-}
-
-

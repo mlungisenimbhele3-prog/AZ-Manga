@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Manga, Chapter } from '../types';
-import { INITIAL_MANGA_LIST } from '../data/mockData';
+import { INITIAL_MANGA_LIST, NKOSI_COVER_SRC } from '../data/mockData';
 import { safeStorage } from '../utils/safeStorage';
 
 // Supabase configuration from environment variables or safe defaults
@@ -14,12 +14,12 @@ export const isSupabaseLiveConfigured = Boolean(
   !import.meta?.env?.VITE_SUPABASE_URL.includes('kaplus-pulse.supabase.co')
 );
 
-// Initialize Supabase Client
+// Initialize Supabase Client (only run background token timers when live credentials are configured)
 export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
+    persistSession: isSupabaseLiveConfigured,
+    autoRefreshToken: isSupabaseLiveConfigured,
+    detectSessionInUrl: isSupabaseLiveConfigured,
   },
 });
 
@@ -54,11 +54,31 @@ function getLocalFallbackMangas(): Manga[] {
   const cached = safeStorage.getJSON<Manga[] | null>(LOCAL_STORAGE_MANGAS_KEY, null);
   if (cached && Array.isArray(cached) && cached.length > 0) {
     const hasAllNewCovers =
-      cached.some((m) => m.id === 'nkosi-the-tale-of-myths' && m.coverImage?.includes('857872877_1452459446839395')) &&
+      cached.some((m) => m.id === 'nkosi-the-tale-of-myths' && m.coverImage?.includes('862620681_1304598868406485')) &&
       cached.some((m) => m.id === 'last-shaman-of-zambezi' && m.coverImage?.includes('862516203_2025904894785875')) &&
       cached.some((m) => m.id === 'echoes-of-the-highveld' && m.coverImage?.includes('858773050_1090471570458562'));
     if (hasAllNewCovers) {
       return cached;
+    }
+    // Preserve any user-uploaded mangas while refreshing Nkosi's cover photo
+    const refreshed = cached.map((m) =>
+      m.id === 'nkosi-the-tale-of-myths'
+        ? {
+            ...m,
+            cover: NKOSI_COVER_SRC,
+            coverImage: NKOSI_COVER_SRC,
+            coverUrl: NKOSI_COVER_SRC,
+            bannerImage: NKOSI_COVER_SRC,
+          }
+        : m
+    );
+    const hasCoreSeries =
+      refreshed.some((m) => m.id === 'nkosi-the-tale-of-myths') &&
+      refreshed.some((m) => m.id === 'last-shaman-of-zambezi') &&
+      refreshed.some((m) => m.id === 'echoes-of-the-highveld');
+    if (hasCoreSeries) {
+      safeStorage.setJSON(LOCAL_STORAGE_MANGAS_KEY, refreshed);
+      return refreshed;
     }
   }
   safeStorage.setJSON(LOCAL_STORAGE_MANGAS_KEY, INITIAL_MANGA_LIST);
@@ -108,14 +128,20 @@ export async function fetchMangasFromSupabase(): Promise<Manga[]> {
         }, {});
 
         // Map to application Manga interface
-        const mappedMangas: Manga[] = mangasData.map((row: any) => ({
-          id: row.id,
-          title: row.title,
-          japaneseTitle: row.japanese_title,
-          author: row.author,
-          artist: row.artist,
-          coverImage: row.cover_image,
-          bannerImage: row.banner_image,
+        const mappedMangas: Manga[] = mangasData.map((row: any) => {
+          const isNkosi = row.id === 'nkosi-the-tale-of-myths';
+          const resolvedCover = isNkosi ? NKOSI_COVER_SRC : row.cover_image;
+          const resolvedBanner = isNkosi ? NKOSI_COVER_SRC : row.banner_image;
+          return {
+            id: row.id,
+            title: row.title,
+            japaneseTitle: row.japanese_title,
+            author: row.author,
+            artist: row.artist,
+            cover: resolvedCover,
+            coverUrl: resolvedCover,
+            coverImage: resolvedCover,
+            bannerImage: resolvedBanner,
           genres: row.genres || [],
           status: row.status,
           synopsis: row.synopsis,
@@ -128,9 +154,10 @@ export async function fetchMangasFromSupabase(): Promise<Manga[]> {
           weeklyRank: row.weekly_rank,
           isAiGenerated: row.is_ai_generated,
           aiConfidenceScore: row.ai_confidence_score,
-          isBanned: row.is_banned,
-          banReason: row.ban_reason,
-        }));
+            isBanned: row.is_banned,
+            banReason: row.ban_reason,
+          };
+        });
 
         // Cache locally for offline resiliency
         safeStorage.setJSON(LOCAL_STORAGE_MANGAS_KEY, mappedMangas);

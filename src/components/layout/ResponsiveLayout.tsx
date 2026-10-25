@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 
 export interface ResponsiveLayoutProps {
   mobileView: ReactNode;
@@ -7,25 +7,34 @@ export interface ResponsiveLayoutProps {
 }
 
 /**
- * ResponsiveLayout switches between mobileView and desktopView
- * based on the 800px breakpoint.
- * - Width > 800px: Desktop Shonen Jump magazine layout (Sidebar + 4-col Manga Grid + Right Featured Banner)
- * - Width <= 800px: Mobile phone layout with 2-col Manga Grid and Bottom Navigation Tabs
+ * ResponsiveLayout renders ONLY the active viewport branch (Desktop > 800px OR Mobile <= 800px)
+ * via matchMedia, cutting home-screen DOM nodes, image decodes, and Framer Motion instances by 50%.
  */
 export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   mobileView,
   desktopView,
+  breakpoint = 800,
 }) => {
-  return (
-    <div className="w-full">
-      {/* Desktop view (> 800px) */}
-      <div className="hidden min-[801px]:block w-full">
-        {desktopView}
-      </div>
-      {/* Mobile phone view (<= 800px) */}
-      <div className="block min-[801px]:hidden w-full">
-        {mobileView}
-      </div>
-    </div>
-  );
+  const [isDesktop, setIsDesktop] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return window.innerWidth > breakpoint;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia(`(min-width: ${breakpoint + 1}px)`);
+    const handleChange = (e: MediaQueryListEvent) => {
+      setIsDesktop(e.matches);
+    };
+
+    setIsDesktop(mql.matches);
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', handleChange);
+      return () => mql.removeEventListener('change', handleChange);
+    }
+    mql.addListener(handleChange);
+    return () => mql.removeListener(handleChange);
+  }, [breakpoint]);
+
+  return <div className="w-full">{isDesktop ? desktopView : mobileView}</div>;
 };

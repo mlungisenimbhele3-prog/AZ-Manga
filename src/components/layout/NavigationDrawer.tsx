@@ -28,7 +28,7 @@ import {
   Settings,
   Layers,
 } from 'lucide-react';
-import { KAAfricaLogo } from '../common/KAAfricaLogo';
+import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { SubscriptionTier, UserSubscription } from '../../types';
 import { getReadingStreak, ReadingStreakData, getWeeklyStreakDays } from '../../utils/readingStreak';
@@ -65,6 +65,7 @@ interface NavigationDrawerProps {
   currentLanguage?: 'en' | 'zu' | 'af';
   setLanguage?: (lang: 'en' | 'zu' | 'af') => void;
   isAdmin?: boolean;
+  isCreator?: boolean;
 }
 
 export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
@@ -75,6 +76,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   userSubscription,
   currentUserEmail = 'mlungisenimbhele3@gmail.com',
   isAdmin: isAdminProp,
+  isCreator = false,
   onOpenProfileModal,
   onOpenPublish,
   onOpenSubscriptionModal,
@@ -181,9 +183,9 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
           <div className="flex items-center gap-3">
             <div className="p-0.5">
               <img
-                src="/master-logo.png"
-                alt="AZ Master Logo"
-                className="w-8 h-8 rounded-full shadow-lg shadow-amber-500/25 object-contain ring-1 ring-amber-400/50"
+                src={APP_LOGO_SRC}
+                alt="AZ OVERVERSE Logo"
+                className="w-9 h-9 rounded-full bg-black shadow-lg shadow-amber-500/25 object-cover ring-1 ring-amber-400/50"
               />
             </div>
             <div>
@@ -540,7 +542,11 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   </div>
                   <div className="text-left">
                     <span className="text-sm font-semibold">Creator Studio</span>
-                    <p className="text-[11px] text-slate-400">My Earnings, Reads & 70% Ad Splits</p>
+                    <p className="text-[11px] text-slate-400">
+                      {isCreator
+                        ? 'My Earnings, Uploads & Studio Workspace'
+                        : 'Creator Account Required · Sign In or Create'}
+                    </p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition" />
@@ -626,12 +632,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 <BookOpen className="w-3.5 h-3.5 text-amber-400" />
                 <span>Mangaka & Creator Mode</span>
               </span>
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
-                isApprovedMangaka
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-              }`}>
-                {isApprovedMangaka ? 'Verified Creator' : 'Reader Account'}
+              <span className="text-[10px] font-medium text-slate-400">
+                {isCreator ? 'Creator Account Active' : 'Creator Account Required'}
               </span>
             </div>
 
@@ -668,8 +670,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             )}
 
             <div className="space-y-1.5">
-              {/* Mangaka Dashboard or Apply */}
-              {isApprovedMangaka ? (
+              {/* Mangaka Dashboard or Create Creator Account */}
+              {isCreator ? (
                 <button
                   id="drawer-mangaka-dashboard-btn"
                   onClick={() => {
@@ -684,18 +686,16 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     </div>
                     <div>
                       <div className="text-sm font-black text-white">Mangaka Dashboard</div>
-                      <p className="text-[11px] text-slate-300">My Mangas, Views & 70% ZAR Splits</p>
+                      <p className="text-[11px] text-slate-300">My Mangas, Views &amp; Royalties</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-amber-400 group-hover:translate-x-0.5 transition" />
                 </button>
               ) : (
-                <button
-                  id="drawer-apply-mangaka-btn"
-                  onClick={() => {
-                    onClose();
-                    onOpenApplyMangaka?.();
-                  }}
+                <a
+                  id="drawer-create-creator-account-btn"
+                  href="/#creators"
+                  onClick={(e) => handleLinkClick(e, 'creators')}
                   className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500/20 via-slate-900 to-amber-500/10 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 transition group text-left"
                 >
                   <div className="flex items-center gap-3">
@@ -703,16 +703,16 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       <Sparkles className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="text-sm font-black text-white">Become a Mangaka</div>
-                      <p className="text-[11px] text-slate-300">Apply with Name, Bio & ID Photo</p>
+                      <div className="text-sm font-black text-white">Create Creator Account</div>
+                      <p className="text-[11px] text-slate-300">Required to open Studio &amp; publish</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-amber-400 group-hover:translate-x-0.5 transition" />
-                </button>
+                </a>
               )}
 
-              {/* Upload Manga Button (For approved mangakas) */}
-              {isApprovedMangaka && onOpenPublish && (
+              {/* Upload Manga Button (Only when Creator Account is active) */}
+              {isCreator && onOpenPublish && (
                 <button
                   id="drawer-upload-manga-btn"
                   onClick={() => {
@@ -722,7 +722,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:opacity-95 text-black font-black text-xs transition shadow"
                 >
                   <UploadCloud className="w-4 h-4 stroke-[2.5]" />
-                  <span>+ UPLOAD MANGA (Chapter 1)</span>
+                  <span>Upload Manga (Chapter 1)</span>
                 </button>
               )}
 

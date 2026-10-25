@@ -230,9 +230,8 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
           {processedSeries.map((manga, idx) => {
             const isComingSoon = isMangaComingSoon(manga);
-            // Estimated earnings preview in ZAR
-            const earningsUSD = (manga.views || 0) * 0.0042;
-            const earningsZAR = earningsUSD * USD_TO_ZAR_RATE;
+            // Earnings reduced to R0
+            const earningsZAR = 0;
 
             return (
               <div
@@ -298,8 +297,8 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
                   <div className="rounded-xl bg-slate-950/90 border border-slate-800 p-2.5 flex items-center justify-between">
                     <div>
                       <span className="text-[10px] text-slate-400 font-semibold block">Earnings Preview</span>
-                      <span className="font-mono text-xs font-black text-emerald-400">
-                        R{earningsZAR.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ZAR
+                      <span className="font-mono tabular-nums text-xs font-black text-emerald-400">
+                        R{earningsZAR}
                       </span>
                     </div>
                     <span className="text-[9px] text-slate-500 font-bold bg-slate-900 px-1.5 py-0.5 rounded">

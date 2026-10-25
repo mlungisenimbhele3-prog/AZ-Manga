@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue, useRef, Suspense, lazy } from 'react';
 import {
   Manga,
   Chapter,
@@ -17,44 +17,25 @@ import {
   ADS_DATABASE,
   MOTY_CATEGORIES,
   INITIAL_COMMENTS,
+  NKOSI_COVER_SRC,
 } from './data/mockData';
 import { motion, AnimatePresence } from 'motion/react';
-import { ReaderView } from './components/reader/ReaderView';
 import { Navbar } from './components/layout/Navbar';
-import { MangaCard } from './components/manga/MangaCard';
-import { MangaGrid } from './components/manga/MangaGrid';
-import { MangaDetailModal } from './components/manga/MangaDetailModal';
-import { MangaReader } from './components/reader/MangaReader';
-import { SubscriptionModal } from './components/subscription/SubscriptionModal';
-import { PublishModal } from './components/publisher/PublishModal';
-import { CreatorDashboardModal } from './components/publisher/CreatorDashboardModal';
-import { InterstitialAdModal } from './components/ads/InterstitialAdModal';
-import { RewardedAdModal } from './components/ads/RewardedAdModal';
-import { AppOpenAdModal } from './components/ads/AppOpenAdModal';
-import { AdBanner } from './components/ads/AdBanner';
 import { AdMobBanner } from './components/ads/AdMobBanner';
-import { MangaOfTheYearAwardsModal } from './components/awards/MangaOfTheYearAwardsModal';
-import { MangaOfTheYearShowcase } from './components/awards/MangaOfTheYearShowcase';
-import { MangaOfTheYearAwardsPage } from './components/awards/MangaOfTheYearAwardsPage';
 import { ReaderPage } from './components/reader/ReaderPage';
 import { SouthAfricaFlameLogo } from './components/common/SouthAfricaFlameLogo';
-import { GlobalPublishShareModal } from './components/common/GlobalPublishShareModal';
-import { AiReportModal } from './components/modals/AiReportModal';
+import { APP_LOGO_SRC } from './components/common/KAAfricaLogo';
 import { detectAiContent, scanMangaList } from './utils/aiDetector';
 import { BottomNav } from './components/layout/BottomNav';
 import { OfflineIndicator } from './components/layout/OfflineIndicator';
-import { AppStoreModal } from './components/modals/AppStoreModal';
-import { ChatsPage } from './components/chat/ChatsPage';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import { TermsOfService } from './pages/TermsOfService';
-import { SettingsPage } from './pages/SettingsPage';
-import { WalletPage } from './components/wallet/WalletPage';
-import { BackdropPage } from './pages/BackdropPage';
-import { MilestoneCelebrationModal, MILESTONE_CONFIGS, MilestoneCelebrationData } from './components/common/MilestoneCelebrationModal';
-import { CreatorEarningsView } from './components/publisher/CreatorEarningsView';
+import type { MilestoneCelebrationData } from './components/common/MilestoneCelebrationModal';
+import {
+  CreatorAuthState,
+  getCreatorAuthState,
+  subscribeToCreatorAuth,
+  signOutCreatorAccount,
+} from './services/userProfile';
 import { syncOfflineProgressWithServer } from './services/offlineCache';
-import { DevicePerformanceModal } from './components/common/DevicePerformanceModal';
-import { ProductivityCommandPalette } from './components/common/ProductivityCommandPalette';
 import { ResumeReadingBanner, LastReadProgress } from './components/common/ResumeReadingBanner';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { SplashScreen } from './components/splash/SplashScreen';
@@ -78,47 +59,167 @@ import {
   getNotificationsHistory,
   subscribeToMangaChapterDrops,
 } from './services/fcm';
-import {
-  sanitizeInput,
-  validateDatabaseQueryParam,
-  recordChapterPageRead,
-  vaultStore,
-  vaultRetrieve,
-} from './utils/securitySanitizer';
-import { SecurityDefenseModal } from './components/common/SecurityDefenseModal';
-import { FcmNotificationBanner, FcmNotificationsModal } from './components/common/FcmNotificationBanner';
-import { WebViewerModal } from './components/common/WebViewerModal';
-import { UserProfileModal } from './components/common/UserProfileModal';
+import { sanitizeInput } from './utils/securitySanitizer';
+import { FcmNotificationBanner } from './components/common/FcmNotificationBanner';
 import { DailyRewardNotification } from './components/common/DailyRewardNotification';
-import { ApplyAsMangakaModal } from './components/modals/ApplyAsMangakaModal';
-import { MangakaDashboardModal } from './components/publisher/MangakaDashboardModal';
-import { AdminDashboardModal } from './components/publisher/AdminDashboardModal';
 import { isUserApprovedMangaka } from './utils/mangakaManager';
-import { RecommendationModal } from './components/recommendations/RecommendationModal';
 import {
-  getUserTasteProfile,
+  getHydratedUserTasteProfile,
   recordReadingHistoryEvent,
+  syncFavoritesWithTasteProfile,
   UserTasteProfile,
-} from './services/recommendationEngine';
+} from './services/userTasteProfile';
 import { initWebViewer } from './utils/webViewerConfig';
-import {  Sparkles,
+import {
+  Sparkles,
   Flame,
-  Zap,
   BookOpen,
-  ShieldCheck,
-  TrendingUp,
-  Play,
   CheckCircle,
-  HelpCircle,
-  BarChart3,
   Trophy,
-  Award,
   Globe,
-  Heart,
   Bot,
-  ShieldAlert,
   MessageSquare,
+  UploadCloud,
+  LogOut,
+  Lock,
 } from 'lucide-react';
+
+// Lazy-loaded Full-Screen Reader & Secondary Routes (keeps initial Reader home bundle fast & light)
+const ReaderView = lazy(() =>
+  import('./components/reader/ReaderView').then((m) => ({ default: m.ReaderView }))
+);
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsOfService = lazy(() =>
+  import('./pages/TermsOfService').then((m) => ({ default: m.TermsOfService }))
+);
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+);
+const MangaOfTheYearAwardsPage = lazy(() =>
+  import('./components/awards/MangaOfTheYearAwardsPage').then((m) => ({
+    default: m.MangaOfTheYearAwardsPage,
+  }))
+);
+const BackdropPage = lazy(() =>
+  import('./pages/BackdropPage').then((m) => ({ default: m.BackdropPage }))
+);
+const CreatorAccountGate = lazy(() =>
+  import('./components/publisher/CreatorAccountGate').then((m) => ({
+    default: m.CreatorAccountGate,
+  }))
+);
+const CreatorEarningsView = lazy(() =>
+  import('./components/publisher/CreatorEarningsView').then((m) => ({
+    default: m.CreatorEarningsView,
+  }))
+);
+const ChatsPage = lazy(() =>
+  import('./components/chat/ChatsPage').then((m) => ({ default: m.ChatsPage }))
+);
+const WalletPage = lazy(() =>
+  import('./components/wallet/WalletPage').then((m) => ({ default: m.WalletPage }))
+);
+
+// Lazy-loaded Modals (mounted on demand only when opened)
+const MangaDetailModal = lazy(() =>
+  import('./components/manga/MangaDetailModal').then((m) => ({ default: m.MangaDetailModal }))
+);
+const SubscriptionModal = lazy(() =>
+  import('./components/subscription/SubscriptionModal').then((m) => ({
+    default: m.SubscriptionModal,
+  }))
+);
+const PublishModal = lazy(() =>
+  import('./components/publisher/PublishModal').then((m) => ({ default: m.PublishModal }))
+);
+const CreatorDashboardModal = lazy(() =>
+  import('./components/publisher/CreatorDashboardModal').then((m) => ({
+    default: m.CreatorDashboardModal,
+  }))
+);
+const InterstitialAdModal = lazy(() =>
+  import('./components/ads/InterstitialAdModal').then((m) => ({ default: m.InterstitialAdModal }))
+);
+const RewardedAdModal = lazy(() =>
+  import('./components/ads/RewardedAdModal').then((m) => ({ default: m.RewardedAdModal }))
+);
+const AppOpenAdModal = lazy(() =>
+  import('./components/ads/AppOpenAdModal').then((m) => ({ default: m.AppOpenAdModal }))
+);
+const MangaOfTheYearAwardsModal = lazy(() =>
+  import('./components/awards/MangaOfTheYearAwardsModal').then((m) => ({
+    default: m.MangaOfTheYearAwardsModal,
+  }))
+);
+const GlobalPublishShareModal = lazy(() =>
+  import('./components/common/GlobalPublishShareModal').then((m) => ({
+    default: m.GlobalPublishShareModal,
+  }))
+);
+const AiReportModal = lazy(() =>
+  import('./components/modals/AiReportModal').then((m) => ({ default: m.AiReportModal }))
+);
+const AppStoreModal = lazy(() =>
+  import('./components/modals/AppStoreModal').then((m) => ({ default: m.AppStoreModal }))
+);
+const MilestoneCelebrationModal = lazy(() =>
+  import('./components/common/MilestoneCelebrationModal').then((m) => ({
+    default: m.MilestoneCelebrationModal,
+  }))
+);
+const DevicePerformanceModal = lazy(() =>
+  import('./components/common/DevicePerformanceModal').then((m) => ({
+    default: m.DevicePerformanceModal,
+  }))
+);
+const ProductivityCommandPalette = lazy(() =>
+  import('./components/common/ProductivityCommandPalette').then((m) => ({
+    default: m.ProductivityCommandPalette,
+  }))
+);
+const SecurityDefenseModal = lazy(() =>
+  import('./components/common/SecurityDefenseModal').then((m) => ({
+    default: m.SecurityDefenseModal,
+  }))
+);
+const FcmNotificationsModal = lazy(() =>
+  import('./components/common/FcmNotificationBanner').then((m) => ({
+    default: m.FcmNotificationsModal,
+  }))
+);
+const WebViewerModal = lazy(() =>
+  import('./components/common/WebViewerModal').then((m) => ({ default: m.WebViewerModal }))
+);
+const UserProfileModal = lazy(() =>
+  import('./components/common/UserProfileModal').then((m) => ({ default: m.UserProfileModal }))
+);
+const ApplyAsMangakaModal = lazy(() =>
+  import('./components/modals/ApplyAsMangakaModal').then((m) => ({
+    default: m.ApplyAsMangakaModal,
+  }))
+);
+const MangakaDashboardModal = lazy(() =>
+  import('./components/publisher/MangakaDashboardModal').then((m) => ({
+    default: m.MangakaDashboardModal,
+  }))
+);
+const AdminDashboardModal = lazy(() =>
+  import('./components/publisher/AdminDashboardModal').then((m) => ({
+    default: m.AdminDashboardModal,
+  }))
+);
+const RecommendationModal = lazy(() =>
+  import('./components/recommendations/RecommendationModal').then((m) => ({
+    default: m.RecommendationModal,
+  }))
+);
+
+const RouteLoadingFallback: React.FC = () => (
+  <div className="mx-auto max-w-2xl py-16 px-4 flex flex-col items-center justify-center gap-3 text-center">
+    <div className="h-7 w-7 rounded-full border-2 border-amber-500/30 border-t-amber-400 animate-spin" />
+    <span className="text-xs font-medium text-slate-400 tracking-wide">Loading view...</span>
+  </div>
+);
 
 // Clear legacy manga cache keys as strictly instructed by User
 try {
@@ -126,11 +227,13 @@ try {
   localStorage.removeItem('ka_plus_manga');
   localStorage.removeItem('ka_africa_manga_list');
   localStorage.removeItem('ka_pulse_supabase_mangas_cache');
+  localStorage.removeItem('ka_pulse_creator_coin_payouts_zar');
+  localStorage.removeItem('ka_pulse_coin_unlocks');
   const cachedStr = localStorage.getItem('az_oververse_mangas_cache');
   if (
     cachedStr &&
     (!cachedStr.includes('nkosi-the-tale-of-myths') ||
-      !cachedStr.includes('857872877_1452459446839395') ||
+      !cachedStr.includes('862620681_1304598868406485') ||
       !cachedStr.includes('862516203_2025904894785875') ||
       !cachedStr.includes('858773050_1090471570458562'))
   ) {
@@ -146,7 +249,7 @@ const DEFAULT_ADMOB_REWARDED_AD: AdData = {
   ctaText: 'Continue',
   tagline: 'Google AdMob Rewarded',
   badge: 'AdMob',
-  imageUrl: '/pwa-512x512.png',
+  imageUrl: APP_LOGO_SRC,
   accentColor: 'amber',
 };
 
@@ -169,10 +272,32 @@ export default function App() {
   const currentUser = { email: currentUserEmail };
   const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
 
-  const handleSwitchUserEmail = (email: string) => {
+  const handleSwitchUserEmail = useCallback((email: string) => {
     setCurrentUserEmail(email);
-    localStorage.setItem('ka_africa_user_email', email);
-  };
+    try {
+      localStorage.setItem('ka_africa_user_email', email);
+    } catch {}
+  }, []);
+
+  const [creatorAuthState, setCreatorAuthState] = useState<CreatorAuthState>(() =>
+    getCreatorAuthState()
+  );
+
+  React.useEffect(() => {
+    const unsubscribe = subscribeToCreatorAuth((nextState) => {
+      setCreatorAuthState(nextState);
+      if (nextState.firebaseUser?.email) {
+        setCurrentUserEmail(nextState.firebaseUser.email);
+        try {
+          localStorage.setItem('ka_africa_user_email', nextState.firebaseUser.email);
+        } catch {}
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const hasCreatorAccount = creatorAuthState.hasCreatorAccount;
+  const isCreator = hasCreatorAccount;
 
   const [syncToastMessage, setSyncToastMessage] = useState<string | null>(null);
 
@@ -185,12 +310,12 @@ export default function App() {
     }
   });
 
-  const handleFinishSplash = () => {
+  const handleFinishSplash = useCallback(() => {
     try {
       sessionStorage.setItem('az_splash_dismissed', 'true');
     } catch {}
     setShowSplash(false);
-  };
+  }, []);
 
   React.useEffect(() => {
     const handleOnline = async () => {
@@ -249,64 +374,102 @@ export default function App() {
     return ['manga-1', 'manga-3'];
   });
 
+  const mangaListRef = useRef<Manga[]>(mangaList);
+  mangaListRef.current = mangaList;
+
   // Supabase Core Relational Data Initialization (Mangas, Chapters, User Libraries)
   React.useEffect(() => {
-    // 1. Fetch core mangas & chapters from Supabase (relational engine)
+    let isMounted = true;
+    // 1. Fetch core mangas & chapters from Supabase (skip state update if identical to initial list)
     fetchMangasFromSupabase().then((supaMangas) => {
-      if (supaMangas && supaMangas.length > 0) {
-        setMangaList(supaMangas);
-      }
+      if (!isMounted || !supaMangas || supaMangas.length === 0) return;
+      setMangaList((prev) => {
+        if (
+          prev.length === supaMangas.length &&
+          prev.every(
+            (m, i) =>
+              m.id === supaMangas[i]?.id &&
+              m.coverImage === supaMangas[i]?.coverImage &&
+              m.chapters.length === supaMangas[i]?.chapters.length
+          )
+        ) {
+          return prev;
+        }
+        return supaMangas;
+      });
     });
 
     // 2. Fetch User Library from Supabase
     fetchUserLibraryFromSupabase(currentUserEmail).then((libraryRecords) => {
-      if (libraryRecords && libraryRecords.length > 0) {
-        const favIds = libraryRecords.filter((r) => r.isFavorite).map((r) => r.mangaId);
-        if (favIds.length > 0) {
-          setFavoriteIds(favIds);
-        }
+      if (!isMounted || !libraryRecords || libraryRecords.length === 0) return;
+      const favIds = libraryRecords.filter((r) => r.isFavorite).map((r) => r.mangaId);
+      if (favIds.length > 0) {
+        setFavoriteIds((prev) => {
+          if (prev.length === favIds.length && prev.every((id, i) => id === favIds[i])) {
+            return prev;
+          }
+          return favIds;
+        });
       }
     });
 
-    // 3. Initialize Firebase Cloud Messaging (FCM)
-    initFcmMessaging().catch((err) => {
-      console.warn('[FCM] Push Notification Service Worker notice:', err);
-    });
+    // 3. Initialize Firebase Cloud Messaging (FCM) during browser idle time
+    const startFcm = () => {
+      initFcmMessaging().catch((err) => {
+        console.warn('[FCM] Push Notification Service Worker notice:', err);
+      });
+    };
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(startFcm, { timeout: 2500 });
+    } else {
+      setTimeout(startFcm, 600);
+    }
+
+    return () => {
+      isMounted = false;
+    };
   }, [currentUserEmail]);
 
-  const handleToggleFavorite = (mangaId: string) => {
-    setFavoriteIds((prev) => {
-      const isFav = !prev.includes(mangaId);
-      const next = isFav
-        ? [...prev, mangaId]
-        : prev.filter((id) => id !== mangaId);
-      try {
-        localStorage.setItem('ka_africa_favorites', JSON.stringify(next));
-      } catch (e) {
-        console.error('Failed to save favorites to localStorage', e);
-      }
+  const handleToggleFavorite = useCallback(
+    (mangaId: string) => {
+      setFavoriteIds((prev) => {
+        const isFav = !prev.includes(mangaId);
+        const next = isFav ? [...prev, mangaId] : prev.filter((id) => id !== mangaId);
+        try {
+          localStorage.setItem('ka_africa_favorites', JSON.stringify(next));
+        } catch (e) {
+          console.error('Failed to save favorites to localStorage', e);
+        }
 
-      // Sync with Supabase User Library (Relational core)
-      saveUserLibraryItemInSupabase({
-        userEmail: currentUserEmail,
-        mangaId,
-        isFavorite: isFav,
-        readingStatus: isFav ? 'reading' : 'on_hold',
-        notifyChapterDrops: isFav,
+        const currentCatalog = mangaListRef.current;
+
+        // Sync with Supabase User Library (Relational core)
+        saveUserLibraryItemInSupabase({
+          userEmail: currentUserEmail,
+          mangaId,
+          isFavorite: isFav,
+          readingStatus: isFav ? 'reading' : 'on_hold',
+          notifyChapterDrops: isFav,
+        });
+
+        // Auto-subscribe to FCM chapter drops when favoriting
+        if (isFav) {
+          const target = currentCatalog.find((m) => m.id === mangaId);
+          subscribeToMangaChapterDrops(mangaId, target?.title || 'Followed Manga');
+        }
+
+        const syncedProfile = syncFavoritesWithTasteProfile(next, currentCatalog);
+        setUserTasteProfile({ ...syncedProfile });
+
+        return next;
       });
-
-      // Auto-subscribe to FCM chapter drops when favoriting
-      if (isFav) {
-        const target = mangaList.find((m) => m.id === mangaId);
-        subscribeToMangaChapterDrops(mangaId, target?.title || 'Followed Manga');
-      }
-
-      return next;
-    });
-  };
+    },
+    [currentUserEmail]
+  );
 
   // Navigation & Modal states
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [language, setLanguage] = useState<'en' | 'zu' | 'af'>('en');
   const [isOledMode, setIsOledMode] = useState(false);
@@ -338,30 +501,41 @@ export default function App() {
     }
     return 'readers';
   });
-  const [isCreator] = useState<boolean>(true); // user.isCreator = true
+  // Creator Studio access is strictly derived from authenticated Creator Account state
 
-  const handleTabChange = (tab: 'readers' | 'creators' | 'chats' | 'wallet' | 'privacy' | 'terms' | 'awards' | 'backdrop' | 'canvas' | 'settings') => {
-    let targetTab: any = tab === 'canvas' ? 'backdrop' : tab;
-    // Security RBAC: Wallet page is only available and visible to the admin
-    if (targetTab === 'wallet' && !isAdmin) {
-      targetTab = 'readers';
-    }
-    setActiveTab(targetTab);
+  const handleTabChange = useCallback(
+    (
+      tab:
+        | 'readers'
+        | 'creators'
+        | 'chats'
+        | 'wallet'
+        | 'privacy'
+        | 'terms'
+        | 'awards'
+        | 'backdrop'
+        | 'canvas'
+        | 'settings'
+    ) => {
+      let targetTab: any = tab === 'canvas' ? 'backdrop' : tab;
+      // Security RBAC: Wallet page is only available and visible to the admin
+      if (targetTab === 'wallet' && !isAdmin) {
+        targetTab = 'readers';
+      }
+      setActiveTab(targetTab);
 
-    try {
-      const newPath = targetTab === 'readers' ? '/' : `/${targetTab}`;
-      window.history.pushState(null, '', newPath);
-    } catch (e) {
-      window.location.hash = targetTab === 'readers' ? '' : targetTab;
-    }
+      try {
+        const newPath = targetTab === 'readers' ? '/' : `/${targetTab}`;
+        window.history.pushState(null, '', newPath);
+      } catch (e) {
+        window.location.hash = targetTab === 'readers' ? '' : targetTab;
+      }
 
-    if (activeReaderManga) {
       setActiveReaderManga(null);
-    }
-    if (selectedDetailManga) {
       setSelectedDetailManga(null);
-    }
-  };
+    },
+    [isAdmin]
+  );
 
   // Synchronize route changes on popstate and hashchange events
   React.useEffect(() => {
@@ -399,8 +573,11 @@ export default function App() {
   const [isCelebrationOpen, setIsCelebrationOpen] = useState(false);
 
   React.useEffect(() => {
-    const handleMilestoneEvent = (e: any) => {
+    const handleMilestoneEvent = async (e: any) => {
       const days = e.detail?.days || 7;
+      const { MILESTONE_CONFIGS } = await import(
+        './components/common/MilestoneCelebrationModal'
+      );
       const config = MILESTONE_CONFIGS[days] || MILESTONE_CONFIGS[7];
       setCelebrationMilestone(config);
       setIsCelebrationOpen(true);
@@ -449,7 +626,9 @@ export default function App() {
   const [isMangakaDashboardOpen, setIsMangakaDashboardOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
   const [isRecommendationModalOpen, setIsRecommendationModalOpen] = useState(false);
-  const [userTasteProfile, setUserTasteProfile] = useState<UserTasteProfile>(() => getUserTasteProfile());
+  const [userTasteProfile, setUserTasteProfile] = useState<UserTasteProfile>(() =>
+    getHydratedUserTasteProfile(INITIAL_MANGA_LIST)
+  );
   const [appMode, setAppMode] = useState<'reader' | 'mangaka'>('reader');
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState<number>(() => getNotificationsHistory().length);
 
@@ -463,7 +642,13 @@ export default function App() {
   const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [lastReadProgress, setLastReadProgress] = useState<LastReadProgress | null>(() => {
-    return safeStorage.getJSON<LastReadProgress | null>('ka_pulse_last_read', null);
+    const saved = safeStorage.getJSON<LastReadProgress | null>('ka_pulse_last_read', null);
+    if (saved && saved.mangaId === 'nkosi-the-tale-of-myths' && saved.coverImage !== NKOSI_COVER_SRC) {
+      const updated = { ...saved, coverImage: NKOSI_COVER_SRC };
+      safeStorage.setJSON('ka_pulse_last_read', updated);
+      return updated;
+    }
+    return saved;
   });
 
   // Apply device performance classes immediately on mount or tier change
@@ -615,36 +800,45 @@ export default function App() {
   };
 
   // Start reading a chapter
-  const handleStartReading = (manga: Manga, chapterId?: string) => {
-    // If manga has no panels / is coming soon, inform user and open detail modal safely
-    const hasPanels = manga.chapters && manga.chapters.length > 0 && manga.chapters.some((c) => c.pages && c.pages.length > 0);
-    if (!hasPanels) {
-      setSelectedDetailManga(manga);
-      setSyncToastMessage(`"${manga.title}" panels are in production! Coming soon.`);
-      setTimeout(() => setSyncToastMessage(null), 4000);
-      return;
-    }
+  const handleStartReading = useCallback(
+    (manga: Manga, chapterId?: string) => {
+      const targetChapterId = chapterId || manga.chapters[0]?.id || '';
+      const chObj = manga.chapters.find((c) => c.id === targetChapterId);
 
-    const targetChapterId = chapterId || manga.chapters[0]?.id || '';
-    setSelectedDetailManga(null);
-    setActiveReaderManga(manga);
-    setActiveReaderChapterId(targetChapterId);
+      // Track read/exploration event in personalized userTasteProfile service
+      if (manga.id !== 'placeholder') {
+        const updatedTaste = recordReadingHistoryEvent(manga.id, manga.title, chObj?.number || 1);
+        setUserTasteProfile({ ...updatedTaste });
+      }
 
-    // Track read event in personalized recommendation engine
-    const chObj = manga.chapters.find((c) => c.id === targetChapterId);
-    const updatedTaste = recordReadingHistoryEvent(manga.id, manga.title, chObj?.number);
-    setUserTasteProfile({ ...updatedTaste });
+      // If manga has no panels / is coming soon, inform user and open detail modal safely
+      const hasPanels =
+        manga.chapters &&
+        manga.chapters.length > 0 &&
+        manga.chapters.some((c) => c.pages && c.pages.length > 0);
+      if (!hasPanels) {
+        setSelectedDetailManga(manga);
+        setSyncToastMessage(`"${manga.title}" panels are in production! Coming soon.`);
+        setTimeout(() => setSyncToastMessage(null), 4000);
+        return;
+      }
 
-    // Track read stats
-    setCreatorStats((prev) => ({
-      ...prev,
-      totalReads: prev.totalReads + 1,
-      subscriberViews:
-        userSubscription.tier !== 'free' ? prev.subscriberViews + 1 : prev.subscriberViews,
-      adImpressions:
-        userSubscription.tier === 'free' ? prev.adImpressions + 1 : prev.adImpressions,
-    }));
-  };
+      setSelectedDetailManga(null);
+      setActiveReaderManga(manga);
+      setActiveReaderChapterId(targetChapterId);
+
+      // Track read stats
+      setCreatorStats((prev) => ({
+        ...prev,
+        totalReads: prev.totalReads + 1,
+        subscriberViews:
+          userSubscription.tier !== 'free' ? prev.subscriberViews + 1 : prev.subscriberViews,
+        adImpressions:
+          userSubscription.tier === 'free' ? prev.adImpressions + 1 : prev.adImpressions,
+      }));
+    },
+    [userSubscription.tier]
+  );
 
   // Interstitial trigger during chapter navigation (bypasses when fake test ads are removed)
   const handleShowInterstitial = (nextChapterTitle: string, proceedCallback: () => void) => {
@@ -660,11 +854,13 @@ export default function App() {
       onProceed: proceedCallback,
     });
 
-    // Count ad impression & increase ad revenue
+    // Count test ad impression without adding monetary earnings (all earnings set to R0)
     setCreatorStats((prev) => ({
       ...prev,
       adImpressions: prev.adImpressions + 1,
-      monthlyAdRevenue: prev.monthlyAdRevenue + 0.004,
+      totalRevenueUSD: 0,
+      monthlyAdRevenue: 0,
+      monthlySubShareRevenue: 0,
     }));
   };
 
@@ -710,7 +906,9 @@ export default function App() {
     setCreatorStats((prev) => ({
       ...prev,
       adImpressions: prev.adImpressions + 2,
-      monthlyAdRevenue: prev.monthlyAdRevenue + 0.02,
+      totalRevenueUSD: 0,
+      monthlyAdRevenue: 0,
+      monthlySubShareRevenue: 0,
     }));
   };
 
@@ -769,10 +967,45 @@ export default function App() {
     }
   };
 
+  const requireCreatorStudioAccess = (onAuthorized: () => void) => {
+    if (!hasCreatorAccount) {
+      handleTabChange('creators');
+      setSyncToastMessage('Sign in or create a Creator Account to open Studio.');
+      setTimeout(() => setSyncToastMessage(null), 4000);
+      return;
+    }
+    onAuthorized();
+  };
+
+  const handleOpenPublishStudio = (targetMangaId?: string) => {
+    requireCreatorStudioAccess(() => {
+      setUploadTargetMangaId(targetMangaId);
+      setIsPublishModalOpen(true);
+    });
+  };
+
+  const handleOpenCreatorMonetization = () => {
+    requireCreatorStudioAccess(() => {
+      setIsCreatorDashboardOpen(true);
+    });
+  };
+
+  const handleOpenMangakaStudio = () => {
+    requireCreatorStudioAccess(() => {
+      setIsMangakaDashboardOpen(true);
+    });
+  };
+
   // Mangaka & Admin Handlers
   const handleToggleAppMode = () => {
     if (appMode === 'reader') {
-      if (isUserApprovedMangaka(currentUserEmail)) {
+      if (!hasCreatorAccount) {
+        handleTabChange('creators');
+        setSyncToastMessage('Create or sign in to a Creator Account to enter Studio mode.');
+        setTimeout(() => setSyncToastMessage(null), 4000);
+        return;
+      }
+      if (isUserApprovedMangaka(currentUserEmail) || hasCreatorAccount) {
         setAppMode('mangaka');
         setIsMangakaDashboardOpen(true);
       } else {
@@ -918,10 +1151,14 @@ export default function App() {
   };
 
   // AI Content Detection & Auto-Ban Moderation Handlers
-  const handleOpenAiReport = (manga: Manga) => {
+  const handleOpenAiReport = useCallback((manga: Manga) => {
     setSelectedAiReportManga(manga);
     setIsAiReportOpen(true);
-  };
+  }, []);
+
+  const handleSelectDetailManga = useCallback((manga: Manga) => {
+    setSelectedDetailManga(manga);
+  }, []);
 
   const handleToggleBan = (mangaId: string, shouldBan: boolean) => {
     setMangaList((prev) =>
@@ -1010,61 +1247,91 @@ export default function App() {
     }, 900);
   };
 
-  // Filter manga list
-  const filteredManga = mangaList.filter((m) => {
-    // Drafts are private work-in-progress and must not appear in reader mode
-    if (m.approvalStatus === 'draft') {
-      return false;
-    }
+  // Memoized & deferred manga catalog filtering for 60fps typing responsiveness
+  const favoriteIdSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
 
-    // Reader Mode privacy: pending/rejected submissions only visible to author or admin
-    if (
-      m.approvalStatus === 'pending_review' &&
-      m.submittedByEmail?.toLowerCase() !== currentUserEmail.toLowerCase() &&
-      !isAdmin
-    ) {
-      return false;
-    }
-    if (m.approvalStatus === 'rejected' && !isAdmin) {
-      return false;
-    }
+  const filteredManga = useMemo(() => {
+    const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
+    const normalizedFilter = selectedFilter.trim().toLowerCase();
+    const normalizedEmail = currentUserEmail.toLowerCase();
 
-    const matchesSearch =
-      m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.genres.some((g) => g.toLowerCase().includes(searchQuery.toLowerCase()));
+    return mangaList.filter((m) => {
+      if (m.approvalStatus === 'draft') {
+        return false;
+      }
 
-    if (!matchesSearch) return false;
+      if (
+        m.approvalStatus === 'pending_review' &&
+        m.submittedByEmail?.toLowerCase() !== normalizedEmail &&
+        !isAdmin
+      ) {
+        return false;
+      }
+      if (m.approvalStatus === 'rejected' && !isAdmin) {
+        return false;
+      }
 
-    if (selectedFilter === 'all') return true;
-    if (selectedFilter === 'favorites') {
-      return favoriteIds.includes(m.id);
-    }
-    if (selectedFilter === 'moty_awards') {
-      return Boolean(m.award);
-    }
-    if (selectedFilter === 'human_only') {
-      return !m.isAiGenerated && !m.isBanned;
-    }
-    if (selectedFilter === 'ai_labeled') {
-      return Boolean(m.isAiGenerated) && !m.isBanned;
-    }
-    if (selectedFilter === 'banned') {
-      return Boolean(m.isBanned);
-    }
-    if (selectedFilter === 'vip_only') {
-      return m.chapters.some((c) => c.accessType === 'premium');
-    }
-    if (selectedFilter === 'free_only') {
-      return m.chapters.every((c) => c.accessType === 'free');
-    }
-    return m.genres.some((g) => g.trim().toLowerCase() === selectedFilter.trim().toLowerCase());
-  });
+      if (normalizedQuery) {
+        const matchesSearch =
+          m.title.toLowerCase().includes(normalizedQuery) ||
+          m.author.toLowerCase().includes(normalizedQuery) ||
+          m.genres.some((g) => g.toLowerCase().includes(normalizedQuery));
+        if (!matchesSearch) return false;
+      }
 
-  const featuredManga =
-    mangaList.find((m) => m.featured && m.approvalStatus !== 'pending_review' && m.approvalStatus !== 'rejected' && m.approvalStatus !== 'draft') ||
-    mangaList.find((m) => m.approvalStatus !== 'pending_review' && m.approvalStatus !== 'rejected' && m.approvalStatus !== 'draft') ||
-    mangaList[0];
+      if (selectedFilter === 'all') return true;
+      if (selectedFilter === 'favorites') {
+        return favoriteIdSet.has(m.id);
+      }
+      if (selectedFilter === 'moty_awards') {
+        return Boolean(m.award);
+      }
+      if (selectedFilter === 'human_only') {
+        return !m.isAiGenerated && !m.isBanned;
+      }
+      if (selectedFilter === 'ai_labeled') {
+        return Boolean(m.isAiGenerated) && !m.isBanned;
+      }
+      if (selectedFilter === 'banned') {
+        return Boolean(m.isBanned);
+      }
+      if (selectedFilter === 'vip_only') {
+        return m.chapters.some((c) => c.accessType === 'premium');
+      }
+      if (selectedFilter === 'free_only') {
+        return m.chapters.every((c) => c.accessType === 'free');
+      }
+      return m.genres.some((g) => g.trim().toLowerCase() === normalizedFilter);
+    });
+  }, [mangaList, deferredSearchQuery, selectedFilter, favoriteIdSet, currentUserEmail, isAdmin]);
+
+  const featuredManga = useMemo(
+    () =>
+      mangaList.find(
+        (m) =>
+          m.featured &&
+          m.approvalStatus !== 'pending_review' &&
+          m.approvalStatus !== 'rejected' &&
+          m.approvalStatus !== 'draft'
+      ) ||
+      mangaList.find(
+        (m) =>
+          m.approvalStatus !== 'pending_review' &&
+          m.approvalStatus !== 'rejected' &&
+          m.approvalStatus !== 'draft'
+      ) ||
+      mangaList[0],
+    [mangaList]
+  );
+
+  const selectedMangaComments = useMemo(
+    () =>
+      selectedDetailManga
+        ? allComments.filter((c) => c.mangaId === selectedDetailManga.id)
+        : [],
+    [allComments, selectedDetailManga]
+  );
+
   const isVipUser =
     userSubscription.tier === 'vip' ||
     userSubscription.tier === 'early_access' ||
@@ -1109,10 +1376,10 @@ export default function App() {
         onOpenProfileModal={() => setIsProfileModalOpen(true)}
         onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
         onQuickToggleTier={handleQuickToggleTier}
-        onOpenPublish={() => setIsPublishModalOpen(true)}
-        onOpenCreatorDashboard={() => setIsCreatorDashboardOpen(true)}
+        onOpenPublish={() => handleOpenPublishStudio()}
+        onOpenCreatorDashboard={handleOpenCreatorMonetization}
         onOpenApplyMangaka={() => setIsApplyMangakaOpen(true)}
-        onOpenMangakaDashboard={() => setIsMangakaDashboardOpen(true)}
+        onOpenMangakaDashboard={handleOpenMangakaStudio}
         onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
         appMode={appMode}
         onToggleAppMode={handleToggleAppMode}
@@ -1136,6 +1403,7 @@ export default function App() {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         isAdmin={isAdmin}
+        isCreator={hasCreatorAccount}
         onSwitchUserEmail={handleSwitchUserEmail}
       />
 
@@ -1192,37 +1460,67 @@ export default function App() {
 
       {/* FULL-SCREEN MANGA PLUS MODELED READER (100vh, 100vw, Zero Light Leakage, Object-Contain, Center Tap Overlay) */}
       {activeReaderManga && (
-        <ReaderView
-          manga={activeReaderManga}
-          chapter={
-            activeReaderManga.chapters.find((c) => c.id === activeReaderChapterId) ||
-            activeReaderManga.chapters[0] || {
-              id: 'ch-placeholder-1',
-              mangaId: activeReaderManga.id,
-              number: 1,
-              title: 'Chapter 1',
-              releaseDate: '2026-10-01',
-              pageCount: 3,
-              accessType: 'free',
-              likesCount: 0,
-              commentsCount: 0,
-              pages: [
-                { id: 'p-1', pageNumber: 1, imageUrl: activeReaderManga.coverImage || activeReaderManga.cover || '/pwa-512x512.png', caption: 'Page 1' },
-                { id: 'p-2', pageNumber: 2, imageUrl: activeReaderManga.bannerImage || '/pwa-512x512.png', caption: 'Page 2' },
-                { id: 'p-3', pageNumber: 3, imageUrl: activeReaderManga.coverImage || '/pwa-512x512.png', caption: 'Page 3' },
-              ],
-            }
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center gap-3 text-slate-300">
+              <div className="h-8 w-8 rounded-full border-2 border-amber-500/30 border-t-amber-400 animate-spin" />
+              <span className="text-xs font-medium tracking-wider uppercase">
+                Opening Chapter...
+              </span>
+            </div>
           }
-          userSubscription={userSubscription}
-          onChapterChange={(chId) => setActiveReaderChapterId(chId)}
-          onRequestRewardedAd={handleRequestRewardedAd}
-          onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
-          onBack={() => {
-            setActiveReaderManga(null);
-            const updated = safeStorage.getJSON<LastReadProgress | null>('ka_pulse_last_read', null);
-            if (updated) setLastReadProgress(updated);
-          }}
-        />
+        >
+          <ReaderView
+            manga={activeReaderManga}
+            chapter={
+              activeReaderManga.chapters.find((c) => c.id === activeReaderChapterId) ||
+              activeReaderManga.chapters[0] || {
+                id: 'ch-placeholder-1',
+                mangaId: activeReaderManga.id,
+                number: 1,
+                title: 'Chapter 1',
+                releaseDate: '2026-10-01',
+                pageCount: 3,
+                accessType: 'free',
+                likesCount: 0,
+                commentsCount: 0,
+                pages: [
+                  {
+                    id: 'p-1',
+                    pageNumber: 1,
+                    imageUrl:
+                      activeReaderManga.coverImage || activeReaderManga.cover || APP_LOGO_SRC,
+                    caption: 'Page 1',
+                  },
+                  {
+                    id: 'p-2',
+                    pageNumber: 2,
+                    imageUrl: activeReaderManga.bannerImage || APP_LOGO_SRC,
+                    caption: 'Page 2',
+                  },
+                  {
+                    id: 'p-3',
+                    pageNumber: 3,
+                    imageUrl: activeReaderManga.coverImage || APP_LOGO_SRC,
+                    caption: 'Page 3',
+                  },
+                ],
+              }
+            }
+            userSubscription={userSubscription}
+            onChapterChange={(chId) => setActiveReaderChapterId(chId)}
+            onRequestRewardedAd={handleRequestRewardedAd}
+            onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
+            onBack={() => {
+              setActiveReaderManga(null);
+              const updated = safeStorage.getJSON<LastReadProgress | null>(
+                'ka_pulse_last_read',
+                null
+              );
+              if (updated) setLastReadProgress(updated);
+            }}
+          />
+        </Suspense>
       )}
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-6 space-y-8">
@@ -1238,29 +1536,41 @@ export default function App() {
             style={{ transform: 'translateZ(0)' }}
           >
             {/* Route: /privacy */}
-            {activeTab === 'privacy' && <PrivacyPolicy onClose={() => handleTabChange('readers')} />}
+            {activeTab === 'privacy' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <PrivacyPolicy onClose={() => handleTabChange('readers')} />
+              </Suspense>
+            )}
             {/* Route: /terms */}
-            {activeTab === 'terms' && <TermsOfService onClose={() => handleTabChange('readers')} />}
+            {activeTab === 'terms' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <TermsOfService onClose={() => handleTabChange('readers')} />
+              </Suspense>
+            )}
             {/* Route: /settings */}
             {activeTab === 'settings' && (
-              <SettingsPage
-                currentUserEmail={currentUserEmail}
-                onUpdateEmail={handleSwitchUserEmail}
-                onNavigateToHome={() => handleTabChange('readers')}
-                onNavigateToTerms={() => handleTabChange('terms')}
-                onNavigateToPrivacy={() => handleTabChange('privacy')}
-                onNavigateToAwards={() => handleTabChange('awards')}
-              />
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <SettingsPage
+                  currentUserEmail={currentUserEmail}
+                  onUpdateEmail={handleSwitchUserEmail}
+                  onNavigateToHome={() => handleTabChange('readers')}
+                  onNavigateToTerms={() => handleTabChange('terms')}
+                  onNavigateToPrivacy={() => handleTabChange('privacy')}
+                  onNavigateToAwards={() => handleTabChange('awards')}
+                />
+              </Suspense>
             )}
             {/* Route: /awards (Manga of the Year Awards Page) */}
             {activeTab === 'awards' && (
-              <MangaOfTheYearAwardsPage
-                categories={MOTY_CATEGORIES}
-                mangaList={mangaList}
-                onStartReading={(m, chId) => handleStartReading(m, chId)}
-                onSelectManga={(m) => setSelectedDetailManga(m)}
-                onNavigateToReader={() => handleTabChange('readers')}
-              />
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <MangaOfTheYearAwardsPage
+                  categories={MOTY_CATEGORIES}
+                  mangaList={mangaList}
+                  onStartReading={(m, chId) => handleStartReading(m, chId)}
+                  onSelectManga={handleSelectDetailManga}
+                  onNavigateToReader={() => handleTabChange('readers')}
+                />
+              </Suspense>
             )}
 
             {/* Route: /readers (Reader Page) */}
@@ -1282,7 +1592,7 @@ export default function App() {
                   favoriteIds={favoriteIds}
                   onToggleFavorite={handleToggleFavorite}
                   onStartReading={handleStartReading}
-                  onSelectDetailManga={(m) => setSelectedDetailManga(m)}
+                  onSelectDetailManga={handleSelectDetailManga}
                   selectedFilter={selectedFilter}
                   onSelectFilter={setSelectedFilter}
                   searchQuery={searchQuery}
@@ -1294,8 +1604,8 @@ export default function App() {
                   isVipUser={isVipUser}
                   ads={ads}
                   onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
-                  onOpenCreatorDashboard={() => setIsCreatorDashboardOpen(true)}
-                  onOpenPublishModal={() => setIsPublishModalOpen(true)}
+                  onOpenCreatorDashboard={handleOpenCreatorMonetization}
+                  onOpenPublishModal={() => handleOpenPublishStudio()}
                   onNavigateToAwards={() => handleTabChange('awards')}
                   onNavigateToWallet={() => handleTabChange('wallet')}
                   onNavigateToStudio={() => handleTabChange('creators')}
@@ -1314,49 +1624,140 @@ export default function App() {
 
             {/* Route: /backdrop or /canvas (Backdrop Series & Creators) */}
             {(activeTab === 'backdrop' || (activeTab as string) === 'canvas') && (
-              <BackdropPage
-                key="route-backdrop-view"
-                mangaList={mangaList}
-                onSelectManga={(m) => setSelectedDetailManga(m)}
-                onStartReading={(m, chId) => handleStartReading(m, chId || m.chapters[0]?.id || 'ch-1')}
-                onOpenPublishModal={() => setIsPublishModalOpen(true)}
-                onNavigateToHome={() => handleTabChange('readers')}
-                currentUserEmail={currentUserEmail}
-              />
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <BackdropPage
+                  key="route-backdrop-view"
+                  mangaList={mangaList}
+                  onSelectManga={handleSelectDetailManga}
+                  onStartReading={(m, chId) =>
+                    handleStartReading(m, chId || m.chapters[0]?.id || 'ch-1')
+                  }
+                  onOpenPublishModal={() => handleOpenPublishStudio()}
+                  onNavigateToHome={() => handleTabChange('readers')}
+                  currentUserEmail={currentUserEmail}
+                />
+              </Suspense>
             )}
 
-            {/* Route: /creators (Studio / My Earnings Unlocked For All Authors) */}
+            {/* Route: /creators (Studio — Strictly Gated Behind Having or Creating a Creator Account) */}
             {activeTab === 'creators' && (
-              <div key="route-creators-view" className="space-y-6">
-                <CreatorEarningsView
-                  currentUserEmail={currentUserEmail}
-                  mangaList={mangaList}
-                  onOpenUploadModal={() => setIsPublishModalOpen(true)}
-                />
-              </div>
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <div key="route-creators-view" className="space-y-6">
+                  {!creatorAuthState.authReady ? (
+                    <div className="mx-auto max-w-lg rounded-2xl border border-slate-800 bg-slate-950 p-8 text-center space-y-3">
+                      <Lock className="w-6 h-6 text-amber-400 mx-auto" />
+                      <h2 className="font-['Bebas_Neue',sans-serif] text-2xl tracking-wide text-white">
+                        Verifying Creator Account
+                      </h2>
+                      <p className="text-xs text-slate-400">
+                        Checking your OVERVERSE Creator Studio credentials...
+                      </p>
+                    </div>
+                  ) : !hasCreatorAccount ? (
+                    <CreatorAccountGate
+                      authState={creatorAuthState}
+                      onBackToReader={() => handleTabChange('readers')}
+                    />
+                  ) : (
+                    <>
+                      {/* Authenticated Creator Studio Header Bar */}
+                      <div
+                        id="creator-studio-authenticated-bar"
+                        className="rounded-2xl border border-slate-800 bg-slate-950 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <img
+                            src={creatorAuthState.profile.avatarUrl || APP_LOGO_SRC}
+                            alt={creatorAuthState.profile.penName || 'Creator'}
+                            decoding="async"
+                            className="h-12 w-12 rounded-xl object-cover border border-slate-800 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h2 className="text-base font-bold text-white truncate">
+                                {creatorAuthState.profile.penName}
+                              </h2>
+                              <span className="text-xs text-slate-400">·</span>
+                              <span className="text-xs font-medium text-amber-400 truncate">
+                                {creatorAuthState.profile.studioName || 'OVERVERSE Creator Studio'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 truncate mt-0.5">
+                              Creator Account · {creatorAuthState.profile.email}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPublishStudio()}
+                            className="min-h-[44px] inline-flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs px-4 py-2 transition"
+                          >
+                            <UploadCloud className="w-4 h-4 shrink-0" />
+                            <span>Upload Series or Chapter</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleOpenMangakaStudio}
+                            className="min-h-[44px] inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-4 py-2 transition"
+                          >
+                            <BookOpen className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>Manage Series</span>
+                          </button>
+
+                          <button
+                            id="studio-signout-creator-btn"
+                            type="button"
+                            onClick={async () => {
+                              await signOutCreatorAccount();
+                              setAppMode('reader');
+                            }}
+                            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-white font-medium text-xs px-3.5 py-2 transition"
+                          >
+                            <LogOut className="w-3.5 h-3.5 shrink-0" />
+                            <span>Sign Out</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <CreatorEarningsView
+                        currentUserEmail={creatorAuthState.profile.email || currentUserEmail}
+                        mangaList={mangaList}
+                        onOpenUploadModal={() => handleOpenPublishStudio()}
+                      />
+                    </>
+                  )}
+                </div>
+              </Suspense>
             )}
 
             {/* Route: /chats (Chats / DMs) */}
             {activeTab === 'chats' && (
-              <ChatsPage
-                key="route-chats-view"
-                onOpenUserProfile={() => setIsProfileModalOpen(true)}
-              />
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <ChatsPage
+                  key="route-chats-view"
+                  onOpenUserProfile={() => setIsProfileModalOpen(true)}
+                />
+              </Suspense>
             )}
 
             {/* Route: /wallet (Wallet / Payouts) - ONLY available and visible to Admin */}
             {activeTab === 'wallet' && isAdmin && (
-              <WalletPage
-                key="route-wallet-view"
-                creatorStats={creatorStats}
-                userSubscription={userSubscription}
-                onOpenCreatorDashboard={() => setIsCreatorDashboardOpen(true)}
-                onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
-                isAdmin={isAdmin}
-                currentUserEmail={currentUserEmail}
-                onSwitchToAdmin={() => handleSwitchUserEmail(ADMIN_EMAIL)}
-                onNavigateToStudioEarnings={() => handleTabChange('creators')}
-              />
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <WalletPage
+                  key="route-wallet-view"
+                  creatorStats={creatorStats}
+                  userSubscription={userSubscription}
+                  onOpenCreatorDashboard={handleOpenCreatorMonetization}
+                  onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
+                  isAdmin={isAdmin}
+                  currentUserEmail={currentUserEmail}
+                  onSwitchToAdmin={() => handleSwitchUserEmail(ADMIN_EMAIL)}
+                  onNavigateToStudioEarnings={() => handleTabChange('creators')}
+                />
+              </Suspense>
             )}
           </motion.div>
         </AnimatePresence>
@@ -1393,13 +1794,13 @@ export default function App() {
                 VIP Subscription
               </button>
               <button
-                onClick={() => setIsCreatorDashboardOpen(true)}
+                onClick={handleOpenCreatorMonetization}
                 className="min-h-[40px] px-1.5 py-2 rounded-xl bg-slate-900/80 border border-slate-800/90 hover:border-amber-500/50 hover:text-amber-400 active:scale-95 transition flex items-center justify-center text-center font-medium leading-tight"
               >
                 Creator Monetization
               </button>
               <button
-                onClick={() => setIsPublishModalOpen(true)}
+                onClick={() => handleTabChange('creators')}
                 className="min-h-[40px] px-1.5 py-2 rounded-xl bg-slate-900/80 border border-slate-800/90 hover:border-amber-500/50 hover:text-amber-400 active:scale-95 transition flex items-center justify-center text-center font-medium leading-tight"
               >
                 Publishing Studio
@@ -1479,14 +1880,14 @@ export default function App() {
               </button>
               <span>•</span>
               <button
-                onClick={() => setIsCreatorDashboardOpen(true)}
+                onClick={handleOpenCreatorMonetization}
                 className="hover:text-amber-400 transition"
               >
                 Creator Monetization
               </button>
               <span>•</span>
               <button
-                onClick={() => setIsPublishModalOpen(true)}
+                onClick={() => handleTabChange('creators')}
                 className="hover:text-amber-400 transition"
               >
                 Publishing Studio
@@ -1539,287 +1940,329 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Manga Detail Modal */}
-      <MangaDetailModal
-        manga={selectedDetailManga}
-        isOpen={Boolean(selectedDetailManga)}
-        onClose={() => setSelectedDetailManga(null)}
-        userSubscription={userSubscription}
-        onStartReading={(chId) => {
-          if (selectedDetailManga) {
-            handleStartReading(selectedDetailManga, chId);
-          }
-        }}
-        onRequestRewardedAd={handleRequestRewardedAd}
-        onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
-        onUploadChapterClick={(mangaId) => {
-          setUploadTargetMangaId(mangaId);
-          setIsPublishModalOpen(true);
-        }}
-        isFavorite={selectedDetailManga ? favoriteIds.includes(selectedDetailManga.id) : false}
-        onToggleFavorite={(mangaId) => handleToggleFavorite(mangaId)}
-        comments={selectedDetailManga ? allComments.filter(c => c.mangaId === selectedDetailManga.id) : []}
-        onAddComment={handleAddComment}
-        onLikeComment={handleLikeComment}
-        onOpenAiReport={handleOpenAiReport}
-        allManga={mangaList}
-        onSelectManga={(m) => setSelectedDetailManga(m)}
-      />
+      {/* Lazy-Loaded Modals — Mounted Only When Open to Keep Active DOM & Main-Thread Memory Minimal */}
+      <Suspense fallback={null}>
+        {selectedDetailManga && (
+          <MangaDetailModal
+            manga={selectedDetailManga}
+            isOpen={Boolean(selectedDetailManga)}
+            onClose={() => setSelectedDetailManga(null)}
+            userSubscription={userSubscription}
+            onStartReading={(chId) => {
+              if (selectedDetailManga) {
+                handleStartReading(selectedDetailManga, chId);
+              }
+            }}
+            onRequestRewardedAd={handleRequestRewardedAd}
+            onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
+            onUploadChapterClick={(mangaId) => {
+              handleOpenPublishStudio(mangaId);
+            }}
+            isFavorite={favoriteIdSet.has(selectedDetailManga.id)}
+            onToggleFavorite={handleToggleFavorite}
+            comments={selectedMangaComments}
+            onAddComment={handleAddComment}
+            onLikeComment={handleLikeComment}
+            onOpenAiReport={handleOpenAiReport}
+            allManga={mangaList}
+            onSelectManga={handleSelectDetailManga}
+          />
+        )}
 
-      {/* Subscription Upgrade Modal */}
-      <SubscriptionModal
-        isOpen={isSubscriptionModalOpen}
-        onClose={() => setIsSubscriptionModalOpen(false)}
-        currentSubscription={userSubscription}
-        onUpdateSubscription={handleUpdateSubscription}
-      />
+        {isSubscriptionModalOpen && (
+          <SubscriptionModal
+            isOpen={isSubscriptionModalOpen}
+            onClose={() => setIsSubscriptionModalOpen(false)}
+            currentSubscription={userSubscription}
+            onUpdateSubscription={handleUpdateSubscription}
+          />
+        )}
 
-      {/* Manga of the Year Awards Gala Modal */}
-      <MangaOfTheYearAwardsModal
-        isOpen={isAwardsModalOpen}
-        onClose={() => setIsAwardsModalOpen(false)}
-        categories={MOTY_CATEGORIES}
-        mangaList={mangaList}
-        onStartReading={(manga, chId) => {
-          setIsAwardsModalOpen(false);
-          handleStartReading(manga, chId);
-        }}
-        onSelectManga={(manga) => {
-          setIsAwardsModalOpen(false);
-          setSelectedDetailManga(manga);
-        }}
-      />
+        {isAwardsModalOpen && (
+          <MangaOfTheYearAwardsModal
+            isOpen={isAwardsModalOpen}
+            onClose={() => setIsAwardsModalOpen(false)}
+            categories={MOTY_CATEGORIES}
+            mangaList={mangaList}
+            onStartReading={(manga, chId) => {
+              setIsAwardsModalOpen(false);
+              handleStartReading(manga, chId);
+            }}
+            onSelectManga={(manga) => {
+              setIsAwardsModalOpen(false);
+              setSelectedDetailManga(manga);
+            }}
+          />
+        )}
 
-      {/* Publish Modal (Chapters & Series Studio) */}
-      <PublishModal
-        isOpen={isPublishModalOpen}
-        onClose={() => {
-          setIsPublishModalOpen(false);
-          setUploadTargetMangaId(undefined);
-        }}
-        mangaList={mangaList}
-        selectedMangaId={uploadTargetMangaId}
-        onPublishChapter={(mangaId, chapter) => {
-          handlePublishChapter(mangaId, chapter);
-          if (selectedDetailManga && selectedDetailManga.id === mangaId) {
-            setSelectedDetailManga((prev) =>
-              prev ? { ...prev, chapters: [...prev.chapters, chapter] } : null
-            );
-          }
-        }}
-        onPublishManga={handlePublishManga}
-      />
+        {isPublishModalOpen && (
+          <PublishModal
+            isOpen={isPublishModalOpen}
+            onClose={() => {
+              setIsPublishModalOpen(false);
+              setUploadTargetMangaId(undefined);
+            }}
+            mangaList={mangaList}
+            selectedMangaId={uploadTargetMangaId}
+            onPublishChapter={(mangaId, chapter) => {
+              handlePublishChapter(mangaId, chapter);
+              if (selectedDetailManga && selectedDetailManga.id === mangaId) {
+                setSelectedDetailManga((prev) =>
+                  prev ? { ...prev, chapters: [...prev.chapters, chapter] } : null
+                );
+              }
+            }}
+            onPublishManga={handlePublishManga}
+          />
+        )}
 
-      {/* Creator Dashboard Modal */}
-      <CreatorDashboardModal
-        isOpen={isCreatorDashboardOpen}
-        onClose={() => setIsCreatorDashboardOpen(false)}
-        stats={creatorStats}
-        mangaList={mangaList}
-        onExecutePayout={handleExecutePayout}
-        onUpdatePayoutSettings={handleUpdatePayoutSettings}
-        onPublishChapter={(mangaId, chapter) => {
-          handlePublishChapter(mangaId, chapter);
-          if (selectedDetailManga && selectedDetailManga.id === mangaId) {
-            setSelectedDetailManga((prev) =>
-              prev ? { ...prev, chapters: [...prev.chapters, chapter] } : null
-            );
-          }
-        }}
-      />
+        {isCreatorDashboardOpen && (
+          <CreatorDashboardModal
+            isOpen={isCreatorDashboardOpen}
+            onClose={() => setIsCreatorDashboardOpen(false)}
+            stats={creatorStats}
+            mangaList={mangaList}
+            onExecutePayout={handleExecutePayout}
+            onUpdatePayoutSettings={handleUpdatePayoutSettings}
+            onPublishChapter={(mangaId, chapter) => {
+              handlePublishChapter(mangaId, chapter);
+              if (selectedDetailManga && selectedDetailManga.id === mangaId) {
+                setSelectedDetailManga((prev) =>
+                  prev ? { ...prev, chapters: [...prev.chapters, chapter] } : null
+                );
+              }
+            }}
+          />
+        )}
 
-      {/* Rewarded Interstitial Ad Modal */}
-      {interstitialState.isOpen && interstitialState.ad && (
-        <InterstitialAdModal
-          ad={interstitialState.ad}
-          isOpen={interstitialState.isOpen}
-          onClose={handleCloseInterstitial}
-          onUpgradeClick={() => {
-            handleCloseInterstitial();
-            setIsSubscriptionModalOpen(true);
-          }}
-          nextChapterTitle={interstitialState.nextChapterTitle}
-        />
-      )}
+        {interstitialState.isOpen && interstitialState.ad && (
+          <InterstitialAdModal
+            ad={interstitialState.ad}
+            isOpen={interstitialState.isOpen}
+            onClose={handleCloseInterstitial}
+            onUpgradeClick={() => {
+              handleCloseInterstitial();
+              setIsSubscriptionModalOpen(true);
+            }}
+            nextChapterTitle={interstitialState.nextChapterTitle}
+          />
+        )}
 
-      {/* AdMob App Open Demo Ad Modal */}
-      <AppOpenAdModal
-        isOpen={isAppOpenAdOpen}
-        onClose={() => setIsAppOpenAdOpen(false)}
-        onUpgradeClick={() => {
-          setIsAppOpenAdOpen(false);
-          setIsSubscriptionModalOpen(true);
-        }}
-      />
+        {isAppOpenAdOpen && (
+          <AppOpenAdModal
+            isOpen={isAppOpenAdOpen}
+            onClose={() => setIsAppOpenAdOpen(false)}
+            onUpgradeClick={() => {
+              setIsAppOpenAdOpen(false);
+              setIsSubscriptionModalOpen(true);
+            }}
+          />
+        )}
 
-      {/* Rewarded Ad Modal */}
-      {rewardedState.chapter && rewardedState.ad && (
-        <RewardedAdModal
-          ad={rewardedState.ad}
-          chapter={rewardedState.chapter}
-          isOpen={rewardedState.isOpen}
-          onClose={() =>
-            setRewardedState((prev) => ({
-              ...prev,
-              isOpen: false,
-              chapter: null,
-              onUnlocked: undefined,
-            }))
-          }
-          onRewardGranted={handleRewardGranted}
-          onUnlockComplete={rewardedState.onUnlocked}
-          onUpgradeClick={() => {
-            setRewardedState((prev) => ({
-              ...prev,
-              isOpen: false,
-              chapter: null,
-              onUnlocked: undefined,
-            }));
-            setIsSubscriptionModalOpen(true);
-          }}
-        />
-      )}
+        {rewardedState.isOpen && rewardedState.chapter && rewardedState.ad && (
+          <RewardedAdModal
+            ad={rewardedState.ad}
+            chapter={rewardedState.chapter}
+            isOpen={rewardedState.isOpen}
+            onClose={() =>
+              setRewardedState((prev) => ({
+                ...prev,
+                isOpen: false,
+                chapter: null,
+                onUnlocked: undefined,
+              }))
+            }
+            onRewardGranted={handleRewardGranted}
+            onUnlockComplete={rewardedState.onUnlocked}
+            onUpgradeClick={() => {
+              setRewardedState((prev) => ({
+                ...prev,
+                isOpen: false,
+                chapter: null,
+                onUnlocked: undefined,
+              }));
+              setIsSubscriptionModalOpen(true);
+            }}
+          />
+        )}
 
-      {/* Global Live Deployment & Share Modal */}
-      <GlobalPublishShareModal
-        isOpen={isGlobalShareOpen}
-        onClose={() => setIsGlobalShareOpen(false)}
-      />
+        {isGlobalShareOpen && (
+          <GlobalPublishShareModal
+            isOpen={isGlobalShareOpen}
+            onClose={() => setIsGlobalShareOpen(false)}
+          />
+        )}
 
-      {/* AI Content Detection & Auto-Ban Report Modal */}
-      <AiReportModal
-        manga={selectedAiReportManga}
-        isOpen={isAiReportOpen}
-        onClose={() => {
-          setIsAiReportOpen(false);
-          setSelectedAiReportManga(null);
-        }}
-        onToggleBan={handleToggleBan}
-        onReScan={handleReScanManga}
-        isAdmin={isAdmin}
-      />
+        {isAiReportOpen && (
+          <AiReportModal
+            manga={selectedAiReportManga}
+            isOpen={isAiReportOpen}
+            onClose={() => {
+              setIsAiReportOpen(false);
+              setSelectedAiReportManga(null);
+            }}
+            onToggleBan={handleToggleBan}
+            onReScan={handleReScanManga}
+            isAdmin={isAdmin}
+          />
+        )}
 
-      {/* Device Performance Calibration Engine Modal */}
-      <DevicePerformanceModal
-        isOpen={isPerformanceModalOpen}
-        onClose={() => setIsPerformanceModalOpen(false)}
-        onTierChanged={(tier) => {
-          setPerformanceTier(tier);
-          setActivePerformanceTier(tier);
-        }}
-      />
+        {isPerformanceModalOpen && (
+          <DevicePerformanceModal
+            isOpen={isPerformanceModalOpen}
+            onClose={() => setIsPerformanceModalOpen(false)}
+            onTierChanged={(tier) => {
+              setPerformanceTier(tier);
+              setActivePerformanceTier(tier);
+            }}
+          />
+        )}
 
-      {/* Global Productivity Command Palette (Ctrl+K) */}
-      <ProductivityCommandPalette
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        mangaList={mangaList}
-        onStartReading={handleStartReading}
-        onSelectManga={(m) => setSelectedDetailManga(m)}
-        onNavigateTab={handleTabChange}
-        onToggleDataSaver={() => setDataSaverMode((prev) => !prev)}
-        isDataSaver={dataSaverMode}
-        onToggleOled={() => setIsOledMode((prev) => !prev)}
-        isOled={isOledMode}
-        onOpenPerformanceModal={() => setIsPerformanceModalOpen(true)}
-        onOpenPublish={() => setIsPublishModalOpen(true)}
-        onOpenCreatorDashboard={() => setIsCreatorDashboardOpen(true)}
-        onRunAiScan={handleRunCatalogAiScan}
-        onOpenGlobalShare={() => setIsGlobalShareOpen(true)}
-        onOpenSecurityDefense={() => setIsSecurityModalOpen(true)}
-        onOpenFcmNotifications={() => setIsFcmModalOpen(true)}
-        onOpenWebViewerModal={() => setIsWebViewerModalOpen(true)}
-        onOpenProfileModal={() => setIsProfileModalOpen(true)}
-        onOpenApplyMangaka={() => setIsApplyMangakaOpen(true)}
-        onOpenMangakaDashboard={() => setIsMangakaDashboardOpen(true)}
-        onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
-        onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
-        onOpenTasteProfile={() => setIsRecommendationModalOpen(true)}
-        onOpenAppOpenAd={() => setIsAppOpenAdOpen(true)}
-        isAdmin={isAdmin}
-      />
+        {isCommandPaletteOpen && (
+          <ProductivityCommandPalette
+            isOpen={isCommandPaletteOpen}
+            onClose={() => setIsCommandPaletteOpen(false)}
+            mangaList={mangaList}
+            onStartReading={handleStartReading}
+            onSelectManga={handleSelectDetailManga}
+            onNavigateTab={handleTabChange}
+            onToggleDataSaver={() => setDataSaverMode((prev) => !prev)}
+            isDataSaver={dataSaverMode}
+            onToggleOled={() => setIsOledMode((prev) => !prev)}
+            isOled={isOledMode}
+            onOpenPerformanceModal={() => setIsPerformanceModalOpen(true)}
+            onOpenPublish={() => handleOpenPublishStudio()}
+            onOpenCreatorDashboard={handleOpenCreatorMonetization}
+            onRunAiScan={handleRunCatalogAiScan}
+            onOpenGlobalShare={() => setIsGlobalShareOpen(true)}
+            onOpenSecurityDefense={() => setIsSecurityModalOpen(true)}
+            onOpenFcmNotifications={() => setIsFcmModalOpen(true)}
+            onOpenWebViewerModal={() => setIsWebViewerModalOpen(true)}
+            onOpenProfileModal={() => setIsProfileModalOpen(true)}
+            onOpenApplyMangaka={() => setIsApplyMangakaOpen(true)}
+            onOpenMangakaDashboard={handleOpenMangakaStudio}
+            onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
+            onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
+            onOpenTasteProfile={() => setIsRecommendationModalOpen(true)}
+            onOpenAppOpenAd={() => setIsAppOpenAdOpen(true)}
+            isAdmin={isAdmin}
+          />
+        )}
 
-      {/* USER PROFILE & DAILY READING STREAK MODAL */}
-      <UserProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        currentUserEmail={currentUserEmail}
-        userSubscription={userSubscription}
-        mangas={mangaList}
-        onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
-        onOpenApplyMangaka={() => setIsApplyMangakaOpen(true)}
-        onOpenMangakaDashboard={() => setIsMangakaDashboardOpen(true)}
-        onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
-        onSwitchUserEmail={handleSwitchUserEmail}
-        onStartReading={(m, chapId) => {
-          const targetManga = m || mangaList[0];
-          if (targetManga) {
-            handleStartReading(targetManga, chapId || targetManga.chapters[0]?.id);
-          }
-        }}
-      />
+        {isProfileModalOpen && (
+          <UserProfileModal
+            isOpen={isProfileModalOpen}
+            onClose={() => setIsProfileModalOpen(false)}
+            currentUserEmail={currentUserEmail}
+            userSubscription={userSubscription}
+            mangas={mangaList}
+            onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
+            onOpenApplyMangaka={() => setIsApplyMangakaOpen(true)}
+            onOpenMangakaDashboard={handleOpenMangakaStudio}
+            onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
+            onSwitchUserEmail={handleSwitchUserEmail}
+            onStartReading={(m, chapId) => {
+              const targetManga = m || mangaList[0];
+              if (targetManga) {
+                handleStartReading(targetManga, chapId || targetManga.chapters[0]?.id);
+              }
+            }}
+          />
+        )}
 
-      {/* "APPLY AS MANGAKA" MODAL SCREEN */}
-      <ApplyAsMangakaModal
-        isOpen={isApplyMangakaOpen}
-        onClose={() => setIsApplyMangakaOpen(false)}
-        currentUserEmail={currentUserEmail}
-        onOpenMangakaDashboard={() => setIsMangakaDashboardOpen(true)}
-      />
+        {isApplyMangakaOpen && (
+          <ApplyAsMangakaModal
+            isOpen={isApplyMangakaOpen}
+            onClose={() => setIsApplyMangakaOpen(false)}
+            currentUserEmail={currentUserEmail}
+            onOpenMangakaDashboard={handleOpenMangakaStudio}
+          />
+        )}
 
-      {/* MANGAKA DASHBOARD (MY MANGAS, VIEWS, EARNINGS & + UPLOAD MANGA) */}
-      <MangakaDashboardModal
-        isOpen={isMangakaDashboardOpen}
-        onClose={() => setIsMangakaDashboardOpen(false)}
-        currentUserEmail={currentUserEmail}
-        mangaList={mangaList}
-        creatorStats={creatorStats}
-        onSubmitNewManga={handleSubmitNewMangaFromMangaka}
-        onOpenApplyModal={() => setIsApplyMangakaOpen(true)}
-        onDeleteManga={handleDeleteManga}
-        onPublishChapter={handlePublishChapter}
-        comments={allComments}
-      />
+        {isMangakaDashboardOpen && (
+          <MangakaDashboardModal
+            isOpen={isMangakaDashboardOpen}
+            onClose={() => setIsMangakaDashboardOpen(false)}
+            currentUserEmail={currentUserEmail}
+            mangaList={mangaList}
+            creatorStats={creatorStats}
+            onSubmitNewManga={handleSubmitNewMangaFromMangaka}
+            onOpenApplyModal={() => setIsApplyMangakaOpen(true)}
+            onDeleteManga={handleDeleteManga}
+            onPublishChapter={handlePublishChapter}
+            comments={allComments}
+          />
+        )}
 
-      {/* YOUR ADMIN DASHBOARD (APPROVE / REJECT / FEATURE & REORDER) */}
-      <AdminDashboardModal
-        isOpen={isAdminDashboardOpen}
-        onClose={() => setIsAdminDashboardOpen(false)}
-        mangaList={mangaList}
-        onApproveManga={handleApproveManga}
-        onRejectManga={handleRejectManga}
-        onToggleFeatured={handleToggleFeatured}
-        onToggleOriginal={handleToggleOriginal}
-        onReorderManga={handleReorderManga}
-        onBulkModerateManga={handleReorderManga}
-      />
+        {isAdminDashboardOpen && (
+          <AdminDashboardModal
+            isOpen={isAdminDashboardOpen}
+            onClose={() => setIsAdminDashboardOpen(false)}
+            mangaList={mangaList}
+            onApproveManga={handleApproveManga}
+            onRejectManga={handleRejectManga}
+            onToggleFeatured={handleToggleFeatured}
+            onToggleOriginal={handleToggleOriginal}
+            onReorderManga={handleReorderManga}
+            onBulkModerateManga={handleReorderManga}
+          />
+        )}
 
-      {/* 7, 30, 100 DAY CONSECUTIVE READING MILESTONE CELEBRATION OVERLAY */}
-      <MilestoneCelebrationModal
-        isOpen={isCelebrationOpen}
-        onClose={() => setIsCelebrationOpen(false)}
-        milestone={celebrationMilestone}
-        onShare={() => setIsGlobalShareOpen(true)}
-      />
+        {isCelebrationOpen && (
+          <MilestoneCelebrationModal
+            isOpen={isCelebrationOpen}
+            onClose={() => setIsCelebrationOpen(false)}
+            milestone={celebrationMilestone}
+            onShare={() => setIsGlobalShareOpen(true)}
+          />
+        )}
 
-      {/* WEBVIEWER COMPONENT MODAL (Android 13 / Wide Viewport / No Zoom) */}
-      <WebViewerModal
-        isOpen={isWebViewerModalOpen}
-        onClose={() => setIsWebViewerModalOpen(false)}
-      />
+        {isWebViewerModalOpen && (
+          <WebViewerModal
+            isOpen={isWebViewerModalOpen}
+            onClose={() => setIsWebViewerModalOpen(false)}
+          />
+        )}
 
-      {/* DEFENSE ×5 CYBER SUITE MODAL */}
-      <SecurityDefenseModal
-        isOpen={isSecurityModalOpen}
-        onClose={() => setIsSecurityModalOpen(false)}
-      />
+        {isSecurityModalOpen && (
+          <SecurityDefenseModal
+            isOpen={isSecurityModalOpen}
+            onClose={() => setIsSecurityModalOpen(false)}
+          />
+        )}
 
-      {/* FCM CHAPTER DROP NOTIFICATIONS MODAL */}
-      <FcmNotificationsModal
-        isOpen={isFcmModalOpen}
-        onClose={() => setIsFcmModalOpen(false)}
-        onReadChapter={handleResumeReading}
-      />
+        {isFcmModalOpen && (
+          <FcmNotificationsModal
+            isOpen={isFcmModalOpen}
+            onClose={() => setIsFcmModalOpen(false)}
+            onReadChapter={handleResumeReading}
+          />
+        )}
+
+        {isRecommendationModalOpen && (
+          <RecommendationModal
+            isOpen={isRecommendationModalOpen}
+            onClose={() => setIsRecommendationModalOpen(false)}
+            mangaList={mangaList}
+            onSelectDetailManga={handleSelectDetailManga}
+            onStartReading={(m, chId) => {
+              setIsRecommendationModalOpen(false);
+              handleStartReading(m, chId);
+            }}
+            onProfileUpdated={(updated) => setUserTasteProfile({ ...updated })}
+            userTasteProfile={userTasteProfile}
+            favoriteIds={favoriteIds}
+            onToggleFavorite={handleToggleFavorite}
+          />
+        )}
+
+        {isStoreModalOpen && (
+          <AppStoreModal
+            isOpen={isStoreModalOpen}
+            onClose={() => setIsStoreModalOpen(false)}
+          />
+        )}
+      </Suspense>
 
       {/* FCM FOREGROUND CHAPTER DROP PUSH BANNER */}
       <FcmNotificationBanner onReadChapter={handleResumeReading} />
@@ -1827,29 +2270,10 @@ export default function App() {
       {/* DAILY READING GOAL REWARD NOTIFICATION */}
       <DailyRewardNotification onOpenProfileModal={() => setIsProfileModalOpen(true)} />
 
-      {/* MANGA TASTE PROFILE & RECOMMENDATION ENGINE MODAL */}
-      <RecommendationModal
-        isOpen={isRecommendationModalOpen}
-        onClose={() => setIsRecommendationModalOpen(false)}
-        mangaList={mangaList}
-        onSelectDetailManga={(m) => setSelectedDetailManga(m)}
-        onStartReading={(m, chId) => {
-          setIsRecommendationModalOpen(false);
-          handleStartReading(m, chId);
-        }}
-        onProfileUpdated={(updated) => setUserTasteProfile({ ...updated })}
-      />
-
       {/* Persistent Bottom Google AdMob Banner (Always Visible Across Entire App) */}
       <AdMobBanner
         variant="persistent-bottom"
         onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
-      />
-
-      {/* PWAApp Hub & Google Play / iOS Packaging Modal */}
-      <AppStoreModal
-        isOpen={isStoreModalOpen}
-        onClose={() => setIsStoreModalOpen(false)}
       />
 
       {/* Offline Connectivity Indicator */}
@@ -1858,7 +2282,7 @@ export default function App() {
       {/* AZ OVERVERSE SPLASH SCREEN (Header AZ Logo + Dark Theme) */}
       {showSplash && (
         <SplashScreen
-          duration={1500}
+          duration={950}
           onFinish={handleFinishSplash}
         />
       )}

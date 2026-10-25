@@ -1,6 +1,6 @@
 // Firebase Cloud Messaging (FCM) Service for KA Plus: Africa Pulse
 // Handles Web Push Notifications when new manga chapters drop
-import { getApps, initializeApp } from 'firebase/app';
+import { app as firebaseApp } from './firebase';
 import { getMessaging, getToken, onMessage, isSupported, Messaging } from 'firebase/messaging';
 import { Manga, Chapter } from '../types';
 import { safeStorage } from '../utils/safeStorage';
@@ -9,17 +9,7 @@ const FCM_TOKEN_STORAGE_KEY = 'ka_pulse_fcm_token';
 const FCM_SUBSCRIPTIONS_STORAGE_KEY = 'ka_pulse_fcm_chapter_subscriptions';
 const FCM_NOTIFICATIONS_HISTORY_KEY = 'ka_pulse_fcm_notifications_history';
 
-// Firebase Web Push Configuration
-const firebaseConfig = {
-  apiKey: import.meta?.env?.VITE_FIREBASE_API_KEY || "AIzaSyMockKeyForKAAfricaPulseFCM",
-  authDomain: "ka-africa.firebaseapp.com",
-  projectId: "ka-africa-db",
-  storageBucket: "ka-africa.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef",
-};
-
-export const firebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
+export { firebaseApp };
 
 let messagingInstance: Messaging | null = null;
 
@@ -73,7 +63,9 @@ export async function initFcmMessaging(): Promise<Messaging | null> {
         id: `fcm-${Date.now()}`,
         mangaId: data.mangaId || 'manga-1',
         mangaTitle: payload.notification?.title || data.mangaTitle || 'New Chapter Released!',
-        coverImage: data.coverImage || '/pwa-192x192.png',
+        coverImage:
+          data.coverImage ||
+          '/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp',
         chapterNumber: Number(data.chapterNumber) || 1,
         chapterTitle: data.chapterTitle || payload.notification?.body || 'Latest chapter is available now',
         timestamp: new Date().toISOString(),
@@ -244,8 +236,10 @@ export async function dispatchChapterDropPush(
       const title = `🔥 New Chapter Drop: ${manga.title}!`;
       const options: NotificationOptions = {
         body: `Chapter ${chapter.number}: "${chapter.title}" is out now! Click to read immediately on AZ Oververse.`,
-        icon: manga.coverImage,
-        badge: '/icon.svg',
+        icon:
+          manga.coverImage ||
+          '/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp',
+        badge: '/pwa-192x192.png',
         tag: `chapter-drop-${manga.id}-${chapter.number}`,
         data: {
           url: `/?manga=${manga.id}&chapter=${chapter.id}`,

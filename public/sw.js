@@ -1,5 +1,5 @@
 // OVERVERSE Progressive Web App Service Worker (Fallback / Static Reference)
-const CACHE_NAME = 'oververse-pwa-v5';
+const CACHE_NAME = 'oververse-pwa-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -11,7 +11,8 @@ const STATIC_ASSETS = [
   '/pwa-maskable-192x192.png',
   '/pwa-maskable-512x512.png',
   '/apple-touch-icon.png',
-  '/master-logo.png'
+  '/master-logo.png',
+  '/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp'
 ];
 
 self.addEventListener('install', (event) => {

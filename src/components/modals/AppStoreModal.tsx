@@ -17,6 +17,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 
 interface AppStoreModalProps {
   isOpen: boolean;
@@ -72,8 +73,8 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
         <div className="relative border-b border-slate-800 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-rose-500/20 border border-amber-500/40 shadow-inner">
-                <img src="/icon.svg" alt="App Icon" className="w-8 h-8 drop-shadow" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black border border-amber-500/40 shadow-inner overflow-hidden">
+                <img src={APP_LOGO_SRC} alt="AZ OVERVERSE App Icon" className="w-full h-full object-cover" />
               </div>
               <div>
                 <div className="flex items-center gap-2">

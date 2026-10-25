@@ -354,64 +354,84 @@ function calculateContentBasedScore(
   candidateGenres.forEach((g) => {
     if (userLikedGenresSet.has(g)) matchedGenres.push(g);
   });
+  const denominator = Math.max(1, Math.min(candidateGenres.size || 1, userLikedGenresSet.size || 1));
   const genreMatchRatio =
     userLikedGenresSet.size > 0
-      ? matchedGenres.length / Math.max(1, candidateGenres.size)
+      ? Math.min(1, matchedGenres.length / denominator)
       : 0.3;
 
-  // 2. Reading History Content Similarity (Weight = 0.55)
+  // 2. Reading History & Favorites Content Similarity (Weight = 0.55)
+  const isAlreadyRead = profile.readingHistory.some((h) => h.mangaId === candidate.id);
   let bestMangaMatchScore = 0;
   let bestMatchingManga: Manga | null = null;
   let bestThematicScore = 0;
 
-  for (const hist of profile.readingHistory) {
-    const histManga = allManga.find((m) => m.id === hist.mangaId);
-    if (!histManga) continue;
+  const seedIds = Array.from(
+    new Set([
+      ...profile.readingHistory.map((h) => h.mangaId),
+      ...(profile.favoriteMangaIds || []),
+    ])
+  );
 
-    const histGenres = new Set(histManga.genres || []);
-    const histThematic = extractThematicTokens(
-      `${histManga.title} ${histManga.synopsis}`
+  for (const seedId of seedIds) {
+    if (seedId === candidate.id) continue;
+    const seedManga = allManga.find((m) => m.id === seedId && m.id !== 'placeholder');
+    if (!seedManga) continue;
+
+    const histEntry = profile.readingHistory.find((h) => h.mangaId === seedId);
+    const recencyBoost = histEntry ? Math.min(1.12, 1 + histEntry.readCount * 0.03) : 1.0;
+
+    const seedGenres = new Set(seedManga.genres || []);
+    const seedThematic = extractThematicTokens(
+      `${seedManga.title} ${seedManga.synopsis}`
     );
 
-    const gSim = jaccardSimilarity(candidateGenres, histGenres);
-    const tSim = jaccardSimilarity(candidateThematic, histThematic);
+    const gSim = jaccardSimilarity(candidateGenres, seedGenres);
+    const tSim = jaccardSimilarity(candidateThematic, seedThematic);
 
     // Combined pairwise content similarity
-    const pairSim = gSim * 0.65 + tSim * 0.35;
+    const pairSim = Math.min(1, (gSim * 0.65 + tSim * 0.35) * recencyBoost);
     if (pairSim > bestMangaMatchScore) {
       bestMangaMatchScore = pairSim;
-      bestMatchingManga = histManga;
+      bestMatchingManga = seedManga;
       bestThematicScore = tSim;
     }
   }
 
-  // If user has no history, rely primarily on liked genres
+  // Blend favorite genres and reading history signals cleanly
   let compositeScore = 0;
   let reason = '';
 
-  if (profile.readingHistory.length === 0) {
+  if (profile.readingHistory.length === 0 && (!profile.favoriteMangaIds || profile.favoriteMangaIds.length === 0)) {
     compositeScore = Math.min(1.0, genreMatchRatio * 0.85 + (candidate.rating / 5) * 0.15);
     reason =
       matchedGenres.length > 0
-        ? `Matches your liked genres: ${matchedGenres.join(', ')}`
-        : `Trending title in ${candidate.genres[0] || 'Shonen'}`;
-  } else if (bestMatchingManga && bestMangaMatchScore > 0.25) {
+        ? `Matches your favorite genres: ${matchedGenres.slice(0, 3).join(', ')}`
+        : `Acclaimed series in ${candidate.genres[0] || 'Shonen'}`;
+  } else if (bestMatchingManga && bestMangaMatchScore > 0.22) {
     compositeScore =
-      bestMangaMatchScore * 0.55 +
-      genreMatchRatio * 0.35 +
+      bestMangaMatchScore * 0.52 +
+      genreMatchRatio * 0.38 +
       (candidate.rating / 5) * 0.10;
-    reason = `Because you read ${bestMatchingManga.title}`;
+    reason =
+      matchedGenres.length > 0
+        ? `Because you read ${bestMatchingManga.title} · ${matchedGenres.slice(0, 2).join(' & ')}`
+        : `Because you read ${bestMatchingManga.title}`;
+  } else if (isAlreadyRead && matchedGenres.length > 0) {
+    compositeScore =
+      genreMatchRatio * 0.72 + (candidate.rating / 5) * 0.28;
+    reason = `In your reading history · Matches ${matchedGenres.slice(0, 2).join(' & ')}`;
   } else if (matchedGenres.length > 0) {
     compositeScore =
-      genreMatchRatio * 0.70 + (candidate.rating / 5) * 0.30;
-    reason = `Matches your taste for ${matchedGenres.slice(0, 2).join(' & ')}`;
+      genreMatchRatio * 0.72 + (candidate.rating / 5) * 0.28;
+    reason = `Matches your favorite genres: ${matchedGenres.slice(0, 3).join(', ')}`;
   } else {
-    compositeScore = (candidate.rating / 5) * 0.5;
-    reason = `Recommended high-rated series (${candidate.rating}★)`;
+    compositeScore = (candidate.rating / 5) * 0.55;
+    reason = `High-rated ${candidate.genres[0] || 'Original'} series (${candidate.rating.toFixed(1)} ★)`;
   }
 
   return {
-    score: Math.min(0.99, Math.max(0.1, compositeScore)),
+    score: Math.min(0.99, Math.max(0.15, compositeScore)),
     matchedGenres,
     thematicSimilarity: bestThematicScore,
     reason,
@@ -435,7 +455,9 @@ function calculateCollaborativeScore(
   const candidateId = candidate.id;
   const historyIds = profile.readingHistory.map((h) => h.mangaId);
   const favoriteIds = profile.favoriteMangaIds || [];
-  const interactingIds = Array.from(new Set([...historyIds, ...favoriteIds]));
+  const interactingIds = Array.from(new Set([...historyIds, ...favoriteIds])).filter(
+    (id) => id !== candidateId
+  );
 
   if (interactingIds.length === 0) {
     // Cold start collaborative score fallback
@@ -514,8 +536,9 @@ export function getRecommendedManga(
   const readMangaIds = new Set(profile.readingHistory.map((h) => h.mangaId));
   const dislikedIds = new Set(profile.dislikedMangaIds || []);
 
-  // Filter out banned manga and drafts that are not public
+  // Filter out placeholder, banned manga, and drafts that are not public
   const candidates = allManga.filter((m) => {
+    if (!m || m.id === 'placeholder') return false;
     if (m.isBanned) return false;
     if (m.approvalStatus === 'draft' || m.approvalStatus === 'rejected') return false;
     if (dislikedIds.has(m.id)) return false;
@@ -625,6 +648,8 @@ export function getSimilarManga(
 
   const candidates = allManga.filter(
     (m) =>
+      m &&
+      m.id !== 'placeholder' &&
       m.id !== targetManga.id &&
       !m.isBanned &&
       m.approvalStatus !== 'draft' &&

@@ -15,6 +15,9 @@ export const INITIAL_CREATOR_STATS: CreatorStats = {
   payoutHistory: [],
 };
 
+export const NKOSI_COVER_SRC =
+  '/assets/aistudio/862620681_1304598868406485_898394409428393681_n_8fa8ea5a.webp';
+
 // Original Manga requested by user: "Nkosi the tale of Myths" (No panels inside -> Coming Soon)
 export const NKOSI_MANGA: Manga = {
   id: 'nkosi-the-tale-of-myths',
@@ -22,10 +25,10 @@ export const NKOSI_MANGA: Manga = {
   japaneseTitle: 'ンコシ：神話の物語',
   author: 'Mlungiseni Mbhele',
   artist: 'Mlungiseni Mbhele & Studio Pulse',
-  cover: '/assets/aistudio/857872877_1452459446839395_7963345796326052180_n_b7d59072.webp',
-  coverImage: '/assets/aistudio/857872877_1452459446839395_7963345796326052180_n_b7d59072.webp',
-  coverUrl: '/assets/aistudio/857872877_1452459446839395_7963345796326052180_n_b7d59072.webp',
-  bannerImage: '/assets/aistudio/857872877_1452459446839395_7963345796326052180_n_b7d59072.webp',
+  cover: NKOSI_COVER_SRC,
+  coverImage: NKOSI_COVER_SRC,
+  coverUrl: NKOSI_COVER_SRC,
+  bannerImage: NKOSI_COVER_SRC,
   genres: ['Action', 'Fantasy', 'Shonen', 'Adventure'],
   status: 'ONGOING',
   synopsis: 'Born with the sacred lineage of mythical African deities and ancient kings, young Nkosi embarks on an epic odyssey through forgotten kingdoms to unravel celestial lore and protect the realm from mythological titans.',

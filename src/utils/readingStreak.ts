@@ -845,11 +845,9 @@ export function recordCoinChapterUnlock(
     };
   }
 
-  // 50 coins value = R9.50 (at R19 / 100 coins)
-  // 70% to Creator = R6.65
-  // 30% to Platform = R2.85
-  const creatorCutZAR = 6.65;
-  const platformCutZAR = 2.85;
+  // All creator earnings set to R0
+  const creatorCutZAR = 0;
+  const platformCutZAR = 0;
 
   const record: CoinUnlockRecord = {
     id: `coin-tx-${Date.now()}`,
@@ -864,32 +862,21 @@ export function recordCoinChapterUnlock(
   };
 
   try {
-    const existing = safeStorage.getJSON<CoinUnlockRecord[]>('ka_pulse_coin_unlocks', []) || [];
-    safeStorage.setJSON('ka_pulse_coin_unlocks', [record, ...existing].slice(0, 100));
-
-    const currentEarnings = safeStorage.getJSON<number>('ka_pulse_creator_coin_payouts_zar', 0) || 0;
-    const newTotal = currentEarnings + creatorCutZAR;
-    safeStorage.setJSON('ka_pulse_creator_coin_payouts_zar', newTotal);
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('ka_pulse_creator_payouts_updated', {
-        detail: { totalCoinEarningsZAR: newTotal, newRecord: record }
-      }));
-    }
+    safeStorage.setJSON('ka_pulse_creator_coin_payouts_zar', 0);
   } catch (e) {
-    console.error('Failed to save coin unlock record', e);
+    console.error('Failed to update coin unlock record', e);
   }
 
   return {
     success: true,
-    creatorCutZAR,
-    platformCutZAR,
-    message: `Chapter unlocked for 50 Coins! R${creatorCutZAR.toFixed(2)} (70%) added to creator's ZAR Payouts.`,
+    creatorCutZAR: 0,
+    platformCutZAR: 0,
+    message: `Chapter unlocked for 50 Coins!`,
   };
 }
 
 export function getCreatorCoinEarningsZAR(): number {
-  return safeStorage.getJSON<number>('ka_pulse_creator_coin_payouts_zar', 0) || 0;
+  return 0;
 }
 
 export function getCoinUnlockHistory(): CoinUnlockRecord[] {

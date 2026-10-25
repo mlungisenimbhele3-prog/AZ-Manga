@@ -1,6 +1,8 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import { Manga } from '../../types';
 import { MangaCard } from '../manga/MangaCard';
+import { MangaGrid } from '../manga/MangaGrid';
 import { RecommendationsTray } from '../recommendations/RecommendationsTray';
 import { UserTasteProfile } from '../../services/recommendationEngine';
 import {
@@ -197,9 +199,33 @@ export const MobileHome: React.FC<MobileHomeProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="flex items-stretch gap-3 overflow-x-auto pb-2 scrollbar-none overscroll-x-contain smooth-scroll-container">
+              <motion.div
+                key={`mobile-orig-track-${selectedFilter}-${searchQuery}`}
+                initial="hidden"
+                animate="visible"
+                variants={{
+                  hidden: { opacity: 0 },
+                  visible: {
+                    opacity: 1,
+                    transition: { staggerChildren: 0.05, delayChildren: 0.02 },
+                  },
+                }}
+                className="flex items-stretch gap-3 overflow-x-auto pb-2 scrollbar-none overscroll-x-contain smooth-scroll-container"
+              >
                 {originalSeries.map((manga, idx) => (
-                  <div key={`mobile-orig-${manga.id}-${idx}`} className="w-40 shrink-0">
+                  <motion.div
+                    key={`mobile-orig-${manga.id}-${idx}`}
+                    variants={{
+                      hidden: { opacity: 0, y: 16, scale: 0.96 },
+                      visible: {
+                        opacity: 1,
+                        y: 0,
+                        scale: 1,
+                        transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+                      },
+                    }}
+                    className="w-40 shrink-0"
+                  >
                     <MangaCard
                       manga={manga}
                       isFavorite={favoriteIds.includes(manga.id)}
@@ -207,9 +233,9 @@ export const MobileHome: React.FC<MobileHomeProps> = ({
                       onSelect={onSelectDetailManga}
                       onOpenAiReport={(_e, m) => onOpenAiReport?.(m)}
                     />
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             )}
           </div>
 
@@ -229,34 +255,28 @@ export const MobileHome: React.FC<MobileHomeProps> = ({
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              {canvasSeries.map((manga, idx) => (
-                <MangaCard
-                  key={`mobile-canvas-${manga.id}-${idx}`}
-                  manga={manga}
-                  isFavorite={favoriteIds.includes(manga.id)}
-                  onToggleFavorite={(_e, id) => onToggleFavorite(id)}
-                  onSelect={onSelectDetailManga}
-                  onOpenAiReport={(_e, m) => onOpenAiReport?.(m)}
-                />
-              ))}
-            </div>
+            <MangaGrid
+              mangaList={canvasSeries}
+              favoriteIds={favoriteIds}
+              onToggleFavorite={onToggleFavorite}
+              onSelect={onSelectDetailManga}
+              onOpenAiReport={onOpenAiReport}
+              columns={2}
+              filterKey={`mobile-backdrop-${selectedFilter}-${searchQuery}`}
+            />
           </div>
         </div>
       ) : (
         /* Filtered Search Grid */
-        <div className="grid grid-cols-2 gap-3">
-          {filteredManga.map((manga, idx) => (
-            <MangaCard
-              key={`mobile-filtered-${manga.id}-${idx}`}
-              manga={manga}
-              isFavorite={favoriteIds.includes(manga.id)}
-              onToggleFavorite={(_e, id) => onToggleFavorite(id)}
-              onSelect={onSelectDetailManga}
-              onOpenAiReport={(_e, m) => onOpenAiReport?.(m)}
-            />
-          ))}
-        </div>
+        <MangaGrid
+          mangaList={filteredManga}
+          favoriteIds={favoriteIds}
+          onToggleFavorite={onToggleFavorite}
+          onSelect={onSelectDetailManga}
+          onOpenAiReport={onOpenAiReport}
+          columns={2}
+          filterKey={`mobile-filtered-${selectedFilter}-${searchQuery}`}
+        />
       )}
     </div>
   );

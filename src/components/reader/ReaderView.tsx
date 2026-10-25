@@ -1,9 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Sliders, ChevronLeft, ChevronRight, BookOpen, Smartphone, Maximize2, Minimize2, Play, Sparkles } from 'lucide-react';
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  Smartphone,
+  Maximize2,
+  Minimize2,
+  Play,
+  Sparkles,
+} from 'lucide-react';
 import { Chapter, Manga, UserSubscription } from '../../types';
 import { ReadingMode, preloadUpcomingPages, DEFAULT_READER_CONFIG } from './ReaderConfig';
 import { AdMobBanner } from '../ads/AdMobBanner';
 import { safeStorage } from '../../utils/safeStorage';
+import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 
 export interface ReaderViewProps {
   manga: Manga;
@@ -24,24 +35,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   onRequestRewardedAd,
   onUpgradeClick,
 }) => {
-  if (!chapter || !chapter.pages || chapter.pages.length === 0) {
-    return (
-      <div className="fixed inset-0 z-50 bg-[#0a0d14] text-white flex flex-col items-center justify-center p-6 text-center space-y-4">
-        <BookOpen className="w-10 h-10 text-amber-400" />
-        <span className="rounded-full bg-amber-500 text-black px-3 py-1 text-xs font-black uppercase tracking-wider">
-          COMING SOON
-        </span>
-        <h2 className="text-xl font-black text-white">{manga?.title || 'Coming Soon'}</h2>
-        <p className="text-xs text-slate-300 max-w-sm">No panels inside yet. Episode 1 is currently in production.</p>
-        <button onClick={onBack} className="rounded-xl bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 text-xs font-bold transition">
-          Back
-        </button>
-      </div>
-    );
-  }
-
-  const pages = chapter.pages || [];
+  const pages = chapter?.pages || [];
   const totalPages = pages.length;
+  const hasPages = Boolean(chapter && totalPages > 0);
 
   // Reading mode: Mode A ('vertical') or Mode B ('horizontal_ltr')
   const [readingMode, setReadingMode] = useState<ReadingMode>(() => {
@@ -53,7 +49,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         return 'horizontal_ltr';
       }
       if (saved === 'horizontal_ltr') return 'horizontal_ltr';
-    } catch (e) {}
+    } catch {}
     return DEFAULT_READER_CONFIG.readingMode;
   });
 
@@ -62,30 +58,29 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const [showOverlay, setShowOverlay] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
-  // Touch coordinates for clean swiping
+  // Touch & scroll refs (RAF-throttled for 120Hz zero-jank scrolling)
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const touchStartTimeRef = useRef<number>(0);
   const verticalContainerRef = useRef<HTMLDivElement>(null);
   const pageImageRefs = useRef<{ [key: number]: HTMLImageElement | null }>({});
+  const scrollRafRef = useRef<number | null>(null);
 
-  // Save preferred reading mode
-  const handleToggleReadingMode = (mode: ReadingMode) => {
+  const handleToggleReadingMode = useCallback((mode: ReadingMode) => {
     setReadingMode(mode);
     try {
       localStorage.setItem('az_reader_mode', mode);
-    } catch (e) {}
-  };
+    } catch {}
+  }, []);
 
-  // Image preloading algorithm: Silently cache Page X+1 and Page X+2 in background
+  // Image preloading algorithm: Silently cache upcoming pages in background
   useEffect(() => {
-    if (pages.length > 0) {
+    if (totalPages > 0) {
       preloadUpcomingPages(pages, currentPageIndex, DEFAULT_READER_CONFIG.preloadAheadCount);
     }
-  }, [currentPageIndex, pages]);
+  }, [currentPageIndex, pages, totalPages]);
 
-  // Handle Fullscreen toggle
-  const toggleFullscreen = () => {
+  const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
       setIsFullscreen(true);
@@ -95,13 +90,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       }
       setIsFullscreen(false);
     }
-  };
+  }, []);
 
-  // Turn page in Horizontal LTR Manga mode:
-  // LTR Convention: Swiping left or tapping right moves forward (to Page X+1)
-  // Swiping right or tapping left moves backward (to Page X-1)
   const goToNextPage = useCallback(() => {
-    setCurrentPageIndex((prev) => Math.min(prev + 1, totalPages - 1));
+    setCurrentPageIndex((prev) => Math.min(prev + 1, Math.max(0, totalPages - 1)));
   }, [totalPages]);
 
   const goToPrevPage = useCallback(() => {
@@ -114,10 +106,8 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       if (e.key === 'Escape') {
         onBack();
       } else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') {
-        // In LTR: ArrowRight moves forward to next page
         if (readingMode === 'horizontal_ltr') goToNextPage();
       } else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') {
-        // In LTR: ArrowLeft moves backward to previous page
         if (readingMode === 'horizontal_ltr') goToPrevPage();
       } else if (e.key === ' ' || e.key === 'Enter') {
         setShowOverlay((prev) => !prev);
@@ -127,103 +117,111 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [goToNextPage, goToPrevPage, readingMode, onBack]);
 
-  /**
-   * Tap-activated UI overlay handler:
-   * Tapping the exact center (middle 30% of screen) toggles the top and bottom overlay.
-   * Tapping left/right in horizontal LTR mode turns pages Left-to-Right.
-   */
-  const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const xRatio = (e.clientX - rect.left) / rect.width;
-    const yRatio = (e.clientY - rect.top) / rect.height;
+  const handleScreenClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const xRatio = (e.clientX - rect.left) / rect.width;
+      const yRatio = (e.clientY - rect.top) / rect.height;
 
-    // Check if tap was in the center 30% zone (between 35% and 65% of screen width & height)
-    const isCenterTap =
-      xRatio >= 0.35 &&
-      xRatio <= 0.65 &&
-      yRatio >= 0.25 &&
-      yRatio <= 0.75;
-
-    if (isCenterTap) {
-      setShowOverlay((prev) => !prev);
-      return;
-    }
-
-    // In Horizontal LTR Mode, taps outside the center navigate Left-to-Right:
-    if (readingMode === 'horizontal_ltr') {
-      if (xRatio < 0.35) {
-        // Tapped left: move backward to Previous Page in LTR
-        goToPrevPage();
-      } else if (xRatio > 0.65) {
-        // Tapped right: move forward to Next Page in LTR
-        goToNextPage();
+      const isCenterTap = xRatio >= 0.35 && xRatio <= 0.65 && yRatio >= 0.25 && yRatio <= 0.75;
+      if (isCenterTap) {
+        setShowOverlay((prev) => !prev);
+        return;
       }
-    }
-  };
 
-  // Touch Handlers for Swipe Gestures
-  const handleTouchStart = (e: React.TouchEvent) => {
+      if (readingMode === 'horizontal_ltr') {
+        if (xRatio < 0.35) {
+          goToPrevPage();
+        } else if (xRatio > 0.65) {
+          goToNextPage();
+        }
+      }
+    },
+    [readingMode, goToPrevPage, goToNextPage]
+  );
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       touchStartXRef.current = e.touches[0].clientX;
       touchStartYRef.current = e.touches[0].clientY;
       touchStartTimeRef.current = Date.now();
     }
-  };
+  }, []);
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
-    const endX = e.changedTouches[0].clientX;
-    const endY = e.changedTouches[0].clientY;
-    const deltaX = endX - touchStartXRef.current;
-    const deltaY = endY - touchStartYRef.current;
-    const timeTaken = Date.now() - touchStartTimeRef.current;
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const deltaX = endX - touchStartXRef.current;
+      const deltaY = endY - touchStartYRef.current;
+      const timeTaken = Date.now() - touchStartTimeRef.current;
 
-    touchStartXRef.current = null;
-    touchStartYRef.current = null;
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
 
-    // Only handle horizontal swipes in Horizontal LTR mode if horizontal movement > vertical movement
-    if (readingMode === 'horizontal_ltr' && Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) && timeTaken < 600) {
-      if (deltaX < 0) {
-        // Swiping Left (pulling right page into view) -> Next Page in LTR
-        goToNextPage();
-      } else {
-        // Swiping Right (pulling left page back into view) -> Previous Page in LTR
-        goToPrevPage();
-      }
-    }
-  };
-
-  // Update page index and progress as user scrolls in Vertical mode
-  const handleVerticalScroll = useCallback(() => {
-    if (!verticalContainerRef.current) return;
-    const container = verticalContainerRef.current;
-
-    // Dynamic chapter scroll progress calculation (0% to 100%)
-    const maxScroll = container.scrollHeight - container.clientHeight;
-    if (maxScroll > 0) {
-      const pct = Math.min(100, Math.max(0, (container.scrollTop / maxScroll) * 100));
-      setScrollProgress(pct);
-    } else {
-      setScrollProgress(0);
-    }
-
-    const viewportMiddle = container.scrollTop + container.clientHeight / 2;
-    for (let i = 0; i < pages.length; i++) {
-      const el = pageImageRefs.current[i];
-      if (el) {
-        const top = el.offsetTop;
-        const height = el.offsetHeight;
-        if (viewportMiddle >= top && viewportMiddle < top + height) {
-          setCurrentPageIndex(i);
-          break;
+      if (
+        readingMode === 'horizontal_ltr' &&
+        Math.abs(deltaX) > 40 &&
+        Math.abs(deltaX) > Math.abs(deltaY) &&
+        timeTaken < 600
+      ) {
+        if (deltaX < 0) {
+          goToNextPage();
+        } else {
+          goToPrevPage();
         }
       }
-    }
-  }, [pages.length]);
+    },
+    [readingMode, goToNextPage, goToPrevPage]
+  );
 
-  // Keep scroll progress accurate even as long chapter images dynamically load/resize
+  // RAF-throttled vertical scroll listener (prevents synchronous layout thrashing at 120Hz)
+  const handleVerticalScroll = useCallback(() => {
+    if (scrollRafRef.current !== null) return;
+
+    scrollRafRef.current = window.requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const container = verticalContainerRef.current;
+      if (!container) return;
+
+      const scrollTop = container.scrollTop;
+      const clientHeight = container.clientHeight;
+      const maxScroll = container.scrollHeight - clientHeight;
+
+      if (maxScroll > 0) {
+        const pct = Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100));
+        setScrollProgress(pct);
+      } else {
+        setScrollProgress(0);
+      }
+
+      const viewportMiddle = scrollTop + clientHeight / 2;
+      for (let i = 0; i < totalPages; i++) {
+        const el = pageImageRefs.current[i];
+        if (el) {
+          const top = el.offsetTop;
+          const height = el.offsetHeight;
+          if (viewportMiddle >= top && viewportMiddle < top + height) {
+            setCurrentPageIndex((prev) => (prev === i ? prev : i));
+            break;
+          }
+        }
+      }
+    });
+  }, [totalPages]);
+
   useEffect(() => {
-    if (readingMode !== 'vertical' || !verticalContainerRef.current) return;
+    return () => {
+      if (scrollRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollRafRef.current);
+      }
+    };
+  }, []);
+
+  // Keep scroll progress accurate as chapter images decode/resize
+  useEffect(() => {
+    if (!hasPages || readingMode !== 'vertical' || !verticalContainerRef.current) return;
     const container = verticalContainerRef.current;
 
     const updateScrollProgress = () => {
@@ -238,16 +236,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
     let resizeObserver: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => {
-        updateScrollProgress();
-      });
+      resizeObserver = new ResizeObserver(updateScrollProgress);
       resizeObserver.observe(container);
     }
 
     return () => {
       if (resizeObserver) resizeObserver.disconnect();
     };
-  }, [readingMode, chapter.id, pages.length]);
+  }, [hasPages, readingMode, chapter?.id, totalPages]);
 
   // Reset scroll and page index when switching chapter
   useEffect(() => {
@@ -256,34 +252,63 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     if (verticalContainerRef.current) {
       verticalContainerRef.current.scrollTop = 0;
     }
-  }, [chapter.id]);
+  }, [chapter?.id]);
 
-  // Persist reading progress for Resume Reading banner
+  // Debounced reading progress persistence (prevents synchronous localStorage writes during fast scroll)
   useEffect(() => {
-    if (!manga || !chapter) return;
-    try {
-      safeStorage.setJSON('ka_pulse_last_read', {
-        mangaId: manga.id,
-        mangaTitle: manga.title,
-        coverImage: manga.coverImage || (manga as any).cover || '',
-        chapterId: chapter.id,
-        chapterNumber: chapter.number,
-        chapterTitle: chapter.title || `Chapter ${chapter.number}`,
-        pageIndex: currentPageIndex,
-        totalPages,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (e) {}
-  }, [manga, chapter, currentPageIndex, totalPages]);
+    if (!manga || !chapter || !hasPages) return;
+    const timer = window.setTimeout(() => {
+      try {
+        safeStorage.setJSON('ka_pulse_last_read', {
+          mangaId: manga.id,
+          mangaTitle: manga.title,
+          coverImage: manga.coverImage || (manga as any).cover || '',
+          chapterId: chapter.id,
+          chapterNumber: chapter.number,
+          chapterTitle: chapter.title || `Chapter ${chapter.number}`,
+          pageIndex: currentPageIndex,
+          totalPages,
+          timestamp: new Date().toISOString(),
+        });
+      } catch {}
+    }, 350);
 
-  // Effective progress percentage across Vertical and Horizontal RTL modes
-  const currentProgress = readingMode === 'vertical'
-    ? scrollProgress
-    : totalPages > 0
+    return () => window.clearTimeout(timer);
+  }, [manga, chapter, hasPages, currentPageIndex, totalPages]);
+
+  // Safe empty-chapter guard AFTER all hooks (strictly preserves React Rules of Hooks)
+  if (!hasPages) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#0a0d14] text-white flex flex-col items-center justify-center p-6 text-center space-y-4">
+        <BookOpen className="w-10 h-10 text-amber-400" />
+        <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+          Coming Soon
+        </span>
+        <h2 className="text-xl font-black text-white">{manga?.title || 'Coming Soon'}</h2>
+        <p className="text-xs text-slate-300 max-w-sm">
+          No panels inside yet. Episode 1 is currently in production.
+        </p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 text-xs font-bold transition"
+        >
+          Back
+        </button>
+      </div>
+    );
+  }
+
+  const currentProgress =
+    readingMode === 'vertical'
+      ? scrollProgress
+      : totalPages > 0
       ? Math.min(100, Math.max(0, ((currentPageIndex + 1) / totalPages) * 100))
       : 0;
 
-  const currentChapterIndex = manga?.chapters ? manga.chapters.findIndex((c) => c.id === chapter.id) : -1;
+  const currentChapterIndex = manga?.chapters
+    ? manga.chapters.findIndex((c) => c.id === chapter.id)
+    : -1;
   const nextChapter =
     currentChapterIndex >= 0 && currentChapterIndex < manga.chapters.length - 1
       ? manga.chapters[currentChapterIndex + 1]
@@ -319,19 +344,13 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       onClick={handleScreenClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[100] m-0 p-0 w-screen h-screen min-h-screen bg-black text-white select-none overflow-hidden"
+      className="fixed inset-0 z-[100] m-0 p-0 w-screen h-screen-dynamic bg-black text-white select-none overflow-hidden"
       style={{
-        width: '100vw',
-        height: '100vh',
         backgroundColor: '#000000',
         touchAction: 'pan-x pan-y pinch-zoom',
       }}
     >
-      {/* ======================================================================
-          TOP HORIZONTAL READING PROGRESS BAR
-          Fixed to the very top edge of the screen, tracking scroll/reading progress.
-          Sleek, unobtrusive, vibrant amber gradient with subtle glow.
-          ====================================================================== */}
+      {/* GPU-COMPOSITED TOP HORIZONTAL READING PROGRESS BAR (transform: scaleX instead of layout width) */}
       <div
         id="reader-top-progress-container"
         className="fixed top-0 left-0 right-0 z-[120] pointer-events-none"
@@ -341,64 +360,63 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         aria-valuemax={100}
         aria-label="Chapter reading progress"
       >
-        <div className="w-full h-1 sm:h-[4px] bg-slate-900/60 backdrop-blur-[2px] overflow-hidden">
+        <div className="w-full h-1 sm:h-[4px] bg-slate-900/60 overflow-hidden">
           <div
             id="reader-top-progress-bar-fill"
-            className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 shadow-[0_0_10px_rgba(251,191,36,0.9)] relative transition-[width] ease-out"
+            className="h-full w-full origin-left bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 will-change-transform transition-transform ease-out"
             style={{
-              width: `${currentProgress}%`,
-              transitionDuration: readingMode === 'vertical' ? '60ms' : '220ms',
+              transform: `scaleX(${Math.max(0, Math.min(1, currentProgress / 100))})`,
+              transitionDuration: readingMode === 'vertical' ? '50ms' : '180ms',
             }}
-          >
-            {/* Radiant leading tip indicator */}
-            {currentProgress > 0 && (
-              <span className="absolute right-0 top-0 bottom-0 w-2.5 bg-white shadow-[0_0_6px_#ffffff] rounded-full opacity-90" />
-            )}
-          </div>
+          />
         </div>
       </div>
 
-      {/* ======================================================================
-          TOP BAR (Translucent, Elegant, Hidden until Center Tap)
-          ====================================================================== */}
+      {/* TOP BAR */}
       <div
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-black/80 backdrop-blur-md border-b border-white/10 transition-transform duration-300 ease-out ${
-          showOverlay ? 'translate-y-0 opacity-100 pointer-events-auto' : '-translate-y-full opacity-0 pointer-events-none'
+        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-black/85 backdrop-blur-md border-b border-white/10 transition-[transform,opacity] duration-200 ease-out ${
+          showOverlay
+            ? 'translate-y-0 opacity-100 pointer-events-auto'
+            : '-translate-y-full opacity-0 pointer-events-none'
         }`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
+            type="button"
             onClick={onBack}
-            className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition text-white"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition text-white shrink-0"
             aria-label="Exit Reader"
             title="Back to Manga Details"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-sm font-bold text-white truncate max-w-[200px] sm:max-w-md">
               {chapter.title || `Chapter ${chapter.number}`}
             </h2>
-            <span className="text-[10px] text-amber-400 font-semibold block truncate">
-              {manga.title} • {readingMode === 'horizontal_ltr' ? 'LTR Manga Mode' : 'AZ Vertical'}
+            <span className="text-[11px] text-amber-400 font-semibold block truncate">
+              {manga.title} · {readingMode === 'horizontal_ltr' ? 'LTR Manga Mode' : 'AZ Vertical'}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Real-time Chapter Reading Progress Pill */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-mono font-bold text-amber-300">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-mono tabular-nums font-bold text-amber-300">
             <span>{Math.round(currentProgress)}%</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-slate-300 text-[11px] font-normal">Pg {currentPageIndex + 1}/{totalPages || 1}</span>
+            <span className="text-slate-600">·</span>
+            <span className="text-slate-300 text-[11px] font-normal">
+              Pg {currentPageIndex + 1}/{totalPages || 1}
+            </span>
           </div>
 
-          {/* Quick Mode Switcher */}
           <button
-            onClick={() => handleToggleReadingMode(readingMode === 'vertical' ? 'horizontal_ltr' : 'vertical')}
+            type="button"
+            onClick={() =>
+              handleToggleReadingMode(readingMode === 'vertical' ? 'horizontal_ltr' : 'vertical')
+            }
             className="min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition text-slate-200 whitespace-nowrap shrink-0"
             title="Toggle Reading Mode"
           >
@@ -415,10 +433,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             )}
           </button>
 
-          {/* Fullscreen Button */}
           <button
+            type="button"
             onClick={toggleFullscreen}
-            className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 transition text-slate-200"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 transition text-slate-200"
             aria-label="Toggle Fullscreen"
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -426,38 +444,17 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </div>
       </div>
 
-      {/* ======================================================================
-          MAIN READER CONTENT: EXACT 100vh/100vw, OBJECT-CONTAIN, ZERO LIGHT LEAKAGE
-          ====================================================================== */}
+      {/* MAIN READER CONTENT */}
       {readingMode === 'vertical' ? (
-        /* MODE A: VERTICAL SCROLL (AZ VERTICAL STYLE)
-           - Stack vertically with exactly 0px gap between them
-           - Buttery smooth with hardware acceleration (will-change: transform)
-           - Lazy loading
-           - Hide default browser scrollbars */
         <div
           ref={verticalContainerRef}
           onScroll={handleVerticalScroll}
           className="w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar flex flex-col items-center bg-black m-0 p-0 overscroll-y-contain smooth-scroll-container"
-          style={{
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            WebkitOverflowScrolling: 'touch',
-            overscrollBehavior: 'contain',
-          }}
         >
           {pages.map((p, idx) => (
             <React.Fragment key={`row-${p.id || idx}-${idx}`}>
               <div
-                key={`page-container-${p.id || idx}-${idx}`}
                 className="w-full flex justify-center items-center bg-black m-0 p-0 border-0 manga-page-container"
-                style={{
-                  margin: 0,
-                  padding: 0,
-                  contain: 'layout paint',
-                  contentVisibility: 'auto',
-                  containIntrinsicSize: '680px',
-                }}
               >
                 <img
                   ref={(el) => {
@@ -465,32 +462,26 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                   }}
                   src={p.imageUrl}
                   alt={`Page ${idx + 1}`}
+                  referrerPolicy="no-referrer"
                   loading={idx <= 1 ? 'eager' : 'lazy'}
                   decoding="async"
-                  className="max-h-screen w-auto max-w-full object-contain mx-auto select-none block m-0 p-0"
+                  {...{ fetchpriority: idx === 0 ? 'high' : 'auto' }}
+                  className="max-h-screen w-auto max-w-full object-contain mx-auto select-none block m-0 p-0 manga-page-img"
                   style={{
-                    margin: 0,
-                    padding: 0,
-                    border: 0,
-                    display: 'block',
-                    willChange: 'transform',
-                    transform: 'translateZ(0)',
                     touchAction: 'pan-y pinch-zoom',
                   }}
-                  onError={(e: any) => {
-                    e.target.onerror = null;
-                    e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&auto=format&fit=crop&q=80';
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (target.src !== window.location.origin + APP_LOGO_SRC) {
+                      target.src = APP_LOGO_SRC;
+                    }
                   }}
                 />
               </div>
 
-              {/* In-stream AdMob Test Banner for Free Users after Page 2 */}
               {userSubscription?.tier !== 'vip' && idx === 1 && (
-                <div key={`ad-container-${p.id || idx}-${idx}`} className="w-full max-w-2xl px-4 py-2">
-                  <AdMobBanner
-                    key={`ad-${p.id || idx}-${idx}`}
-                    bannerId="ca-app-pub-3940256099942544/6300978111"
-                  />
+                <div className="w-full max-w-2xl px-4 py-2">
+                  <AdMobBanner bannerId="ca-app-pub-3940256099942544/6300978111" />
                 </div>
               )}
             </React.Fragment>
@@ -557,57 +548,46 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           </div>
         </div>
       ) : (
-        /* MODE B: HORIZONTAL PAGE-TURN (LEFT-TO-RIGHT / LTR MANGA STYLE)
-           - Pages flow strictly Left-to-Right (Page 1 on left -> Page N on right)
-           - Smooth hardware-accelerated horizontal LTR track
-           - Tap Right / Swipe Left / ArrowRight -> Next Page
-           - Tap Left / Swipe Right / ArrowLeft -> Previous Page */
         <div
           dir="ltr"
           className="w-full h-full flex items-center justify-center bg-black relative m-0 p-0 overflow-hidden"
           style={{
-            willChange: 'transform',
-            transform: 'translate3d(0, 0, 0)',
             touchAction: 'pan-x pan-y pinch-zoom',
           }}
         >
-          {pages.length > 0 ? (
-            <div
-              className="w-full h-full flex flex-row transition-transform duration-200 ease-out"
-              style={{
-                transform: `translate3d(-${currentPageIndex * 100}%, 0, 0)`,
-              }}
-            >
-              {pages.map((p, idx) => (
-                <div
-                  key={`ltr-slide-${p.id || idx}-${idx}`}
-                  className="w-full h-full shrink-0 flex items-center justify-center p-0 m-0"
-                >
-                  {Math.abs(idx - currentPageIndex) <= 2 ? (
-                    <img
-                      src={p.imageUrl}
-                      alt={`Page ${idx + 1}`}
-                      decoding="async"
-                      className="max-h-full h-full w-auto max-w-full object-contain mx-auto select-none block"
-                      style={{
-                        willChange: 'transform',
-                        transform: 'translateZ(0)',
-                        touchAction: 'pinch-zoom',
-                      }}
-                      onError={(e: any) => {
-                        e.target.onerror = null;
-                        e.target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&auto=format&fit=crop&q=80';
-                      }}
-                    />
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-slate-500 text-xs">No pages in this chapter</div>
-          )}
+          <div
+            className="w-full h-full flex flex-row will-change-transform transition-transform duration-200 ease-out"
+            style={{
+              transform: `translate3d(-${currentPageIndex * 100}%, 0, 0)`,
+            }}
+          >
+            {pages.map((p, idx) => (
+              <div
+                key={`ltr-slide-${p.id || idx}-${idx}`}
+                className="w-full h-full shrink-0 flex items-center justify-center p-0 m-0"
+              >
+                {Math.abs(idx - currentPageIndex) <= 2 ? (
+                  <img
+                    src={p.imageUrl}
+                    alt={`Page ${idx + 1}`}
+                    referrerPolicy="no-referrer"
+                    decoding="async"
+                    className="max-h-full h-full w-auto max-w-full object-contain mx-auto select-none block manga-page-img"
+                    style={{
+                      touchAction: 'pinch-zoom',
+                    }}
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (target.src !== window.location.origin + APP_LOGO_SRC) {
+                        target.src = APP_LOGO_SRC;
+                      }
+                    }}
+                  />
+                ) : null}
+              </div>
+            ))}
+          </div>
 
-          {/* Subtle LTR Visual Navigation Tap Controls (Displayed when overlay is open) */}
           {showOverlay && (
             <>
               <button
@@ -639,7 +619,6 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </>
           )}
 
-          {/* Final Page Unlock CTA in Horizontal LTR Mode */}
           {currentPageIndex === totalPages - 1 && !isTargetUnlocked && onRequestRewardedAd && (
             <div
               onClick={(e) => e.stopPropagation()}
@@ -658,15 +637,15 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </div>
       )}
 
-      {/* ======================================================================
-          BOTTOM BAR (Translucent, Elegant, Hidden until Center Tap, above 44px AdMob Banner)
-          ====================================================================== */}
+      {/* BOTTOM BAR */}
       <div
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
-        className={`fixed bottom-[44px] left-0 right-0 z-50 px-4 py-3.5 bg-black/85 backdrop-blur-md border-t border-white/10 transition-transform duration-300 ease-out space-y-3 ${
-          showOverlay ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-full opacity-0 pointer-events-none'
+        className={`fixed bottom-[44px] left-0 right-0 z-50 px-4 py-3.5 bg-black/85 backdrop-blur-md border-t border-white/10 transition-[transform,opacity] duration-200 ease-out space-y-3 ${
+          showOverlay
+            ? 'translate-y-0 opacity-100 pointer-events-auto'
+            : 'translate-y-full opacity-0 pointer-events-none'
         }`}
       >
         {!isTargetUnlocked && onRequestRewardedAd && (
@@ -681,9 +660,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </button>
           </div>
         )}
-        {/* Page Slider & Counter */}
+
         <div className="flex items-center gap-3 max-w-lg mx-auto">
-          <span className="text-xs font-mono font-bold text-amber-400 min-w-[85px] text-right whitespace-nowrap">
+          <span className="text-xs font-mono tabular-nums font-bold text-amber-400 min-w-[85px] text-right whitespace-nowrap">
             {currentPageIndex + 1}/{totalPages || 1}
             <span className="text-[10px] text-slate-300 font-semibold ml-1.5">
               {Math.round(currentProgress)}%
@@ -710,10 +689,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           </span>
         </div>
 
-        {/* Reading Direction & Mode Switcher Buttons */}
         <div className="flex items-center justify-between max-w-lg mx-auto text-xs">
           <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl">
             <button
+              type="button"
               onClick={() => handleToggleReadingMode('horizontal_ltr')}
               className={`min-h-[38px] px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 readingMode === 'horizontal_ltr'
@@ -726,6 +705,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => handleToggleReadingMode('vertical')}
               className={`min-h-[38px] px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 readingMode === 'vertical'
@@ -739,7 +719,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           </div>
 
           <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-400">
-            <span>Tap right for next page • Center for menu</span>
+            <span>Tap right for next page · Center for menu</span>
           </div>
         </div>
       </div>

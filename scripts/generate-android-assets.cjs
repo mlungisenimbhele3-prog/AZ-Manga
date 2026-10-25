@@ -2,7 +2,7 @@ const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 
-const MASTER_IMAGE_PATH = path.resolve(__dirname, '../public/assets/aistudio/854579517_1468245221882114_98463028170683618_n_d2b1173e.webp');
+const MASTER_IMAGE_PATH = path.resolve(__dirname, '../public/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp');
 const BG_DARK = '#0a0d14';
 
 // Target configurations
@@ -153,12 +153,22 @@ async function run() {
   // Save canonical copies
   const canonPng = path.resolve(__dirname, '../public/master-logo.png');
   const canonJpg = path.resolve(__dirname, '../public/master-logo.jpg');
+  const canonPlaceholder = path.resolve(__dirname, '../public/placeholder.png');
+  const canonIconSvg = path.resolve(__dirname, '../public/icon.svg');
   const canonSrcPng = path.resolve(__dirname, '../src/assets/images/master-logo.png');
+  const srcImgDir = path.dirname(canonSrcPng);
+  if (!fs.existsSync(srcImgDir)) fs.mkdirSync(srcImgDir, { recursive: true });
 
-  await sharp(masterBuffer).png().toFile(canonPng);
-  await sharp(masterBuffer).jpeg({ quality: 95 }).toFile(canonJpg);
-  await sharp(masterBuffer).png().toFile(canonSrcPng);
-  console.log('✓ Saved canonical master logos to public/ and src/assets/images/');
+  await sharp(masterBuffer).resize(512, 512, { fit: 'cover' }).png().toFile(canonPng);
+  await sharp(masterBuffer).resize(512, 512, { fit: 'cover' }).jpeg({ quality: 95 }).toFile(canonJpg);
+  await sharp(masterBuffer).resize(512, 512, { fit: 'cover' }).png().toFile(canonPlaceholder);
+  await sharp(masterBuffer).resize(512, 512, { fit: 'cover' }).png().toFile(canonSrcPng);
+
+  // Update public/icon.svg with embedded 512x512 PNG from the new logo
+  const iconPngBuf = await sharp(masterBuffer).resize(512, 512, { fit: 'cover' }).png().toBuffer();
+  const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">\n  <rect width="512" height="512" fill="#000000" rx="100"/>\n  <image href="data:image/png;base64,${iconPngBuf.toString('base64')}" width="512" height="512" preserveAspectRatio="xMidYMid slice"/>\n</svg>\n`;
+  fs.writeFileSync(canonIconSvg, svgContent, 'utf8');
+  console.log('✓ Saved canonical master logos, placeholder.png, and icon.svg to public/ and src/assets/images/');
 
   console.log('Generating AZ OVERVERSE Android Splash Screens with Master Logo...');
   for (const t of SPLASH_TARGETS) {

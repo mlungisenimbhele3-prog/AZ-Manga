@@ -12,7 +12,6 @@ import {
   ShieldAlert,
   Lock,
   Cpu,
-  AlertTriangle,
   Zap,
   Crown,
   Clock,
@@ -48,10 +47,9 @@ export const isMangaRecentlyPublished = (manga: Manga): boolean => {
 
   for (const dateVal of candidateDates) {
     if (!dateVal) continue;
-    const timestamp = typeof dateVal === 'number' ? dateVal : new Date(dateVal).getTime();
-    if (!isNaN(timestamp)) {
+    const timestamp = typeof dateVal === 'number' ? dateVal : Date.parse(String(dateVal));
+    if (!Number.isNaN(timestamp)) {
       const diff = now - timestamp;
-      // Published within the last 7 days (and not ahead of future clock skew up to 24h)
       if (diff >= -86400000 && diff <= SEVEN_DAYS_MS) {
         return true;
       }
@@ -60,6 +58,18 @@ export const isMangaRecentlyPublished = (manga: Manga): boolean => {
 
   return false;
 };
+
+const GENRE_COLORS: Record<string, string> = {
+  Action: '#ef4444',
+  Fantasy: '#8b5cf6',
+  'Sci-Fi': '#06b6d4',
+  'Slice of Life': '#10b981',
+  Romance: '#ec4899',
+  Horror: '#374151',
+  Adventure: '#f59e0b',
+};
+
+const getGenreColor = (genre: string): string => GENRE_COLORS[genre] || '#64748b';
 
 const MangaCardComponent: React.FC<MangaCardProps> = ({
   manga,
@@ -80,7 +90,6 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
   const isNew = React.useMemo(() => isMangaRecentlyPublished(manga), [manga]);
 
   const handleCardClick = () => {
-    // If banned, clicking the card prioritizes opening the AI Ban Audit report
     if (isBanned && onOpenAiReport) {
       onOpenAiReport({} as any, manga);
       return;
@@ -92,12 +101,12 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
     <div
       id={`manga-card-${manga.id}`}
       onClick={handleCardClick}
-      className={`group relative flex flex-col overflow-visible rounded-2xl border transition-[transform,border-color,box-shadow] duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] cursor-pointer manga-grid-item gpu-layer ${
+      className={`group relative flex h-full flex-col overflow-visible rounded-2xl border transition-[transform,border-color] duration-150 ease-out hover:scale-[1.015] active:scale-[0.985] cursor-pointer manga-grid-item ${
         isBanned
-          ? 'border-rose-900/80 bg-slate-950/95 hover:border-rose-500 hover:shadow-xl hover:shadow-rose-950/40'
+          ? 'border-rose-900/80 bg-slate-950/95 hover:border-rose-500'
           : isAi
-          ? 'border-cyan-800/80 bg-slate-900/90 hover:border-cyan-400 hover:shadow-xl hover:shadow-cyan-500/20'
-          : 'border-slate-800 bg-slate-900/80 hover:border-slate-500 hover:shadow-xl hover:shadow-amber-500/10'
+          ? 'border-cyan-800/80 bg-slate-900/90 hover:border-cyan-400'
+          : 'border-slate-800 bg-slate-900/80 hover:border-slate-500'
       }`}
     >
       {/* Cover Image Container */}
@@ -107,25 +116,25 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
           src={(manga as any).coverUrl || (manga as any).cover || manga.coverImage}
           alt={manga.title}
           title={manga.title}
-          className={`h-48 w-full object-cover transition-transform duration-300 ease-out group-hover:scale-105 will-change-transform ${
+          className={`h-48 w-full object-cover transition-transform duration-200 ease-out group-hover:scale-105 ${
             isBanned ? 'filter grayscale contrast-125 brightness-50' : ''
           }`}
           referrerPolicy="no-referrer"
           loading="lazy"
           decoding="async"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
 
         {/* Banned Overlay if title is quarantined */}
         {isBanned && (
-          <div className="absolute inset-0 bg-rose-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center p-3 text-center z-20">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-600 text-white shadow-xl shadow-rose-950/80 mb-2 ring-2 ring-rose-400/60 animate-bounce">
+          <div className="absolute inset-0 bg-rose-950/75 flex flex-col items-center justify-center p-3 text-center z-20">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-600 text-white shadow-lg mb-2 ring-2 ring-rose-400/60">
               <Lock className="w-5 h-5" />
             </div>
-            <span className="rounded-full bg-rose-500 text-black px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider shadow">
+            <span className="rounded-full bg-rose-500 text-black px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider">
               AUTO-BANNED
             </span>
-            <p className="text-[11px] font-bold text-rose-200 mt-1 line-clamp-2">
+            <p className="text-[11px] font-bold text-rose-200 mt-1 line-clamp-2 tabular-nums">
               AI Content Detected ({aiScore}%)
             </p>
             <p className="text-[9px] text-rose-300/80 mt-0.5">
@@ -137,36 +146,33 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
         {/* Top Badges & Favorite Heart Button */}
         <div className="absolute top-2 inset-x-2 flex items-center justify-between pointer-events-none z-10 overflow-visible">
           <div className="flex items-center gap-1.5 pointer-events-none flex-wrap">
-            {/* ORIGINAL vs BACKDROP Badge */}
             {manga.isOriginal ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 text-black px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-md">
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 text-black px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-sm">
                 <Crown className="w-2.5 h-2.5 fill-black stroke-black" />
                 <span>ORIGINAL</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-800/90 border border-slate-600 text-slate-300 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm">
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-800/90 border border-slate-600 text-slate-300 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
                 <span>BACKDROP</span>
               </span>
             )}
 
-            {/* COMING SOON Badge: If manga has no panels inside */}
             {isComingSoon && (
               <span
                 id={`manga-coming-soon-badge-${manga.id}`}
-                className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500 text-black font-black text-[9px] px-2 py-0.5 uppercase tracking-wider shadow-md shadow-amber-950/60 ring-1 ring-amber-300"
-                title="Coming Soon • No panels inside yet"
+                className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-black font-black text-[9px] px-2 py-0.5 uppercase tracking-wider"
+                title="Coming Soon · No panels inside yet"
               >
                 <Clock className="w-2.5 h-2.5 text-black" />
                 <span>COMING SOON</span>
               </span>
             )}
 
-            {/* NEW Badge: Displayed if manga was published within the last 7 days */}
             {isNew && !isComingSoon && (
               <span
                 id={`manga-new-badge-${manga.id}`}
-                className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 text-slate-950 font-black text-[9px] px-2 py-0.5 uppercase tracking-wider shadow-md shadow-emerald-950/60 ring-1 ring-emerald-300/80 animate-pulse"
-                title="New Release • Published within the last 7 days"
+                className="inline-flex items-center gap-1 rounded-full bg-emerald-400 text-slate-950 font-black text-[9px] px-2 py-0.5 uppercase tracking-wider"
+                title="New Release · Published within the last 7 days"
               >
                 <Sparkles className="w-2.5 h-2.5 fill-slate-950 text-slate-950" />
                 <span>NEW</span>
@@ -174,76 +180,80 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
             )}
 
             {manga.weeklyRank && (
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-amber-500 text-[10px] font-black text-black shadow-md">
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-amber-500 text-[10px] font-black text-black tabular-nums">
                 #{manga.weeklyRank}
               </span>
             )}
 
             {isComingSoon ? (
-              <span className="rounded-md bg-amber-950/90 border border-amber-500/60 px-1.5 py-0.5 text-[9px] font-black text-amber-300 backdrop-blur-sm shadow-md flex items-center gap-1">
+              <span className="rounded-md bg-amber-950/90 border border-amber-500/60 px-1.5 py-0.5 text-[9px] font-black text-amber-300 flex items-center gap-1">
                 <Clock className="w-2.5 h-2.5" />
                 <span>Panels Soon</span>
               </span>
             ) : manga.award ? (
-              <span className="flex items-center gap-1 rounded-md bg-amber-950/90 border border-amber-500/60 px-1.5 py-0.5 text-[9px] font-black text-amber-300 backdrop-blur-sm shadow-md">
+              <span className="flex items-center gap-1 rounded-md bg-amber-950/90 border border-amber-500/60 px-1.5 py-0.5 text-[9px] font-black text-amber-300">
                 <Trophy className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
-                <span>MOTY '26</span>
+                <span>MOTY &apos;26</span>
               </span>
             ) : hasEarlyAccess ? (
-              <span className="flex items-center gap-1 rounded-md bg-cyan-950/90 border border-cyan-400/60 px-1.5 py-0.5 text-[9px] font-black text-cyan-300 backdrop-blur-sm shadow-md">
+              <span className="flex items-center gap-1 rounded-md bg-cyan-950/90 border border-cyan-400/60 px-1.5 py-0.5 text-[9px] font-black text-cyan-300">
                 <Zap className="w-2.5 h-2.5 text-cyan-400 fill-cyan-400" />
                 <span>Early Access</span>
               </span>
             ) : hasPremiumChapters ? (
-              <span className="flex items-center gap-1 rounded-md bg-purple-950/90 border border-purple-500/40 px-1.5 py-0.5 text-[9px] font-bold text-purple-200 backdrop-blur-sm">
+              <span className="flex items-center gap-1 rounded-md bg-purple-950/90 border border-purple-500/40 px-1.5 py-0.5 text-[9px] font-bold text-purple-200">
                 <Sparkles className="w-2.5 h-2.5 text-amber-400" />
                 <span>VIP Pass</span>
               </span>
             ) : (
-              <span className="rounded-md bg-slate-900/90 border border-slate-700 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 backdrop-blur-sm">
+              <span className="rounded-md bg-slate-900/90 border border-slate-700 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
                 Free
               </span>
             )}
             {hasBonusContent && (
-              <span className="hidden sm:flex items-center gap-1 rounded-md bg-rose-950/80 border border-rose-500/50 px-1.5 py-0.5 text-[9px] font-bold text-rose-300 backdrop-blur-sm">
+              <span className="hidden sm:flex items-center gap-1 rounded-md bg-rose-950/85 border border-rose-500/50 px-1.5 py-0.5 text-[9px] font-bold text-rose-300">
                 <Crown className="w-2.5 h-2.5 text-amber-400" />
                 <span>Bonus Art</span>
               </span>
             )}
           </div>
 
-          {/* Heart Icon Toggle Button & Optional ACTIVE Badge */}
+          {/* Heart Icon Toggle Button */}
           <div className="flex items-center gap-1.5 pointer-events-auto">
             {isActive && (
-              <span className="flex items-center gap-1 rounded-full bg-amber-500 text-black px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-md whitespace-nowrap z-10">
+              <span className="flex items-center gap-1 rounded-full bg-amber-500 text-black px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider whitespace-nowrap z-10">
                 ACTIVE
               </span>
             )}
             <button
               id={`manga-favorite-btn-${manga.id}`}
               type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleFavorite?.(e, manga.id);
-            }}
-            aria-label={isFavorite ? `Remove ${manga.title} from favorites` : `Add ${manga.title} to favorites`}
-            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-            className={`pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full backdrop-blur-md transition-all duration-200 ${
-              isFavorite
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-950/70 scale-105 ring-2 ring-rose-400/50'
-                : 'bg-black/60 text-white/70 hover:text-rose-400 hover:bg-black/80 hover:scale-110'
-            }`}
-          >
-            <Heart
-              className={`w-3.5 h-3.5 transition-all ${
-                isFavorite ? 'fill-white stroke-white scale-110' : 'stroke-current hover:scale-110'
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite?.(e, manga.id);
+              }}
+              aria-label={
+                isFavorite
+                  ? `Remove ${manga.title} from favorites`
+                  : `Add ${manga.title} to favorites`
+              }
+              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              className={`pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full transition-transform duration-150 active:scale-90 ${
+                isFavorite
+                  ? 'bg-rose-600 text-white ring-2 ring-rose-400/50'
+                  : 'bg-black/70 text-white/80 hover:text-rose-400 hover:bg-black/90'
               }`}
-            />
-          </button>
+            >
+              <Heart
+                className={`w-3.5 h-3.5 ${
+                  isFavorite ? 'fill-white stroke-white' : 'stroke-current'
+                }`}
+              />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Distinctive AI STICKER LABEL on the Home Screen Cover */}
+        {/* AI Transparency Label */}
         {isBanned ? (
           <div
             id={`ai-sticker-banned-${manga.id}`}
@@ -252,9 +262,9 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
               onOpenAiReport?.(e, manga);
             }}
             className="absolute top-10 right-2 z-30 pointer-events-auto cursor-pointer transform rotate-3 hover:rotate-0 transition-transform"
-            title="Auto-detected AI content. This manga is banned. Click for moderation report."
+            title="Auto-detected AI content. Click for moderation report."
           >
-            <div className="flex items-center gap-1.5 rounded-lg border-2 border-red-500 bg-red-600/95 px-2.5 py-1 text-[10px] font-black text-white shadow-xl shadow-red-950/80 ring-2 ring-black/60 uppercase tracking-wider backdrop-blur-sm animate-pulse">
+            <div className="flex items-center gap-1.5 rounded-lg border-2 border-red-500 bg-red-600/95 px-2.5 py-1 text-[10px] font-black text-white uppercase tracking-wider">
               <ShieldAlert className="w-3.5 h-3.5 fill-white text-red-600" />
               <span>BANNED: AI</span>
             </div>
@@ -266,13 +276,13 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
               e.stopPropagation();
               onOpenAiReport?.(e, manga);
             }}
-            className="absolute top-10 right-2 z-30 pointer-events-auto cursor-pointer transform -rotate-2 hover:rotate-0 hover:scale-105 transition-all"
+            className="absolute top-10 right-2 z-30 pointer-events-auto cursor-pointer transform -rotate-2 hover:rotate-0 transition-transform"
             title="Auto-detected AI generative manga. Click for transparency report."
           >
-            <div className="flex items-center gap-1.5 rounded-lg border-2 border-cyan-400 bg-slate-950/95 px-2.5 py-1 text-[10px] font-black text-cyan-300 shadow-xl shadow-cyan-950/90 ring-1 ring-cyan-500/50 uppercase tracking-wider backdrop-blur-sm hover:border-cyan-300">
+            <div className="flex items-center gap-1.5 rounded-lg border border-cyan-400 bg-slate-950/95 px-2.5 py-1 text-[10px] font-black text-cyan-300 uppercase tracking-wider">
               <Bot className="w-3.5 h-3.5 text-cyan-400" />
               <span>AI GENERATED</span>
-              <span className="rounded bg-cyan-400/20 px-1 py-0.2 text-[9px] font-mono text-cyan-200">
+              <span className="rounded bg-cyan-400/20 px-1 text-[9px] font-mono tabular-nums text-cyan-200">
                 {aiScore}%
               </span>
             </div>
@@ -280,13 +290,13 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
         ) : null}
 
         {/* Bottom Cover Metrics */}
-        <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between text-[11px] text-slate-300 z-10">
+        <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between text-[11px] text-slate-300 z-10 tabular-nums">
           <div className="flex items-center gap-1 text-amber-400 font-bold">
             <Star className="w-3.5 h-3.5 fill-amber-400" />
             <span>{manga.rating.toFixed(2)}</span>
           </div>
 
-          <div className="flex items-center gap-1 text-slate-300 bg-black/60 px-2 py-0.5 rounded-full font-mono text-[10px]">
+          <div className="flex items-center gap-1 text-slate-200 bg-black/70 px-2 py-0.5 rounded-full font-mono text-[10px]">
             <Eye className="w-3 h-3" />
             <span>{(manga.views / 1000).toFixed(0)}k</span>
           </div>
@@ -307,7 +317,6 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
           </span>
         )}
 
-        {/* AI Sticker Banner in Card Body */}
         {isBanned ? (
           <div
             onClick={(e) => {
@@ -317,7 +326,7 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
             className="mb-2 mt-0.5 flex items-center gap-1.5 text-[10px] font-bold text-rose-300 bg-rose-950/60 border border-rose-500/50 rounded-md px-2 py-0.5 w-fit max-w-full truncate hover:bg-rose-900/50 transition cursor-pointer"
           >
             <ShieldAlert className="w-3 h-3 text-rose-400 shrink-0" />
-            <span className="truncate">Auto-Banned: AI Art Violation ({aiScore}%)</span>
+            <span className="truncate tabular-nums">Auto-Banned: AI Art Violation ({aiScore}%)</span>
           </div>
         ) : isAi ? (
           <div
@@ -328,10 +337,10 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
             className="mb-2 mt-0.5 flex items-center gap-1.5 text-[10px] font-bold text-cyan-300 bg-cyan-950/50 border border-cyan-500/40 rounded-md px-2 py-0.5 w-fit max-w-full truncate hover:bg-cyan-900/40 transition cursor-pointer"
           >
             <Bot className="w-3 h-3 text-cyan-400 shrink-0" />
-            <span className="truncate">AI Generative Content ({aiScore}%)</span>
+            <span className="truncate tabular-nums">AI Generative Content ({aiScore}%)</span>
           </div>
         ) : manga.award ? (
-          <div className="mb-2 mt-0.5 flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-950/40 border border-amber-500/30 rounded-md px-1.5 py-0.5 w-fit max-w-full truncate">
+          <div className="mb-2 mt-0.5 flex items-center gap-1 text-[10px] font-bold text-amber-300 truncate">
             <Trophy className="w-3 h-3 text-amber-400 shrink-0" />
             <span className="truncate">{manga.award.badge}</span>
           </div>
@@ -341,7 +350,7 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
           {manga.genres.map((genre, idx) => (
             <span
               key={`${instanceId}-genre-${genre}-${idx}`}
-              className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white shadow-sm"
+              className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
               style={{
                 backgroundColor: getGenreColor(genre),
               }}
@@ -351,15 +360,14 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
           ))}
         </div>
 
-        <div className="flex items-center justify-between gap-1.5 mt-auto pt-3 text-[11px] text-slate-400 border-t border-slate-800/80">
+        <div className="flex items-center justify-between gap-1.5 mt-auto pt-3 text-[11px] text-slate-400 border-t border-slate-800/80 tabular-nums">
           <div className="flex items-center gap-1.5">
             <BookOpen className="w-3.5 h-3.5 text-amber-500" />
-            <span>{isComingSoon ? 'No Panels • Soon' : `${manga.chapters.length} Chapters`}</span>
+            <span>{isComingSoon ? 'No Panels · Soon' : `${manga.chapters.length} Chapters`}</span>
           </div>
 
-          {/* Quick status chip */}
           {isComingSoon ? (
-            <span className="text-[10px] font-black text-amber-400 flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
               <Clock className="w-3 h-3 text-amber-400" />
               <span>Coming Soon</span>
             </span>
@@ -374,17 +382,9 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
               <span>AI Labeled</span>
             </span>
           ) : isNew ? (
-            <span className="text-[10px] font-black text-emerald-400 flex items-center gap-1.5">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-              </span>
-              <span>New Release</span>
-            </span>
+            <span className="text-[10px] font-bold text-emerald-400">New Release</span>
           ) : (
-            <span className="text-[10px] font-semibold text-emerald-400">
-              Artisan
-            </span>
+            <span className="text-[10px] font-semibold text-emerald-400">Artisan</span>
           )}
         </div>
       </div>
@@ -392,17 +392,15 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
   );
 };
 
-export const MangaCard = React.memo(MangaCardComponent);
+function areMangaCardPropsEqual(prev: MangaCardProps, next: MangaCardProps): boolean {
+  return (
+    prev.manga === next.manga &&
+    prev.isFavorite === next.isFavorite &&
+    prev.isActive === next.isActive &&
+    prev.onSelect === next.onSelect &&
+    prev.onToggleFavorite === next.onToggleFavorite &&
+    prev.onOpenAiReport === next.onOpenAiReport
+  );
+}
 
-const getGenreColor = (genre: string): string => {
-  const colors: { [key: string]: string } = {
-    'Action': '#ef4444',
-    'Fantasy': '#8b5cf6',
-    'Sci-Fi': '#06b6d4',
-    'Slice of Life': '#10b981',
-    'Romance': '#ec4899',
-    'Horror': '#374151',
-    'Adventure': '#f59e0b',
-  };
-  return colors[genre] || '#64748b';
-};
+export const MangaCard = React.memo(MangaCardComponent, areMangaCardPropsEqual);

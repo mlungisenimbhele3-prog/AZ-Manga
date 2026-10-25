@@ -1,106 +1,464 @@
 {
   "entities": {
-    "userProfile": {
-      "title": "User Profile",
-      "description": "User profile with authentication and reading metadata",
+    "userPublicProfile": {
+      "title": "User Public & Creator Studio Profile",
+      "description": "Public reader and Creator Studio profile without PII",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "displayName": { "type": "string" },
-        "avatarUrl": { "type": "string" },
-        "bio": { "type": "string" },
-        "role": { "type": "string", "enum": ["reader", "creator", "admin"] },
-        "isCreator": { "type": "boolean" },
-        "penName": { "type": "string" },
-        "followersCount": { "type": "number" },
-        "followingCount": { "type": "number" },
-        "createdAt": { "type": "string" },
-        "updatedAt": { "type": "string" }
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "avatarUrl": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "bio": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "isCreator": {
+          "type": "boolean"
+        },
+        "penName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "studioName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "primaryGenres": {
+          "type": "array",
+          "description": "Up to 6 primary manga genres for Creator Studio"
+        },
+        "followersCount": {
+          "type": "number"
+        },
+        "followingCount": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["uid", "email"]
+      "required": ["uid", "displayName", "isCreator", "createdAt", "updatedAt"]
+    },
+    "userPrivateInfo": {
+      "title": "User Private PII Record",
+      "description": "Isolated PII record accessible strictly by the account owner or admin",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
     },
     "readingProgress": {
       "title": "Reading Progress",
-      "description": "User reading state and progress per manga series",
+      "description": "User reading state and chapter progress per manga series",
       "type": "object",
       "properties": {
-        "mangaId": { "type": "string" },
-        "mangaTitle": { "type": "string" },
-        "chapterId": { "type": "string" },
-        "chapterNumber": { "type": "number" },
-        "chapterTitle": { "type": "string" },
-        "pageNumber": { "type": "number" },
-        "totalPages": { "type": "number" },
-        "progressPercent": { "type": "number" },
-        "updatedAt": { "type": "string" }
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mangaId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mangaTitle": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "mangaCover": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "chapterId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "chapterNumber": {
+          "type": "number"
+        },
+        "chapterTitle": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "pageNumber": {
+          "type": "number"
+        },
+        "totalPages": {
+          "type": "number"
+        },
+        "progressPercent": {
+          "type": "number"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["mangaId", "chapterNumber"]
+      "required": ["uid", "mangaId", "chapterId", "chapterNumber", "pageNumber", "totalPages", "progressPercent", "createdAt", "updatedAt"]
     },
     "bookmark": {
       "title": "Bookmark",
       "description": "Bookmarked favorite manga series",
       "type": "object",
       "properties": {
-        "mangaId": { "type": "string" },
-        "mangaTitle": { "type": "string" },
-        "coverImage": { "type": "string" },
-        "createdAt": { "type": "string" }
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mangaId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mangaTitle": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "coverImage": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["mangaId"]
+      "required": ["uid", "mangaId", "createdAt", "updatedAt"]
     },
     "readingPreference": {
       "title": "Reading Preferences",
       "description": "Reader preferences including theme, text size, and scroll direction",
       "type": "object",
       "properties": {
-        "theme": { "type": "string", "enum": ["dark", "light", "amoled", "sepia"] },
-        "textSize": { "type": "string", "enum": ["small", "medium", "large", "xlarge"] },
-        "readingDirection": { "type": "string", "enum": ["vertical", "horizontal_rtl", "horizontal_ltr", "single"] },
-        "autoScroll": { "type": "boolean" },
-        "autoScrollSpeed": { "type": "number" },
-        "soundEffects": { "type": "boolean" },
-        "hapticFeedback": { "type": "boolean" }
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["dark", "light", "amoled", "sepia"],
+          "maxLength": 20
+        },
+        "textSize": {
+          "type": "string",
+          "enum": ["small", "medium", "large", "xlarge"],
+          "maxLength": 20
+        },
+        "readingDirection": {
+          "type": "string",
+          "enum": ["vertical", "horizontal_rtl", "horizontal_ltr", "single"],
+          "maxLength": 30
+        },
+        "autoScroll": {
+          "type": "boolean"
+        },
+        "autoScrollSpeed": {
+          "type": "number"
+        },
+        "soundEffects": {
+          "type": "boolean"
+        },
+        "hapticFeedback": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["theme", "textSize", "readingDirection"]
+      "required": ["uid", "theme", "textSize", "readingDirection", "createdAt", "updatedAt"]
+    },
+    "adminRecord": {
+      "title": "Admin Directory Record",
+      "description": "Trusted administrator membership document",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "grantedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "grantedBy", "createdAt"]
+    },
+    "mangaSeries": {
+      "title": "Manga Series",
+      "description": "Published manga series authored by a verified Creator Account",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "author": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "synopsis": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "coverImage": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ONGOING", "COMPLETED", "HIATUS"],
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "authorUid", "title", "author", "status", "createdAt", "updatedAt"]
+    },
+    "mangaChapter": {
+      "title": "Manga Chapter",
+      "description": "Published manga chapter belonging to a parent manga series",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mangaId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "number": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "pageCount": {
+          "type": "number"
+        },
+        "accessType": {
+          "type": "string",
+          "enum": ["free", "premium", "rewarded"],
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "mangaId", "authorUid", "number", "title", "pageCount", "accessType", "createdAt", "updatedAt"]
+    },
+    "chatGroup": {
+      "title": "Chat Group",
+      "description": "Manga fan club or creator community circle",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "icon": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "createdBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "membersCount": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "name", "createdBy", "createdAt", "updatedAt"]
     },
     "chatMessage": {
       "title": "Chat Message",
       "description": "Direct message or group chat message",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "senderId": { "type": "string" },
-        "senderName": { "type": "string" },
-        "senderAvatar": { "type": "string" },
-        "recipientId": { "type": "string" },
-        "groupId": { "type": "string" },
-        "text": { "type": "string" },
-        "timestamp": { "type": "string" },
-        "reactions": { "type": "string" }
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "senderAvatar": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "recipientId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "groupId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["senderId", "text"]
-    },
-    "chatGroup": {
-      "title": "Chat Group",
-      "description": "Manga fan club or reader group circle",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "icon": { "type": "string" },
-        "createdBy": { "type": "string" },
-        "membersCount": { "type": "number" },
-        "createdAt": { "type": "string" }
-      },
-      "required": ["id", "name", "createdBy"]
+      "required": ["id", "senderId", "senderName", "text", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
-      "schema": "userProfile",
-      "description": "User profiles with email, role, and social stats"
+      "schema": "userPublicProfile",
+      "description": "Public user and Creator Studio profile without PII"
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": "userPrivateInfo",
+      "description": "Isolated PII record (email) readable strictly by owner or admin"
     },
     "/users/{userId}/reading_progress/{mangaId}": {
       "schema": "readingProgress",
@@ -110,17 +468,29 @@
       "schema": "bookmark",
       "description": "User bookmarked manga series"
     },
-    "/users/{userId}/preferences/settings": {
+    "/users/{userId}/preferences/{prefId}": {
       "schema": "readingPreference",
       "description": "User reader preferences (theme, text size, scroll)"
     },
-    "/chat_messages/{messageId}": {
-      "schema": "chatMessage",
-      "description": "Global direct and group messages"
+    "/admins/{adminId}": {
+      "schema": "adminRecord",
+      "description": "Trusted administrator directory"
+    },
+    "/mangas/{mangaId}": {
+      "schema": "mangaSeries",
+      "description": "Published manga series authored by verified Creator Accounts"
+    },
+    "/chapters/{chapterId}": {
+      "schema": "mangaChapter",
+      "description": "Published chapters belonging to a manga series"
     },
     "/chat_groups/{groupId}": {
       "schema": "chatGroup",
-      "description": "Reader groups and fan clubs"
+      "description": "Reader groups and creator fan clubs"
+    },
+    "/chat_messages/{messageId}": {
+      "schema": "chatMessage",
+      "description": "Direct and group messages"
     }
   }
 }

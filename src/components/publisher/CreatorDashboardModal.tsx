@@ -264,25 +264,25 @@ export const CreatorDashboardModal: React.FC<CreatorDashboardModalProps> = ({
                       <div className="rounded-xl bg-slate-900/90 p-4 border border-slate-800 flex flex-col justify-between">
                         <div>
                           <span className="text-xs text-slate-400 block mb-1">Estimated Ad Pool (70%)</span>
-                          <span className="text-2xl font-black text-amber-400 font-mono">
-                            R{(((stats.totalReads || 0) * 0.15 * USD_TO_ZAR_RATE) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                          <span className="text-2xl font-black text-amber-400 font-mono tabular-nums">
+                            R0
                           </span>
                         </div>
                         <div className="mt-3 text-[11px] text-slate-400">
-                          Based on average eCPM (R45.00) & interstitial banner impressions
+                          Based on Google AdMob banner & interstitial impressions
                         </div>
                       </div>
 
                       <div className="rounded-xl bg-slate-900/90 p-4 border border-emerald-500/40 bg-emerald-950/20 flex flex-col justify-between">
                         <div>
                           <span className="text-xs text-emerald-300 block mb-1">Total Creator Payout (ZAR)</span>
-                          <span className="text-2xl font-black text-white font-mono">
-                            R{((((stats.totalReads || 0) * 0.22) * USD_TO_ZAR_RATE) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                          <span className="text-2xl font-black text-white font-mono tabular-nums">
+                            R0
                           </span>
                         </div>
                         <div className="mt-3 text-[11px] text-emerald-400 font-bold flex items-center justify-between">
-                          <span>Direct Bank Payout Ready</span>
-                          <span className="text-amber-300">ZAR EFT</span>
+                          <span>Google Play & AdMob Settlement</span>
+                          <span className="text-amber-300">ZAR</span>
                         </div>
                       </div>
                     </div>
@@ -510,10 +510,6 @@ export const CreatorDashboardModal: React.FC<CreatorDashboardModalProps> = ({
                     </div>
                     <div className="divide-y divide-slate-800/80">
                       {mangaList.map((m, idx) => {
-                        const estAdShare = (m.views * 0.0018).toFixed(2);
-                        const estSubShare = (m.views * 0.0024).toFixed(2);
-                        const totalUSD = (parseFloat(estAdShare) + parseFloat(estSubShare)).toFixed(2);
-                        const totalZAR = (parseFloat(totalUSD) * USD_TO_ZAR_RATE).toFixed(2);
                         return (
                           <div key={`${m.id}-${idx}`} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
@@ -525,25 +521,25 @@ export const CreatorDashboardModal: React.FC<CreatorDashboardModalProps> = ({
                               />
                               <div>
                                 <h5 className="text-sm font-bold text-white">{m.title}</h5>
-                                <span className="text-[11px] text-slate-400">
-                                  {m.chapters.length} Chapters • {m.views.toLocaleString()} Total Reads
+                                <span className="text-[11px] text-slate-400 tabular-nums">
+                                  {m.chapters.length} Chapters · {m.views.toLocaleString()} Total Reads
                                 </span>
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-4 sm:gap-6 self-end sm:self-center">
+                            <div className="flex flex-wrap items-center gap-4 sm:gap-6 self-end sm:self-center font-mono tabular-nums">
                               <div className="text-right">
-                                <span className="text-[10px] text-slate-400 block">70% Ad Share</span>
-                                <span className="text-xs font-bold text-amber-400">R{(parseFloat(estAdShare) * USD_TO_ZAR_RATE).toFixed(2)}</span>
+                                <span className="text-[10px] text-slate-400 block font-sans">70% Ad Share</span>
+                                <span className="text-xs font-bold text-amber-400">R0</span>
                               </div>
                               <div className="text-right">
-                                <span className="text-[10px] text-slate-400 block">70% VIP Pool</span>
-                                <span className="text-xs font-bold text-purple-300">R{(parseFloat(estSubShare) * USD_TO_ZAR_RATE).toFixed(2)}</span>
+                                <span className="text-[10px] text-slate-400 block font-sans">70% VIP Pool</span>
+                                <span className="text-xs font-bold text-purple-300">R0</span>
                               </div>
                               <div className="text-right pl-3 border-l border-slate-800">
-                                <span className="text-[10px] text-slate-400 block">Total Disbursable</span>
+                                <span className="text-[10px] text-slate-400 block font-sans">Total Disbursable</span>
                                 <span className="text-sm font-black text-white">
-                                  R{parseFloat(totalZAR).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ZAR
+                                  R0
                                 </span>
                               </div>
                               <button

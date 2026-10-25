@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BookOpen } from 'lucide-react';
 
 export interface MangaCoverImageProps {
@@ -12,12 +12,12 @@ export interface MangaCoverImageProps {
   referrerPolicy?: React.HTMLAttributeReferrerPolicy;
   loading?: 'lazy' | 'eager';
   decoding?: 'async' | 'auto' | 'sync';
+  fetchPriority?: 'high' | 'low' | 'auto';
 }
 
 /**
- * Resilient Manga Cover component.
- * When coverUrl is empty, null, or fails to load, shows /placeholder.png
- * or falls back to an aesthetic gradient container with the manga title.
+ * Resilient, zero-effect-cascade Manga Cover component.
+ * Avoids redundant useEffect re-renders when props change by keying failure state to the source URL.
  */
 const MangaCoverImageComponent: React.FC<MangaCoverImageProps> = ({
   src,
@@ -30,42 +30,40 @@ const MangaCoverImageComponent: React.FC<MangaCoverImageProps> = ({
   referrerPolicy = 'no-referrer',
   loading = 'lazy',
   decoding = 'async',
+  fetchPriority,
 }) => {
-  const [imgError, setImgError] = useState(false);
-  const [usedFallback, setUsedFallback] = useState(false);
-
   const rawSrc = coverUrl !== undefined ? coverUrl : src;
-
-  // Reset state if source changes
-  useEffect(() => {
-    setImgError(false);
-    setUsedFallback(false);
-  }, [rawSrc]);
-
   const displayTitle = title || alt || 'AZ OVERVERSE';
-  const cleanSrc = rawSrc && typeof rawSrc === 'string' && rawSrc.trim() !== '' && rawSrc !== 'null' && rawSrc !== 'undefined'
-    ? rawSrc.trim()
-    : null;
 
-  // If no source at all, start directly with /placeholder.png
-  const initialSource = cleanSrc || '/placeholder.png';
-  const [currentSrc, setCurrentSrc] = useState<string>(initialSource);
+  const cleanSrc =
+    rawSrc &&
+    typeof rawSrc === 'string' &&
+    rawSrc.trim() !== '' &&
+    rawSrc !== 'null' &&
+    rawSrc !== 'undefined'
+      ? rawSrc.trim()
+      : null;
 
-  useEffect(() => {
-    setCurrentSrc(cleanSrc || '/placeholder.png');
-  }, [cleanSrc]);
+  const sourceKey = cleanSrc || '__empty__';
 
-  // If image completely failed to load even with placeholder and gradient is requested:
-  if (imgError && showGradientFallback) {
+  // Stage 0: try cleanSrc, Stage 1: try /placeholder.png, Stage 2: styled CSS fallback
+  const [failureStage, setFailureStage] = useState<{ key: string; stage: 0 | 1 | 2 }>({
+    key: sourceKey,
+    stage: cleanSrc ? 0 : 1,
+  });
+
+  const activeStage = failureStage.key === sourceKey ? failureStage.stage : cleanSrc ? 0 : 1;
+
+  if (activeStage === 2 && showGradientFallback) {
     return (
       <div
         className={`relative flex flex-col items-center justify-center p-3 text-center bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 border border-slate-800 text-white select-none overflow-hidden ${containerClassName} ${className}`}
         title={displayTitle}
       >
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 mb-2 shadow-sm shrink-0">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 mb-2 shrink-0">
           <BookOpen className="w-5 h-5" />
         </div>
-        <span className="font-['Bebas_Neue',sans-serif] text-sm sm:text-base tracking-wide text-white line-clamp-2 leading-tight drop-shadow px-1">
+        <span className="font-['Bebas_Neue',sans-serif] text-sm sm:text-base tracking-wide text-white line-clamp-2 leading-tight px-1">
           {displayTitle}
         </span>
         <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90 mt-1">
@@ -75,22 +73,22 @@ const MangaCoverImageComponent: React.FC<MangaCoverImageProps> = ({
     );
   }
 
+  const effectiveSrc = activeStage === 0 && cleanSrc ? cleanSrc : '/placeholder.png';
+
   return (
     <img
-      src={currentSrc}
+      src={effectiveSrc}
       alt={alt || displayTitle}
       className={className}
       referrerPolicy={referrerPolicy}
       loading={loading}
       decoding={decoding}
-      onError={(e) => {
-        // If initial URL failed, try local /placeholder.png first
-        if (!usedFallback && currentSrc !== '/placeholder.png') {
-          setUsedFallback(true);
-          setCurrentSrc('/placeholder.png');
+      {...(fetchPriority ? { fetchpriority: fetchPriority } : {})}
+      onError={() => {
+        if (activeStage === 0 && effectiveSrc !== '/placeholder.png') {
+          setFailureStage({ key: sourceKey, stage: 1 });
         } else {
-          // If even /placeholder.png failed or errored, switch to gradient title fallback
-          setImgError(true);
+          setFailureStage({ key: sourceKey, stage: 2 });
         }
       }}
     />

@@ -175,8 +175,8 @@ export const MangakaDashboardModal: React.FC<MangakaDashboardModalProps> = ({
     ? (((totalLikes + totalComments) / totalViews) * 100).toFixed(1)
     : '0.0';
 
-  const totalEarningsUSD = creatorStats.totalRevenueUSD || 0;
-  const totalEarningsZAR = totalEarningsUSD * USD_TO_ZAR_RATE;
+  const totalEarningsUSD = 0;
+  const totalEarningsZAR = 0;
 
   // Handle Cover File Upload to cloud storage
   const handleCoverFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -682,8 +682,8 @@ export const MangakaDashboardModal: React.FC<MangakaDashboardModalProps> = ({
               <span>Live Earnings</span>
               <Coins className="w-3.5 h-3.5 text-emerald-400" />
             </div>
-            <div className="text-xl font-black font-mono text-emerald-400 truncate">
-              R{totalEarningsZAR.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className="text-xl font-black font-mono tabular-nums text-emerald-400 truncate">
+              R0
             </div>
             <span className="text-[10px] text-slate-400">70% Royalty Splits</span>
           </div>
@@ -1592,46 +1592,75 @@ export const MangakaDashboardModal: React.FC<MangakaDashboardModalProps> = ({
         )}
 
         {/* =======================================================================
-            TAB 4: EARNINGS & 70% ZAR PAYOUTS
+            TAB 4: IN-APP WALLET & 70% ZAR PAYOUTS (PENDING / PAYABLE / PAID)
             ======================================================================= */}
         {!isUploadFormOpen && activeTab === 'earnings' && (
           <div className="mt-5 space-y-4 animate-fadeIn">
-            <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-950 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
-                  Live Creator Royalties Balance
-                </span>
-                <div className="text-3xl font-black font-mono text-white mt-1">
-                  R{totalEarningsZAR.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ZAR
+            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h5 className="font-bold text-white text-sm">
+                    In-App Creator Wallet · Pending, Payable & Paid
+                  </h5>
+                  <p className="text-xs text-slate-400">
+                    70% direct creator split · Google Play Billing & Google AdMob (R{USD_TO_ZAR_RATE} ZAR/USD)
+                  </p>
                 </div>
-                <span className="text-xs text-slate-400">
-                  (${totalEarningsUSD.toFixed(2)} USD converted at R{USD_TO_ZAR_RATE} ZAR/USD)
+                <span className="text-xs font-mono tabular-nums text-emerald-400 font-semibold">
+                  Threshold: R0.00 / R1,000.00 (0%)
                 </span>
               </div>
 
-              <div className="text-left sm:text-right">
-                <span className="inline-block rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] px-3 py-1 font-bold">
-                  ✓ 70% Direct Creator Split Active
-                </span>
-                <div className="text-[11px] text-slate-400 mt-1">
-                  Disbursed via Google Play Billing & Google AdMob
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                  <span className="text-xs font-semibold text-amber-400 block">Pending</span>
+                  <div className="text-2xl font-black font-mono tabular-nums text-white mt-1">
+                    R0.00
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-mono tabular-nums block mt-0.5">
+                    Est. Oct 2026 · Finalizes 7th – 12th
+                  </span>
                 </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-900/90 border border-emerald-500/40">
+                  <span className="text-xs font-semibold text-emerald-400 block">Payable</span>
+                  <div className="text-2xl font-black font-mono tabular-nums text-emerald-300 mt-1">
+                    R0.00
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-mono tabular-nums block mt-0.5">
+                    Finalized · Disburses 21st – 26th
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                  <span className="text-xs font-semibold text-sky-400 block">Paid</span>
+                  <div className="text-2xl font-black font-mono tabular-nums text-white mt-1">
+                    R0.00
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-mono tabular-nums block mt-0.5">
+                    Lifetime disbursed · 0 payouts
+                  </span>
+                </div>
+              </div>
+
+              <div className="h-2 w-full rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+                <div className="h-full w-0 rounded-full bg-emerald-500" />
               </div>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 text-xs text-slate-300">
-              <h5 className="font-bold text-white text-sm">Revenue Monetization Breakdown:</h5>
+              <h5 className="font-bold text-white text-sm">Revenue Monetization Breakdown</h5>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-                  <span className="text-amber-400 font-bold block mb-1">1. Ad Revenue Splits (70%)</span>
+                  <span className="text-amber-400 font-bold block mb-1">01. Ad Revenue Splits · 70%</span>
                   <p className="text-slate-400 text-[11px] leading-relaxed">
-                    Earn 70% of every interstitial ad between chapters and rewarded ad unlocking VIP chapters.
+                    Earn 70% of persistent AdMob banners, interstitial ads between chapters, and rewarded chapter unlocks.
                   </p>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-                  <span className="text-purple-400 font-bold block mb-1">2. VIP Subscription Pool (70%)</span>
+                  <span className="text-purple-400 font-bold block mb-1">02. VIP Subscription Pool · 70%</span>
                   <p className="text-slate-400 text-[11px] leading-relaxed">
-                    70% of VIP and Pro Patron subscriptions are distributed proportionally based on reader engagement time.
+                    70% of Google Play VIP and Pro Patron subscriptions distribute proportionally based on verified read-time.
                   </p>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-// Firebase Core & Auth & Firestore Integration for AZ OVERVERSE
+// Firebase Core, Auth & Hardened Firestore Integration for AZ OVERVERSE
 // Produced by Mlungiseni Mbhele
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
@@ -6,7 +6,9 @@ import {
   collection,
   doc,
   setDoc,
+  updateDoc,
   getDoc,
+  getDocFromServer,
   getDocs,
   query,
   where,
@@ -14,10 +16,15 @@ import {
   limit,
   deleteDoc,
   onSnapshot,
+  writeBatch,
+  serverTimestamp,
+  Timestamp,
   Firestore,
 } from 'firebase/firestore';
 import {
   getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -27,24 +34,95 @@ import {
   Auth,
 } from 'firebase/auth';
 import { getDatabase, Database } from 'firebase/database';
-
-// Configuration targeting the user's project: ai-studio-remixazoververse-648a4769-f458-4b18-9f3a-ffcf58ba714f
-const firebaseConfig = {
-  projectId: "ai-studio-remixazoververse-648a4769-f458-4b18-9f3a-ffcf58ba714f",
-  appId: "1:197009931605:web:44f5316bd7a009fb0883dc",
-  apiKey: "AIzaSyAxRhD8LHsjb4JNqzZfEpgXYzsSeVRVbSo",
-  authDomain: "ai-studio-remixazoververse.firebaseapp.com",
-  storageBucket: "ai-studio-remixazoververse.appspot.com",
-  messagingSenderId: "197009931605",
-  databaseURL: "https://ai-studio-remixazoververse-default-rtdb.firebaseio.com",
-};
+import firebaseConfig from '../../firebase-applet-config.json';
 
 export const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth: Auth = getAuth(app);
-export const db: Firestore = getFirestore(app);
-export const rtdb: Database = getDatabase(app);
+export const db: Firestore = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+const configuredRtdbUrl = (firebaseConfig as Record<string, unknown>).databaseURL;
+export const rtdb: Database | null =
+  typeof configuredRtdbUrl === 'string' && configuredRtdbUrl.length > 0
+    ? getDatabase(app)
+    : null;
+
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+export function isPermissionError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return msg.includes('missing or insufficient permissions') || msg.includes('permission-denied');
+}
+
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  testConnection();
+}
 
 export {
+  GoogleAuthProvider,
+  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -53,7 +131,9 @@ export {
   collection,
   doc,
   setDoc,
+  updateDoc,
   getDoc,
+  getDocFromServer,
   getDocs,
   query,
   where,
@@ -61,17 +141,25 @@ export {
   limit,
   deleteDoc,
   onSnapshot,
+  writeBatch,
+  serverTimestamp,
+  Timestamp,
 };
 
 export type { FirebaseUser };
 
-// Helper to reset / clear mangas collection in Firestore if needed
 export async function clearMangasCollectionInFirestore() {
+  const path = 'mangas';
   try {
-    const querySnapshot = await getDocs(collection(db, "mangas"));
-    const deletePromises = querySnapshot.docs.map((document) => deleteDoc(doc(db, "mangas", document.id)));
+    const querySnapshot = await getDocs(collection(db, path));
+    const deletePromises = querySnapshot.docs.map((document) =>
+      deleteDoc(doc(db, path, document.id))
+    );
     await Promise.all(deletePromises);
   } catch (e) {
-    console.warn("Firestore offline or not fully provisioned yet.", e);
+    if (isPermissionError(e)) {
+      handleFirestoreError(e, OperationType.DELETE, path);
+    }
+    console.warn('Firestore offline or not fully provisioned yet.', e);
   }
 }

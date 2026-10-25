@@ -1,4 +1,4 @@
-// Device Capability & Performance Optimization Engine for KA Plus: African Pulse
+// Device Capability & Performance Optimization Engine for AZ OVERVERSE
 // Produced by Mlungiseni Mbhele
 
 export type DeviceTier = 'ultra' | 'high' | 'balanced' | 'lite_saver';
@@ -62,15 +62,18 @@ const PROFILE_CONFIGS: Record<DeviceTier, PerformanceProfileConfig> = {
   },
   lite_saver: {
     targetFps: 60,
-    enableBackdropBlur: false, // Critical: Disable GPU backdrop-blur on low-end Mali/Adreno GPUs
+    enableBackdropBlur: false,
     enableComplexAnimations: false,
     imagePreloadCount: 1,
     supportDoublePage: false,
-    enableHardwareAcceleration: false, // Avoid VRAM blowups on low-RAM devices
+    enableHardwareAcceleration: false,
     cacheLimitMB: 50,
     reduceDomOverhead: true,
   },
 };
+
+let cachedDiagnostics: DeviceDiagnostics | null = null;
+const preloadedUrlCache = new Set<string>();
 
 export function detectDeviceCapabilities(): DeviceDiagnostics {
   if (typeof window === 'undefined') {
@@ -87,53 +90,63 @@ export function detectDeviceCapabilities(): DeviceDiagnostics {
     };
   }
 
+  if (cachedDiagnostics) {
+    return cachedDiagnostics;
+  }
+
   const nav = navigator as any;
   const cores = nav.hardwareConcurrency || 4;
-  const memory = nav.deviceMemory || 4; // in GB
+  const memory = nav.deviceMemory || 4;
   const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
   const connType = connection ? connection.effectiveType || '4g' : '4g';
   const isSaveData = connection ? Boolean(connection.saveData) : false;
   const dpr = window.devicePixelRatio || 1;
   const isTouch = nav.maxTouchPoints > 0 || 'ontouchstart' in window;
 
-  // Detect GPU information via WebGL
+  // Probe GPU renderer once and immediately release temporary WebGL context
   let gpuRenderer: string | undefined;
   try {
     const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    canvas.width = 1;
+    canvas.height = 1;
+    const gl = (canvas.getContext('webgl', { powerPreference: 'low-power' }) ||
+      canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
     if (gl) {
-      const debugInfo = (gl as any).getExtension('WEBGL_debug_renderer_info');
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
       if (debugInfo) {
-        gpuRenderer = (gl as any).getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+        gpuRenderer = String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || '');
+      }
+      const loseCtx = gl.getExtension('WEBGL_lose_context');
+      if (loseCtx) {
+        loseCtx.loseContext();
       }
     }
-  } catch (e) {
-    // Ignore WebGL error
+  } catch {
+    // Safe fallback if WebGL is restricted
   }
 
-  // Detect low-end GPU markers
   const lowerGpu = (gpuRenderer || '').toLowerCase();
-  const isBudgetGpu = lowerGpu.includes('mali-400') ||
+  const isBudgetGpu =
+    lowerGpu.includes('mali-400') ||
     lowerGpu.includes('mali-t') ||
     lowerGpu.includes('mali-g52') ||
     lowerGpu.includes('adreno (tm) 3') ||
     lowerGpu.includes('adreno (tm) 505') ||
     lowerGpu.includes('adreno (tm) 506') ||
     lowerGpu.includes('powervr');
-  
-  const isFlagshipGpu = lowerGpu.includes('adreno (tm) 7') ||
+
+  const isFlagshipGpu =
+    lowerGpu.includes('adreno (tm) 7') ||
     lowerGpu.includes('immortalis') ||
     lowerGpu.includes('apple') ||
     lowerGpu.includes('nvidia') ||
     lowerGpu.includes('radeon');
 
-  // Detect low-end markers
   const isSlowNetwork = connType === 'slow-2g' || connType === '2g' || connType === '3g';
   const isLowMemory = memory <= 2;
   const isLowCores = cores <= 2;
   const isLowEndDevice = isLowMemory || isLowCores || isSlowNetwork || isSaveData || isBudgetGpu;
 
-  // Calculate estimated tier
   let tier: DeviceTier = 'balanced';
   if (isLowEndDevice || isSaveData) {
     tier = 'lite_saver';
@@ -145,10 +158,16 @@ export function detectDeviceCapabilities(): DeviceDiagnostics {
     tier = 'balanced';
   }
 
-  // Refresh rate estimate (standard default 60, modern 120Hz devices)
-  const screenRefreshRate = window.screen && (window.screen as any).refreshRate ? (window.screen as any).refreshRate : (tier === 'ultra' ? 120 : tier === 'high' ? 90 : 60);
+  const screenRefreshRate =
+    window.screen && (window.screen as any).refreshRate
+      ? (window.screen as any).refreshRate
+      : tier === 'ultra'
+      ? 120
+      : tier === 'high'
+      ? 90
+      : 60;
 
-  return {
+  cachedDiagnostics = {
     tier,
     hardwareConcurrency: cores,
     deviceMemoryGB: memory,
@@ -160,30 +179,41 @@ export function detectDeviceCapabilities(): DeviceDiagnostics {
     isLowEndDevice,
     gpuRenderer,
   };
+
+  return cachedDiagnostics;
 }
 
 const STORAGE_KEY = 'ka_pulse_performance_tier';
 
 export function getActivePerformanceTier(): DeviceTier {
   if (typeof window === 'undefined') return 'balanced';
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored && (stored === 'ultra' || stored === 'high' || stored === 'balanced' || stored === 'lite_saver')) {
-    return stored as DeviceTier;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (
+      stored &&
+      (stored === 'ultra' || stored === 'high' || stored === 'balanced' || stored === 'lite_saver')
+    ) {
+      return stored as DeviceTier;
+    }
+  } catch {
+    // Safe fallback
   }
-  const auto = detectDeviceCapabilities();
-  return auto.tier;
+  return detectDeviceCapabilities().tier;
 }
 
 export function setActivePerformanceTier(tier: DeviceTier): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, tier);
-  // Apply global class to document for zero-CSS overhead switches
+  try {
+    localStorage.setItem(STORAGE_KEY, tier);
+  } catch {}
   applyPerformanceClasses(tier);
 }
 
 export function resetPerformanceTierToAuto(): DeviceTier {
   if (typeof window === 'undefined') return 'balanced';
-  localStorage.removeItem(STORAGE_KEY);
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {}
   const auto = detectDeviceCapabilities();
   applyPerformanceClasses(auto.tier);
   return auto.tier;
@@ -207,9 +237,6 @@ export function applyPerformanceClasses(tier: DeviceTier): void {
   }
 }
 
-/**
- * High-performance RAF scheduler ensuring 60Hz/120Hz render synchronization
- */
 export function scheduleFrame(callback: () => void): () => void {
   if (typeof window === 'undefined') {
     callback();
@@ -219,23 +246,20 @@ export function scheduleFrame(callback: () => void): () => void {
   return () => window.cancelAnimationFrame(frameId);
 }
 
-/**
- * Preloads manga page images with asynchronous decoding to prevent main-thread jank
- */
 export function preloadMangaImages(imageUrls: string[], priorityCount = 2): void {
   if (typeof window === 'undefined' || !imageUrls || imageUrls.length === 0) return;
   const targets = imageUrls.slice(0, priorityCount);
 
   targets.forEach((url) => {
-    if (!url) return;
+    if (!url || preloadedUrlCache.has(url)) return;
+    preloadedUrlCache.add(url);
     try {
       const img = new Image();
       img.decoding = 'async';
       img.loading = 'eager';
       img.src = url;
-    } catch (e) {
-      // Safe fallback if preloading fails
+    } catch {
+      // Safe fallback
     }
   });
 }
-

@@ -2,59 +2,641 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
-    function isAuthenticated() {
+    // Pillar 1 / Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------
+    // Global Hardened Primitives
+    // ---------------------------------------------------------
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
       return request.auth != null;
     }
 
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
     function isOwner(userId) {
-      return isAuthenticated() && (request.auth.uid == userId || request.auth.token.email == userId);
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    // User profile documents
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == "mlungisenimbhele3@gmail.com"
+      );
+    }
+
+    function hasParentUser(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId)) ||
+        existsAfter(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function isActiveCreator(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid)) &&
+        get(/databases/$(database)/documents/users/$(uid)).data.isCreator == true;
+    }
+
+    // ---------------------------------------------------------
+    // Validation Blueprints (Anti-Update-Gap)
+    // ---------------------------------------------------------
+    function isValidGenreList(genres) {
+      return genres is list &&
+        genres.size() <= 6 &&
+        (genres.size() == 0 || (genres[0] is string && genres[0].size() >= 1 && genres[0].size() <= 40));
+    }
+
+    function isValidUserPublicProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'isCreator', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'avatarUrl',
+          'bio',
+          'isCreator',
+          'penName',
+          'studioName',
+          'primaryGenres',
+          'followersCount',
+          'followingCount',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.uid) &&
+        data.uid == userId &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+        (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 1000)) &&
+        (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
+        data.isCreator is bool &&
+        (!('penName' in data) || (data.penName is string && data.penName.size() <= 80)) &&
+        (!data.isCreator || ('penName' in data && data.penName is string && data.penName.size() >= 2 && data.penName.size() <= 80)) &&
+        (!('studioName' in data) || (data.studioName is string && data.studioName.size() <= 80)) &&
+        (!('primaryGenres' in data) || isValidGenreList(data.primaryGenres)) &&
+        (!('followersCount' in data) || (data.followersCount is number && data.followersCount >= 0 && data.followersCount <= 100000000)) &&
+        (!('followingCount' in data) || (data.followingCount is number && data.followingCount >= 0 && data.followingCount <= 100000)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.uid == userId &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidReadingProgress(data, userId) {
+      return data.keys().hasAll([
+          'uid',
+          'mangaId',
+          'chapterId',
+          'chapterNumber',
+          'pageNumber',
+          'totalPages',
+          'progressPercent',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid',
+          'mangaId',
+          'mangaTitle',
+          'mangaCover',
+          'chapterId',
+          'chapterNumber',
+          'chapterTitle',
+          'pageNumber',
+          'totalPages',
+          'progressPercent',
+          'completed',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.uid) && data.uid == userId &&
+        isValidId(data.mangaId) &&
+        isValidId(data.chapterId) &&
+        (!('mangaTitle' in data) || (data.mangaTitle is string && data.mangaTitle.size() <= 160)) &&
+        (!('mangaCover' in data) || (data.mangaCover is string && data.mangaCover.size() <= 1000)) &&
+        (!('chapterTitle' in data) || (data.chapterTitle is string && data.chapterTitle.size() <= 160)) &&
+        data.chapterNumber is number && data.chapterNumber >= 0 && data.chapterNumber <= 10000 &&
+        data.pageNumber is number && data.pageNumber >= 0 && data.pageNumber <= 5000 &&
+        data.totalPages is number && data.totalPages >= 1 && data.totalPages <= 5000 &&
+        data.progressPercent is number && data.progressPercent >= 0 && data.progressPercent <= 100 &&
+        (!('completed' in data) || data.completed is bool) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidBookmark(data, userId) {
+      return data.keys().hasAll(['uid', 'mangaId', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'mangaId', 'mangaTitle', 'coverImage', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) && data.uid == userId &&
+        isValidId(data.mangaId) &&
+        (!('mangaTitle' in data) || (data.mangaTitle is string && data.mangaTitle.size() <= 160)) &&
+        (!('coverImage' in data) || (data.coverImage is string && data.coverImage.size() <= 1000)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidReadingPreference(data, userId) {
+      return data.keys().hasAll(['uid', 'theme', 'textSize', 'readingDirection', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'uid',
+          'theme',
+          'textSize',
+          'readingDirection',
+          'autoScroll',
+          'autoScrollSpeed',
+          'soundEffects',
+          'hapticFeedback',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.uid) && data.uid == userId &&
+        data.theme is string && data.theme.size() <= 20 && data.theme in ['dark', 'light', 'amoled', 'sepia'] &&
+        data.textSize is string && data.textSize.size() <= 20 && data.textSize in ['small', 'medium', 'large', 'xlarge'] &&
+        data.readingDirection is string && data.readingDirection.size() <= 30 && data.readingDirection in ['vertical', 'horizontal_rtl', 'horizontal_ltr', 'single'] &&
+        (!('autoScroll' in data) || data.autoScroll is bool) &&
+        (!('autoScrollSpeed' in data) || (data.autoScrollSpeed is number && data.autoScrollSpeed >= 1 && data.autoScrollSpeed <= 5)) &&
+        (!('soundEffects' in data) || data.soundEffects is bool) &&
+        (!('hapticFeedback' in data) || data.hapticFeedback is bool) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'grantedBy', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'grantedBy', 'createdAt']) &&
+        isValidId(data.uid) &&
+        data.grantedBy is string && data.grantedBy.size() >= 1 && data.grantedBy.size() <= 128 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidMangaSeries(data) {
+      return data.keys().hasAll(['id', 'authorUid', 'title', 'author', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'id',
+          'authorUid',
+          'title',
+          'author',
+          'synopsis',
+          'coverImage',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.authorUid) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 160 &&
+        data.author is string && data.author.size() >= 1 && data.author.size() <= 80 &&
+        (!('synopsis' in data) || (data.synopsis is string && data.synopsis.size() <= 2000)) &&
+        (!('coverImage' in data) || (data.coverImage is string && data.coverImage.size() <= 1000)) &&
+        data.status is string && data.status.size() <= 20 && data.status in ['ONGOING', 'COMPLETED', 'HIATUS'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidMangaChapter(data) {
+      return data.keys().hasAll(['id', 'mangaId', 'authorUid', 'number', 'title', 'pageCount', 'accessType', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'id',
+          'mangaId',
+          'authorUid',
+          'number',
+          'title',
+          'pageCount',
+          'accessType',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.mangaId) &&
+        isValidId(data.authorUid) &&
+        data.number is number && data.number >= 0 && data.number <= 10000 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 160 &&
+        data.pageCount is number && data.pageCount >= 1 && data.pageCount <= 500 &&
+        data.accessType is string && data.accessType.size() <= 20 && data.accessType in ['free', 'premium', 'rewarded'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidChatGroup(data) {
+      return data.keys().hasAll(['id', 'name', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'name', 'description', 'icon', 'createdBy', 'membersCount', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 300)) &&
+        (!('icon' in data) || (data.icon is string && data.icon.size() <= 1000)) &&
+        isValidId(data.createdBy) &&
+        (!('membersCount' in data) || (data.membersCount is number && data.membersCount >= 1 && data.membersCount <= 1000000)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidChatMessage(data) {
+      return data.keys().hasAll(['id', 'senderId', 'senderName', 'text', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'id',
+          'senderId',
+          'senderName',
+          'senderAvatar',
+          'recipientId',
+          'groupId',
+          'text',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.senderId) &&
+        data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80 &&
+        (!('senderAvatar' in data) || (data.senderAvatar is string && data.senderAvatar.size() <= 1000)) &&
+        (!('recipientId' in data) || isValidId(data.recipientId)) &&
+        (!('groupId' in data) || isValidId(data.groupId)) &&
+        (('recipientId' in data) || ('groupId' in data)) &&
+        data.text is string && data.text.size() >= 1 && data.text.size() <= 1000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // ---------------------------------------------------------
+    // Collection Match Blocks
+    // ---------------------------------------------------------
+
+    // 1. Public & Creator Studio Profiles (No PII stored here)
     match /users/{userId} {
-      allow read: if true;
-      allow write: if isOwner(userId) || isAuthenticated();
+      allow get: if isValidId(userId) && (isOwner(userId) || existing().isCreator == true || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || existing().isCreator == true);
 
-      // Reading progress subcollection
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserPublicProfile(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserPublicProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          // Action 1: Owner updates reader bio/display/avatar/social counts
+          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName',
+            'avatarUrl',
+            'bio',
+            'followersCount',
+            'followingCount',
+            'updatedAt'
+          ])) ||
+          // Action 2: Owner activates or updates Creator Studio Account
+          (isOwner(userId) && incoming().isCreator == true && incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName',
+            'avatarUrl',
+            'bio',
+            'isCreator',
+            'penName',
+            'studioName',
+            'primaryGenres',
+            'updatedAt'
+          ]))
+        );
+
+      allow delete: if isValidId(userId) && isAdmin();
+
+      // 1a. Isolated Private PII Subcollection (/users/{userId}/private/info)
+      match /private/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && (isOwner(userId) || isAdmin()) && hasParentUser(userId);
+
+        allow create: if isVerifiedUser() &&
+          isValidId(userId) &&
+          docId == 'info' &&
+          isOwner(userId) &&
+          isValidUserPrivateInfo(incoming(), userId) &&
+          incoming().email == request.auth.token.email &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasParentUser(userId);
+
+        allow update: if isVerifiedUser() &&
+          isValidId(userId) &&
+          docId == 'info' &&
+          isValidUserPrivateInfo(incoming(), userId) &&
+          incoming().uid == existing().uid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          hasParentUser(userId) && (
+            isAdmin() ||
+            (isOwner(userId) &&
+              incoming().email == request.auth.token.email &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']))
+          );
+
+        allow delete: if isValidId(userId) && isValidId(docId) && isAdmin();
+      }
+
+      // 1b. Reading Progress Subcollection
       match /reading_progress/{mangaId} {
-        allow read, write: if isOwner(userId) || isAuthenticated();
+        allow get: if isValidId(userId) && isValidId(mangaId) && (isOwner(userId) || isAdmin()) && hasParentUser(userId);
+        allow list: if isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isVerifiedUser() &&
+          isValidId(userId) &&
+          isValidId(mangaId) &&
+          isOwner(userId) &&
+          isValidReadingProgress(incoming(), userId) &&
+          incoming().mangaId == mangaId &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasParentUser(userId);
+
+        allow update: if isVerifiedUser() &&
+          isValidId(userId) &&
+          isValidId(mangaId) &&
+          isValidReadingProgress(incoming(), userId) &&
+          incoming().uid == existing().uid &&
+          incoming().mangaId == existing().mangaId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          hasParentUser(userId) && (
+            isAdmin() ||
+            (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly([
+              'mangaTitle',
+              'mangaCover',
+              'chapterId',
+              'chapterNumber',
+              'chapterTitle',
+              'pageNumber',
+              'totalPages',
+              'progressPercent',
+              'completed',
+              'updatedAt'
+            ]))
+          );
+
+        allow delete: if isValidId(userId) && isValidId(mangaId) && (isOwner(userId) || isAdmin()) && hasParentUser(userId);
       }
 
-      // Bookmarks subcollection
+      // 1c. Bookmarks Subcollection
       match /bookmarks/{mangaId} {
-        allow read, write: if isOwner(userId) || isAuthenticated();
+        allow get: if isValidId(userId) && isValidId(mangaId) && (isOwner(userId) || isAdmin()) && hasParentUser(userId);
+        allow list: if isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isVerifiedUser() &&
+          isValidId(userId) &&
+          isValidId(mangaId) &&
+          isOwner(userId) &&
+          isValidBookmark(incoming(), userId) &&
+          incoming().mangaId == mangaId &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasParentUser(userId);
+
+        allow update: if isVerifiedUser() &&
+          isValidId(userId) &&
+          isValidId(mangaId) &&
+          isValidBookmark(incoming(), userId) &&
+          incoming().uid == existing().uid &&
+          incoming().mangaId == existing().mangaId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          hasParentUser(userId) && (
+            isAdmin() ||
+            (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly([
+              'mangaTitle',
+              'coverImage',
+              'updatedAt'
+            ]))
+          );
+
+        allow delete: if isValidId(userId) && isValidId(mangaId) && (isOwner(userId) || isAdmin()) && hasParentUser(userId);
       }
 
-      // Reading preferences subcollection
+      // 1d. Reading Preferences Subcollection
       match /preferences/{prefId} {
-        allow read, write: if isOwner(userId) || isAuthenticated();
+        allow get: if isValidId(userId) && isValidId(prefId) && (isOwner(userId) || isAdmin()) && hasParentUser(userId);
+
+        allow create: if isVerifiedUser() &&
+          isValidId(userId) &&
+          prefId == 'settings' &&
+          isOwner(userId) &&
+          isValidReadingPreference(incoming(), userId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasParentUser(userId);
+
+        allow update: if isVerifiedUser() &&
+          isValidId(userId) &&
+          prefId == 'settings' &&
+          isValidReadingPreference(incoming(), userId) &&
+          incoming().uid == existing().uid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          hasParentUser(userId) && (
+            isAdmin() ||
+            (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly([
+              'theme',
+              'textSize',
+              'readingDirection',
+              'autoScroll',
+              'autoScrollSpeed',
+              'soundEffects',
+              'hapticFeedback',
+              'updatedAt'
+            ]))
+          );
+
+        allow delete: if isValidId(userId) && isValidId(prefId) && (isOwner(userId) || isAdmin()) && hasParentUser(userId);
       }
     }
 
-    // Chat messages
-    match /chat_messages/{messageId} {
-      allow read: if true;
-      allow create: if isAuthenticated() || true;
-      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.senderId || request.auth.token.email == resource.data.senderId);
+    // 2. Trusted Administrators Directory
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow create: if isAdmin() &&
+        isValidId(adminId) &&
+        isValidAdminRecord(incoming()) &&
+        incoming().uid == adminId &&
+        incoming().createdAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(adminId));
+      allow delete: if isValidId(adminId) && isAdmin();
     }
 
-    // Chat groups
-    match /chat_groups/{groupId} {
-      allow read: if true;
-      allow create: if isAuthenticated() || true;
-      allow update, delete: if isAuthenticated() && (request.auth.uid == resource.data.createdBy || request.auth.token.email == resource.data.createdBy);
-    }
-
-    // Mangas and chapters collections
+    // 3. Manga Series Collection (Requires Verified Creator Account)
     match /mangas/{mangaId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow get: if isValidId(mangaId) && existing().status in ['ONGOING', 'COMPLETED', 'HIATUS'];
+      allow list: if existing().status in ['ONGOING', 'COMPLETED', 'HIATUS'];
+
+      allow create: if isVerifiedUser() &&
+        isValidId(mangaId) &&
+        isValidMangaSeries(incoming()) &&
+        incoming().id == mangaId &&
+        incoming().authorUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (isActiveCreator(request.auth.uid) || isAdmin());
+
+      allow update: if isVerifiedUser() &&
+        isValidId(mangaId) &&
+        isValidMangaSeries(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().authorUid == existing().authorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        // Terminal State Lock: Completed series metadata locked except for Admin override
+        (existing().status != 'COMPLETED' || isAdmin()) && (
+          isAdmin() ||
+          (existing().authorUid == request.auth.uid && isActiveCreator(request.auth.uid) &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title',
+              'author',
+              'synopsis',
+              'coverImage',
+              'status',
+              'updatedAt'
+            ]))
+        );
+
+      allow delete: if isValidId(mangaId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().authorUid == request.auth.uid && isActiveCreator(request.auth.uid))
+      );
     }
 
+    // 4. Manga Chapters Collection (Parent Manga Ownership Required)
     match /chapters/{chapterId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow get: if isValidId(chapterId) && existing().accessType in ['free', 'premium', 'rewarded'];
+      allow list: if existing().accessType in ['free', 'premium', 'rewarded'];
+
+      allow create: if isVerifiedUser() &&
+        isValidId(chapterId) &&
+        isValidMangaChapter(incoming()) &&
+        incoming().id == chapterId &&
+        incoming().authorUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/mangas/$(incoming().mangaId)) &&
+        (get(/databases/$(database)/documents/mangas/$(incoming().mangaId)).data.authorUid == request.auth.uid || isAdmin());
+
+      allow update: if isVerifiedUser() &&
+        isValidId(chapterId) &&
+        isValidMangaChapter(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().mangaId == existing().mangaId &&
+        incoming().authorUid == existing().authorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/mangas/$(existing().mangaId)) && (
+          isAdmin() ||
+          (existing().authorUid == request.auth.uid &&
+            get(/databases/$(database)/documents/mangas/$(existing().mangaId)).data.authorUid == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'number',
+              'title',
+              'pageCount',
+              'accessType',
+              'updatedAt'
+            ]))
+        );
+
+      allow delete: if isValidId(chapterId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().authorUid == request.auth.uid)
+      );
+    }
+
+    // 5. Chat Groups Collection
+    match /chat_groups/{groupId} {
+      allow get: if isValidId(groupId) && isSignedIn();
+      allow list: if isSignedIn() && existing().membersCount >= 1;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(groupId) &&
+        isValidChatGroup(incoming()) &&
+        incoming().id == groupId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow update: if isVerifiedUser() &&
+        isValidId(groupId) &&
+        isValidChatGroup(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (existing().createdBy == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name',
+            'description',
+            'icon',
+            'membersCount',
+            'updatedAt'
+          ]))
+        );
+
+      allow delete: if isValidId(groupId) && (isAdmin() || (isVerifiedUser() && existing().createdBy == request.auth.uid));
+    }
+
+    // 6. Chat Messages Collection (Query Enforcer for DMs & Group Messages)
+    match /chat_messages/{messageId} {
+      allow get: if isValidId(messageId) && isSignedIn() && (
+        existing().senderId == request.auth.uid ||
+        ('recipientId' in existing() && existing().recipientId == request.auth.uid) ||
+        ('groupId' in existing() && isValidId(existing().groupId)) ||
+        isAdmin()
+      );
+
+      allow list: if isSignedIn() && (
+        existing().senderId == request.auth.uid ||
+        ('recipientId' in existing() && existing().recipientId == request.auth.uid) ||
+        ('groupId' in existing() && isValidId(existing().groupId))
+      );
+
+      allow create: if isVerifiedUser() &&
+        isValidId(messageId) &&
+        isValidChatMessage(incoming()) &&
+        incoming().id == messageId &&
+        incoming().senderId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (!('groupId' in incoming()) || exists(/databases/$(database)/documents/chat_groups/$(incoming().groupId)));
+
+      allow update: if isVerifiedUser() &&
+        isValidId(messageId) &&
+        isValidChatMessage(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().senderId == existing().senderId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (existing().senderId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly([
+            'text',
+            'updatedAt'
+          ]))
+        );
+
+      allow delete: if isValidId(messageId) && (isAdmin() || (isVerifiedUser() && existing().senderId == request.auth.uid));
     }
   }
 }

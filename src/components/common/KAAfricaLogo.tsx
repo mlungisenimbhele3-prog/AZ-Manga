@@ -1,11 +1,17 @@
 import React from 'react';
 
+export const APP_LOGO_SRC =
+  '/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp';
+
 interface KAAfricaLogoProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
-export const KAAfricaLogo: React.FC<KAAfricaLogoProps> = ({ className = '', size = 'md' }) => {
+export const KAAfricaLogo: React.FC<KAAfricaLogoProps> = ({
+  className = '',
+  size = 'md',
+}) => {
   const sizeClasses = {
     sm: 'w-7 h-7',
     md: 'w-10 h-10',
@@ -16,15 +22,15 @@ export const KAAfricaLogo: React.FC<KAAfricaLogoProps> = ({ className = '', size
 
   return (
     <div
-      className={`relative inline-flex items-center justify-center rounded-full overflow-hidden shadow-lg shadow-amber-500/20 ${sizeClasses[size] || sizeClasses.md} ${className}`}
-      title="AZ OVERVERSE Master Logo"
+      className={`relative inline-flex items-center justify-center rounded-full overflow-hidden bg-black shadow-lg shadow-amber-500/20 ${sizeClasses[size] || sizeClasses.md} ${className}`}
+      title="AZ OVERVERSE Logo"
       aria-label="AZ OVERVERSE"
       role="img"
     >
       <img
-        src="/master-logo.png"
+        src={APP_LOGO_SRC}
         alt="AZ OVERVERSE"
-        className="w-full h-full object-contain rounded-full select-none pointer-events-none"
+        className="w-full h-full object-cover rounded-full select-none pointer-events-none"
         loading="eager"
       />
     </div>

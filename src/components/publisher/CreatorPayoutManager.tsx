@@ -15,7 +15,9 @@ import {
   Sliders,
   Smartphone,
   Play,
+  Wallet,
 } from 'lucide-react';
+import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 
 interface CreatorPayoutManagerProps {
   availableBalanceUSD: number;
@@ -33,9 +35,7 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
   onUpdateSettings,
 }) => {
   const [activeTab, setActiveTab] = useState<'payout_action' | 'configure_methods' | 'history'>('payout_action');
-  const [withdrawAmountUSD, setWithdrawAmountUSD] = useState<string>(
-    availableBalanceUSD > 0 ? (availableBalanceUSD * 0.75).toFixed(2) : '50.00'
-  );
+  const [withdrawAmountUSD, setWithdrawAmountUSD] = useState<string>('0');
   const [selectedProvider, setSelectedProvider] = useState<PayoutProviderType>(
     currentSettings.preferredProvider === 'admob' ? 'admob' : 'google_play'
   );
@@ -62,6 +62,7 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
 
   const withdrawNum = parseFloat(withdrawAmountUSD) || 0;
   const withdrawZAR = (withdrawNum * USD_TO_ZAR_RATE).toFixed(2);
+  const paidTotalZAR = payoutHistory.reduce((sum, tx) => sum + (tx.amountZAR || 0), 0);
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,13 +107,15 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 70% Revenue Share Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/90 p-5">
+      {/* 70% Revenue Share Banner + YouTube Studio Pending / Payable / Paid */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-black">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
+            <img
+              src={APP_LOGO_SRC}
+              alt="AZ OVERVERSE"
+              className="h-11 w-11 shrink-0 rounded-xl object-cover border border-slate-800"
+            />
             <div>
               <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
                 <span>Creator Revenue Contract</span>
@@ -120,22 +123,49 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
                 <span className="tabular-nums">70% Creator Share</span>
               </div>
               <h4 className="text-lg font-bold text-white mt-0.5">
-                Google AdMob & Google Play Billing Revenue Pool
+                In-App Wallet · Google AdMob & Google Play Billing
               </h4>
               <p className="text-xs text-slate-300 max-w-xl mt-1 leading-relaxed">
-                Creators earn 70% of persistent AdMob banner & rewarded chapter unlock revenue plus 70% of Google Play Billing VIP subscriptions. All other payment rails are disabled.
+                Earnings follow YouTube Studio&apos;s monthly payout lifecycle: current-month estimates accrue in Pending, finalize into Payable between the 7th – 12th, and disburse between the 21st – 26th once R1,000.00 is reached.
               </p>
             </div>
           </div>
+        </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5 text-right shrink-0">
-            <span className="text-[11px] font-medium text-slate-400 block">Available 70% Balance</span>
-            <div className="text-2xl font-black text-white tabular-nums">
-              R{(availableBalanceUSD * USD_TO_ZAR_RATE).toLocaleString('en-US', { minimumFractionDigits: 2 })} ZAR
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-slate-800/80">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
+            <div className="flex items-center justify-between text-xs font-semibold text-amber-400">
+              <span>Pending</span>
+              <Clock className="w-3.5 h-3.5 shrink-0" />
             </div>
-            <div className="text-xs font-medium text-emerald-400">
-              Google Play & AdMob Settlement
+            <div className="text-xl font-black text-white font-mono tabular-nums mt-1">R0.00</div>
+            <span className="text-[11px] text-slate-400 font-mono tabular-nums block mt-0.5">
+              Est. Oct 2026 · Finalizes 7th – 12th
+            </span>
+          </div>
+
+          <div className="rounded-xl border border-emerald-500/40 bg-slate-900/80 p-3.5">
+            <div className="flex items-center justify-between text-xs font-semibold text-emerald-400">
+              <span>Payable</span>
+              <Wallet className="w-3.5 h-3.5 shrink-0" />
             </div>
+            <div className="text-xl font-black text-emerald-300 font-mono tabular-nums mt-1">R0.00</div>
+            <span className="text-[11px] text-slate-400 font-mono tabular-nums block mt-0.5">
+              R0.00 / R1,000.00 threshold (0%)
+            </span>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
+            <div className="flex items-center justify-between text-xs font-semibold text-sky-400">
+              <span>Paid</span>
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            </div>
+            <div className="text-xl font-black text-white font-mono tabular-nums mt-1">
+              R{paidTotalZAR.toFixed(2)}
+            </div>
+            <span className="text-[11px] text-slate-400 font-mono tabular-nums block mt-0.5">
+              {payoutHistory.length} disbursements · 21st – 26th window
+            </span>
           </div>
         </div>
       </div>
@@ -315,13 +345,13 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
                     <input
                       id="settlement-amount-usd"
                       type="number"
-                      min="10"
-                      max={Math.max(10, availableBalanceUSD)}
+                      min="0"
+                      max={Math.max(0, availableBalanceUSD)}
                       step="5"
                       value={withdrawAmountUSD}
                       onChange={(e) => setWithdrawAmountUSD(e.target.value)}
                       className="w-full rounded-xl border border-slate-700 bg-slate-900 py-2.5 pl-8 pr-4 text-white text-base font-bold tabular-nums focus:border-emerald-500 focus:outline-none"
-                      placeholder="50.00"
+                      placeholder="0"
                     />
                   </div>
                 </div>
@@ -360,7 +390,7 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
                     <>
                       <Send className="w-4 h-4 shrink-0" />
                       <span className="tabular-nums">
-                        Settle R{parseFloat(withdrawZAR).toLocaleString('en-US', { minimumFractionDigits: 2 })} ZAR via {selectedProvider === 'google_play' ? 'Google Play' : 'AdMob'}
+                        Settle R{parseFloat(withdrawZAR) === 0 ? '0' : parseFloat(withdrawZAR).toLocaleString('en-US', { minimumFractionDigits: 2 })} via {selectedProvider === 'google_play' ? 'Google Play' : 'AdMob'}
                       </span>
                     </>
                   )}
@@ -394,8 +424,8 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
                   <div className="flex justify-between items-baseline pt-4 border-t border-slate-700">
                     <span className="font-bold text-white text-sm">Estimated ZAR Payout</span>
                     <div className="text-right">
-                      <span className="text-xl font-black text-amber-300">
-                        R{parseFloat(withdrawZAR).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      <span className="text-xl font-black text-amber-300 font-mono tabular-nums">
+                        R{parseFloat(withdrawZAR) === 0 ? '0' : parseFloat(withdrawZAR).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </span>
                       <span className="text-[10px] text-slate-400 block font-mono">ZAR Equivalent</span>
                     </div>
@@ -582,11 +612,7 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
               Disbursed 70% Creator Revenue Records
             </span>
             <span className="text-slate-400 font-mono tabular-nums">
-              Total Paid: R
-              {payoutHistory
-                .reduce((a, b) => a + (b.amountZAR || b.amountUSD * USD_TO_ZAR_RATE), 0)
-                .toLocaleString('en-US', { minimumFractionDigits: 2 })}{' '}
-              ZAR
+              Total Paid: R0
             </span>
           </div>
 

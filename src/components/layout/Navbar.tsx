@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Suspense, lazy } from 'react';
 import { SubscriptionTier, UserSubscription } from '../../types';
-import { KAAfricaLogo } from '../common/KAAfricaLogo';
+import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 import {
   Menu,
   MoreHorizontal,
@@ -15,8 +15,12 @@ import {
   Smartphone,
   X,
 } from 'lucide-react';
-import { NavigationDrawer } from './NavigationDrawer';
 import { PWAInstallButton } from './PWAInstallButton';
+
+const loadNavigationDrawer = () => import('./NavigationDrawer');
+const NavigationDrawer = lazy(() =>
+  loadNavigationDrawer().then((m) => ({ default: m.NavigationDrawer }))
+);
 
 interface NavbarProps {
   currentLanguage: 'en' | 'zu' | 'af';
@@ -55,10 +59,11 @@ interface NavbarProps {
   activeTab?: string;
   onTabChange?: (tab: any) => void;
   isAdmin?: boolean;
+  isCreator?: boolean;
   onSwitchUserEmail?: (email: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
+const NavbarComponent: React.FC<NavbarProps> = ({
   currentLanguage,
   setLanguage,
   isOledMode,
@@ -66,6 +71,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   userSubscription,
   currentUserEmail,
   isAdmin = false,
+  isCreator = false,
   onOpenProfileModal,
   onUpgradeClick,
   onQuickToggleTier,
@@ -141,6 +147,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               id="hamburger-menu-btn"
               type="button"
+              onPointerEnter={() => {
+                void loadNavigationDrawer();
+              }}
+              onFocus={() => {
+                void loadNavigationDrawer();
+              }}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -169,9 +181,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <div className="flex items-center justify-center p-0.5">
               <img
-                src="/master-logo.png"
-                alt="AZ Master Logo"
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full shadow-lg shadow-amber-500/25 object-contain ring-1 ring-amber-400/50"
+                src={APP_LOGO_SRC}
+                alt="AZ OVERVERSE Logo"
+                decoding="async"
+                width={36}
+                height={36}
+                {...{ fetchpriority: 'high' }}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black shadow-lg shadow-amber-500/25 object-cover ring-1 ring-amber-400/50"
               />
             </div>
 
@@ -475,41 +491,48 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
     </header>
 
-    {/* Hamburger Navigation Drawer - RENDERED OUTSIDE HEADER */}
-    <NavigationDrawer
-      isOpen={isDrawerOpen}
-      onClose={() => setIsDrawerOpen(false)}
-      activeTab={activeTab}
-      onNavigate={(tab) => {
-        onTabChange?.(tab);
-        setIsDrawerOpen(false);
-      }}
-      userSubscription={userSubscription}
-      currentUserEmail={currentUserEmail}
-      isAdmin={isAdmin}
-      onOpenProfileModal={onOpenProfileModal}
-      onOpenPublish={onOpenPublish}
-      onOpenSubscriptionModal={onUpgradeClick}
-      onOpenCreatorDashboard={onOpenCreatorDashboard}
-      onOpenApplyMangaka={onOpenApplyMangaka}
-      onOpenMangakaDashboard={onOpenMangakaDashboard}
-      onOpenAdminDashboard={onOpenAdminDashboard}
-      appMode={appMode}
-      onToggleAppMode={onToggleAppMode}
-      onOpenPerformanceModal={onOpenPerformanceModal}
-      onOpenCommandPalette={onOpenCommandPalette}
-      onOpenSecurityDefense={onOpenSecurityDefense}
-      onOpenFcmNotifications={onOpenFcmNotifications}
-      onOpenWebViewerModal={onOpenWebViewerModal}
-      onOpenStoreModal={onOpenStoreModal}
-      performanceTier={performanceTier}
-      isOledMode={isOledMode}
-      toggleOledMode={toggleOledMode}
-      dataSaverMode={dataSaverMode}
-      onToggleDataSaver={onToggleDataSaver}
-      currentLanguage={currentLanguage}
-      setLanguage={setLanguage}
-    />
+    {/* Hamburger Navigation Drawer - Lazy-mounted outside header only when opened */}
+    {isDrawerOpen && (
+      <Suspense fallback={null}>
+        <NavigationDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          activeTab={activeTab}
+          onNavigate={(tab) => {
+            onTabChange?.(tab);
+            setIsDrawerOpen(false);
+          }}
+          userSubscription={userSubscription}
+          currentUserEmail={currentUserEmail}
+          isAdmin={isAdmin}
+          isCreator={isCreator}
+          onOpenProfileModal={onOpenProfileModal}
+          onOpenPublish={onOpenPublish}
+          onOpenSubscriptionModal={onUpgradeClick}
+          onOpenCreatorDashboard={onOpenCreatorDashboard}
+          onOpenApplyMangaka={onOpenApplyMangaka}
+          onOpenMangakaDashboard={onOpenMangakaDashboard}
+          onOpenAdminDashboard={onOpenAdminDashboard}
+          appMode={appMode}
+          onToggleAppMode={onToggleAppMode}
+          onOpenPerformanceModal={onOpenPerformanceModal}
+          onOpenCommandPalette={onOpenCommandPalette}
+          onOpenSecurityDefense={onOpenSecurityDefense}
+          onOpenFcmNotifications={onOpenFcmNotifications}
+          onOpenWebViewerModal={onOpenWebViewerModal}
+          onOpenStoreModal={onOpenStoreModal}
+          performanceTier={performanceTier}
+          isOledMode={isOledMode}
+          toggleOledMode={toggleOledMode}
+          dataSaverMode={dataSaverMode}
+          onToggleDataSaver={onToggleDataSaver}
+          currentLanguage={currentLanguage}
+          setLanguage={setLanguage}
+        />
+      </Suspense>
+    )}
   </>
 );
 };
+
+export const Navbar = React.memo(NavbarComponent);
