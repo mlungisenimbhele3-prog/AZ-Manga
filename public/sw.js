@@ -1,5 +1,5 @@
 // OVERVERSE Progressive Web App Service Worker (Fallback / Static Reference)
-const CACHE_NAME = 'oververse-pwa-v6';
+const CACHE_NAME = 'oververse-pwa-v7';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -48,11 +48,18 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (!url.protocol.startsWith('http')) return;
 
+  const isGoogleFont =
+    url.hostname.includes('fonts.googleapis.com') ||
+    url.hostname.includes('fonts.gstatic.com');
+
   if (
-    url.hostname.includes('firestore.googleapis.com') ||
-    url.hostname.includes('identitytoolkit.googleapis.com') ||
-    url.hostname.includes('securetoken.googleapis.com') ||
+    (!isGoogleFont && url.hostname.includes('googleapis.com')) ||
+    url.hostname.includes('firebaseio.com') ||
+    url.hostname.includes('firebasestorage.app') ||
+    url.hostname.includes('firebaseapp.com') ||
+    url.hostname.includes('google.com') ||
     url.hostname.includes('supabase.co') ||
+    url.pathname.startsWith('/__/') ||
     url.pathname === '/sw.js' ||
     url.pathname.startsWith('/dev-sw.js') ||
     url.pathname.startsWith('/workbox-') ||
@@ -125,12 +132,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static scripts, styles, and manifest: Stale-While-Revalidate
+  // Only cache same-origin static scripts, styles, and manifest
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   event.respondWith(
     caches.match(request).then((cached) => {
       const networkFetch = fetch(request)
         .then((response) => {
-          if (response && (response.status === 200 || response.type === 'opaque')) {
+          if (response && response.status === 200) {
             const copy = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }

@@ -51,37 +51,97 @@ function getLocalFallbackMangas(): Manga[] {
     localStorage.removeItem('ka_pulse_supabase_mangas_cache');
   } catch (e) {}
 
+  const METRICS_RESET_KEY = 'az_oververse_metrics_reset_v1';
+  const needsMetricsReset = safeStorage.getItem(METRICS_RESET_KEY) !== 'true';
+
   const cached = safeStorage.getJSON<Manga[] | null>(LOCAL_STORAGE_MANGAS_KEY, null);
   if (cached && Array.isArray(cached) && cached.length > 0) {
-    const hasAllNewCovers =
-      cached.some((m) => m.id === 'nkosi-the-tale-of-myths' && m.coverImage?.includes('862620681_1304598868406485')) &&
-      cached.some((m) => m.id === 'last-shaman-of-zambezi' && m.coverImage?.includes('862516203_2025904894785875')) &&
-      cached.some((m) => m.id === 'echoes-of-the-highveld' && m.coverImage?.includes('858773050_1090471570458562'));
-    if (hasAllNewCovers) {
+    const coreById = new Map(INITIAL_MANGA_LIST.map((item) => [item.id, item]));
+    const hasAllNewCoversAndGenres =
+      !needsMetricsReset &&
+      cached.some(
+        (m) =>
+          m.id === 'nkosi-the-tale-of-myths' &&
+          m.coverImage?.includes('862620681_1304598868406485') &&
+          m.genres?.includes('Afro-Fantasy')
+      ) &&
+      cached.some(
+        (m) =>
+          m.id === 'last-shaman-of-zambezi' &&
+          m.coverImage?.includes('862516203_2025904894785875') &&
+          m.genres?.includes('Ancestral Horror')
+      ) &&
+      cached.some(
+        (m) =>
+          m.id === 'echoes-of-the-highveld' &&
+          m.coverImage?.includes('858773050_1090471570458562') &&
+          m.genres?.includes('Kasi-Punk')
+      );
+    if (hasAllNewCoversAndGenres) {
       return cached;
     }
-    // Preserve any user-uploaded mangas while refreshing Nkosi's cover photo
-    const refreshed = cached.map((m) =>
-      m.id === 'nkosi-the-tale-of-myths'
-        ? {
-            ...m,
-            cover: NKOSI_COVER_SRC,
-            coverImage: NKOSI_COVER_SRC,
-            coverUrl: NKOSI_COVER_SRC,
-            bannerImage: NKOSI_COVER_SRC,
-          }
-        : m
-    );
+
+    // Preserve any user-uploaded mangas while refreshing core series covers/genres
+    // and applying the one-time reset of legacy test ratings/views/likes to 0.
+    const refreshed = cached.map((m) => {
+      const zeroedChapters = needsMetricsReset
+        ? (m.chapters || []).map((ch) => ({ ...ch, likesCount: 0 }))
+        : m.chapters || [];
+      const coreMatch = coreById.get(m.id);
+      if (!coreMatch) {
+        return needsMetricsReset
+          ? {
+              ...m,
+              rating: 0,
+              views: 0,
+              bookmarksCount: 0,
+              chapters: zeroedChapters,
+            }
+          : m;
+      }
+      const mergedGenres = Array.from(new Set([...(coreMatch.genres || []), ...(m.genres || [])]));
+      const nextRating = needsMetricsReset ? 0 : m.rating ?? 0;
+      const nextViews = needsMetricsReset ? 0 : m.views ?? 0;
+      const nextBookmarks = needsMetricsReset ? 0 : m.bookmarksCount ?? 0;
+      if (m.id === 'nkosi-the-tale-of-myths') {
+        return {
+          ...m,
+          cover: NKOSI_COVER_SRC,
+          coverImage: NKOSI_COVER_SRC,
+          coverUrl: NKOSI_COVER_SRC,
+          bannerImage: NKOSI_COVER_SRC,
+          genres: mergedGenres,
+          rating: nextRating,
+          views: nextViews,
+          bookmarksCount: nextBookmarks,
+          chapters: zeroedChapters,
+        };
+      }
+      return {
+        ...m,
+        genres: mergedGenres,
+        rating: nextRating,
+        views: nextViews,
+        bookmarksCount: nextBookmarks,
+        chapters: zeroedChapters,
+      };
+    });
     const hasCoreSeries =
       refreshed.some((m) => m.id === 'nkosi-the-tale-of-myths') &&
       refreshed.some((m) => m.id === 'last-shaman-of-zambezi') &&
       refreshed.some((m) => m.id === 'echoes-of-the-highveld');
     if (hasCoreSeries) {
       safeStorage.setJSON(LOCAL_STORAGE_MANGAS_KEY, refreshed);
+      if (needsMetricsReset) {
+        safeStorage.setItem(METRICS_RESET_KEY, 'true');
+      }
       return refreshed;
     }
   }
   safeStorage.setJSON(LOCAL_STORAGE_MANGAS_KEY, INITIAL_MANGA_LIST);
+  if (needsMetricsReset) {
+    safeStorage.setItem(METRICS_RESET_KEY, 'true');
+  }
   return INITIAL_MANGA_LIST;
 }
 
@@ -145,7 +205,7 @@ export async function fetchMangasFromSupabase(): Promise<Manga[]> {
           genres: row.genres || [],
           status: row.status,
           synopsis: row.synopsis,
-          rating: Number(row.rating) || 4.9,
+          rating: Number(row.rating) || 0,
           views: Number(row.views) || 0,
           bookmarksCount: Number(row.bookmarks_count) || 0,
           monetizationModel: row.monetization_model || 'hybrid',

@@ -3,7 +3,6 @@ import { Manga } from '../../types';
 import { ResponsiveLayout } from '../layout/ResponsiveLayout';
 import { DesktopHome } from '../layout/DesktopHome';
 import { MobileHome } from '../layout/MobileHome';
-import { GenreExplorer } from '../manga/GenreExplorer';
 import { UserTasteProfile } from '../../services/recommendationEngine';
 
 export interface ReaderPageProps {
@@ -40,14 +39,7 @@ export interface ReaderPageProps {
 
 export const ReaderPage: React.FC<ReaderPageProps> = (props) => {
   return (
-    <div id="reader-hub-page" className="w-full animate-fadeIn space-y-6">
-      {/* Visual 'Genre Explorer' Section: Allows readers to quickly filter home view by manga demographic & category */}
-      <GenreExplorer
-        selectedFilter={props.selectedFilter}
-        onSelectFilter={props.onSelectFilter}
-        mangaList={props.mangaList}
-        filteredCount={props.filteredManga.length}
-      />
+    <div id="reader-hub-page" className="w-full animate-fadeIn">
 
       {/* ResponsiveLayout delegates between MobileHome and DesktopHome at 800px */}
       <ResponsiveLayout

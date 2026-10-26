@@ -60,7 +60,7 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
     })
     .sort((a, b) => {
       if (filterType === 'trending') {
-        return (b.views || 0) * (b.rating || 1) - (a.views || 0) * (a.rating || 1);
+        return (b.views || 0) * ((b.rating || 0) + 1) - (a.views || 0) * ((a.rating || 0) + 1);
       }
       if (filterType === 'new') {
         const aDate = a.chapters?.[0]?.releaseDate || '2026-09-01';
@@ -269,7 +269,7 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
                   <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between text-[11px] text-slate-300 z-10">
                     <div className="flex items-center gap-1 text-amber-400 font-bold">
                       <Star className="w-3.5 h-3.5 fill-amber-400" />
-                      <span>{(manga.rating || 4.8).toFixed(1)}</span>
+                      <span>{(manga.rating ?? 0).toFixed(1)}</span>
                     </div>
                     <div className="flex items-center gap-1 text-slate-300 bg-black/60 px-2 py-0.5 rounded-full font-mono text-[10px]">
                       <Eye className="w-3 h-3" />

@@ -278,9 +278,9 @@ export const MangakaDashboardModal: React.FC<MangakaDashboardModalProps> = ({
         .filter(Boolean),
       status: status,
       synopsis: description.trim(),
-      rating: existingManga?.rating || 5.0,
-      views: existingManga?.views || 0,
-      bookmarksCount: existingManga?.bookmarksCount || 0,
+      rating: existingManga?.rating ?? 0,
+      views: existingManga?.views ?? 0,
+      bookmarksCount: existingManga?.bookmarksCount ?? 0,
       monetizationModel: existingManga?.monetizationModel || 'hybrid',
       chapters: existingManga && existingManga.chapters && existingManga.chapters.length > 0
         ? existingManga.chapters
@@ -355,7 +355,7 @@ export const MangakaDashboardModal: React.FC<MangakaDashboardModalProps> = ({
         .filter(Boolean),
       status: status,
       synopsis: description.trim() || 'Draft work in progress. Synopsis will be finalized before official review.',
-      rating: 5.0,
+      rating: 0,
       views: 0,
       bookmarksCount: 0,
       monetizationModel: 'hybrid',
@@ -443,7 +443,7 @@ export const MangakaDashboardModal: React.FC<MangakaDashboardModalProps> = ({
         .filter(Boolean),
       status: status,
       synopsis: description.trim(),
-      rating: 5.0,
+      rating: 0,
       views: 0,
       bookmarksCount: 0,
       monetizationModel: 'hybrid',
@@ -1488,7 +1488,10 @@ export const MangakaDashboardModal: React.FC<MangakaDashboardModalProps> = ({
                       </thead>
                       <tbody className="divide-y divide-slate-800/60">
                         {drilldownManga.chapters.map((ch, cIdx) => {
-                          const chReads = Math.max(1, Math.round((drilldownManga.views || 0) / (drilldownManga.chapters.length || 1)));
+                          const chReads =
+                            drilldownManga.chapters.length > 0
+                              ? Math.round((drilldownManga.views || 0) / drilldownManga.chapters.length)
+                              : 0;
                           const chRatio = chReads > 0 ? (((ch.likesCount || 0) / chReads) * 100).toFixed(1) : '0.0';
 
                           return (

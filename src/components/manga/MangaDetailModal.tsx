@@ -340,7 +340,7 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                         {isMangaComingSoon(activeManga) ? 'COMING SOON' : activeManga.status}
                       </span>
                       <span className="text-xs text-slate-300 font-mono">
-                        ★ {activeManga.rating.toFixed(2)} ({activeManga.views.toLocaleString()} reads)
+                        ★ {(activeManga.rating || 0).toFixed(1)} ({(activeManga.views || 0).toLocaleString()} reads)
                       </span>
                     </div>
                     <h2 className="text-xl sm:text-2xl font-black text-white truncate drop-shadow">
@@ -810,7 +810,7 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                             </div>
                             <div className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.2 text-[9px] font-bold text-amber-300">
                               <Star className="w-2.5 h-2.5 fill-amber-300" />
-                              <span>{item.manga.rating}</span>
+                              <span>{(item.manga.rating || 0).toFixed(1)}</span>
                             </div>
                           </div>
 

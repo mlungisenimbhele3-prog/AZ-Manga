@@ -60,7 +60,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   // New Series Form State
   const [newTitle, setNewTitle] = useState<string>('');
   const [newAuthor, setNewAuthor] = useState<string>('');
-  const [newGenres, setNewGenres] = useState<string>('Action, Fantasy, Isekai');
+  const [newGenres, setNewGenres] = useState<string>('Afro-Fantasy, Action, Fantasy');
   const [newSynopsis, setNewSynopsis] = useState<string>('');
   const [newMonetization, setNewMonetization] = useState<MonetizationModel>('hybrid');
   const [declaredAi, setDeclaredAi] = useState<boolean>(false);
@@ -153,9 +153,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       genres: newGenres.split(',').map((g) => g.trim()),
       status: 'ONGOING',
       synopsis: newSynopsis || 'A newly published manga journey on KA Plus: Africa Pulse.',
-      rating: 5.0,
-      views: 100,
-      bookmarksCount: 12,
+      rating: 0,
+      views: 0,
+      bookmarksCount: 0,
       monetizationModel: newMonetization,
       isAiGenerated: isAi,
       aiConfidenceScore: scan.confidenceScore,
@@ -359,6 +359,55 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   onChange={(e) => setNewGenres(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
                 />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="block text-[11px] font-medium text-slate-400">
+                Quick-select genres:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'Afro-Fantasy',
+                  'Kasi-Punk',
+                  'Ancestral Horror',
+                  'Afro-Romance',
+                  'Action',
+                  'Romance',
+                  'Fantasy',
+                  'Comedy',
+                  'Shonen',
+                  'Seinen',
+                ].map((genreTag) => {
+                  const currentList = newGenres
+                    .split(',')
+                    .map((g) => g.trim())
+                    .filter(Boolean);
+                  const isActive = currentList.some(
+                    (g) => g.toLowerCase() === genreTag.toLowerCase()
+                  );
+                  return (
+                    <button
+                      key={`pub-genre-${genreTag}`}
+                      type="button"
+                      onClick={() => {
+                        const nextList = isActive
+                          ? currentList.filter(
+                              (g) => g.toLowerCase() !== genreTag.toLowerCase()
+                            )
+                          : [...currentList, genreTag];
+                        setNewGenres(nextList.join(', '));
+                      }}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
+                        isActive
+                          ? 'bg-amber-500 text-black font-bold'
+                          : 'bg-slate-800 border border-slate-700 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      {genreTag}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

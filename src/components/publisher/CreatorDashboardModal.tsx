@@ -425,7 +425,9 @@ export const CreatorDashboardModal: React.FC<CreatorDashboardModalProps> = ({
                                   fontSize={10}
                                   tickLine={false}
                                   angle={0}
-                                  tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
+                                  tickFormatter={(val) =>
+                                    Number(val) >= 1000 ? `${(Number(val) / 1000).toFixed(0)}k` : String(val)
+                                  }
                                 />
                                 <YAxis
                                   type="category"
@@ -491,7 +493,9 @@ export const CreatorDashboardModal: React.FC<CreatorDashboardModalProps> = ({
                               />
                               <span className="text-[10px] font-bold text-white">{item.genre}</span>
                               <div className="font-mono text-[10px] text-slate-400 mt-0.5">
-                                {(item.views / 1000).toFixed(1)}k
+                                {item.views >= 1000
+                                  ? `${(item.views / 1000).toFixed(1)}k`
+                                  : item.views.toLocaleString()}
                               </div>
                             </div>
                           ));

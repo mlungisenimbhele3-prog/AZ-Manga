@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Manga } from '../../types';
 import { MangaCard } from '../manga/MangaCard';
 import { MangaGrid } from '../manga/MangaGrid';
+import { GenreFilterBar, getGenreDefinition } from '../manga/GenreFilterBar';
 import { MangaCoverImage } from '../common/MangaCoverImage';
 import { SouthAfricaFlameLogo } from '../common/SouthAfricaFlameLogo';
 import { RecommendationsTray } from '../recommendations/RecommendationsTray';
@@ -357,42 +358,14 @@ export const DesktopHome: React.FC<DesktopHomeProps> = ({
           </button>
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {[
-              { id: 'all', label: 'All Series' },
-              { id: 'favorites', label: `❤️ Favorites (${favoriteIds.length})` },
-              { id: 'moty_awards', label: '🏆 MOTY Awardees' },
-              { id: 'Shonen', label: '🔥 Shonen' },
-              { id: 'Seinen', label: '🛡️ Seinen' },
-              { id: 'Romance', label: '💖 Romance' },
-              { id: 'Slice of Life', label: '☕ Slice of Life' },
-              { id: 'Action', label: '⚔️ Action' },
-              { id: 'Fantasy', label: '✨ Fantasy' },
-              { id: 'Sci-Fi', label: '🤖 Sci-Fi' },
-              { id: 'Pan-African', label: '🌍 Pan-African' },
-              { id: 'vip_only', label: 'VIP Pass' },
-              { id: 'free_only', label: 'Free Chapters' },
-            ].map((tab, idx) => (
-              <button
-                key={`desktop-tab-${tab.id}-${idx}`}
-                onClick={() => onSelectFilter(tab.id)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  selectedFilter === tab.id
-                    ? 'bg-amber-500 text-black font-bold shadow'
-                    : 'bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <span className="text-[11px] font-semibold text-slate-400">
-            <strong className="text-white">{filteredManga.length}</strong> titles • <span className="text-amber-400">4 per row</span>
-          </span>
-        </div>
+        {/* Genre-Based Filtering UI Below Search Bar */}
+        <GenreFilterBar
+          mangaList={mangaList}
+          selectedFilter={selectedFilter}
+          onSelectFilter={onSelectFilter}
+          favoriteCount={favoriteIds.length}
+          filteredCount={filteredManga.length}
+        />
 
         {/* Personalized Manga Recommendation Engine Tray */}
         {selectedFilter === 'all' && !searchQuery && (
@@ -414,16 +387,32 @@ export const DesktopHome: React.FC<DesktopHomeProps> = ({
         {filteredManga.length === 0 ? (
           <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-12 text-center space-y-3">
             <BookOpen className="w-10 h-10 text-slate-600 mx-auto" />
-            <h3 className="text-base font-bold text-white">No manga found</h3>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              No series match your current filter or search query.
+            <h3 className="text-base font-bold text-white">
+              {selectedFilter !== 'all'
+                ? `No ${getGenreDefinition(selectedFilter)?.label || selectedFilter} series published yet`
+                : 'No manga found'}
+            </h3>
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
+              {getGenreDefinition(selectedFilter)?.tagline
+                ? `${getGenreDefinition(selectedFilter)?.tagline} — Be the first creator to publish in this genre or explore all series.`
+                : 'No series match your current filter or search query.'}
             </p>
-            <button
-              onClick={onClearSearch}
-              className="rounded-xl bg-amber-500 hover:bg-amber-400 text-black px-4 py-2 text-xs font-bold transition shadow"
-            >
-              Reset Filters
-            </button>
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={onClearSearch}
+                className="rounded-xl bg-amber-500 hover:bg-amber-400 text-black px-4 py-2 text-xs font-bold transition shadow cursor-pointer"
+              >
+                Show All Series
+              </button>
+              <button
+                type="button"
+                onClick={onOpenPublishModal}
+                className="rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 px-4 py-2 text-xs font-semibold transition cursor-pointer"
+              >
+                Publish in This Genre
+              </button>
+            </div>
           </div>
         ) : isDefaultView ? (
           <div className="space-y-8">
@@ -656,7 +645,7 @@ export const DesktopHome: React.FC<DesktopHomeProps> = ({
                 </p>
                 <div className="mt-1 flex items-center gap-1.5 text-[11px] text-amber-400 font-bold">
                   <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                  <span>{spotlightManga.rating.toFixed(2)}</span>
+                  <span>{(spotlightManga.rating || 0).toFixed(1)}</span>
                   <span className="text-slate-400 font-normal">•</span>
                   <span className="text-slate-300 font-normal">{spotlightManga.genres[0]}</span>
                 </div>

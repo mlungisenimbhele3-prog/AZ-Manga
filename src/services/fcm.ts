@@ -281,9 +281,9 @@ export async function triggerTestChapterDropFcmPush(): Promise<ChapterDropNotifi
     genres: ['Action', 'Historical', 'Mythology'],
     status: 'ONGOING',
     synopsis: 'A warrior discovers an ancient spear blessed by ancestral spirits.',
-    rating: 4.95,
-    views: 124000,
-    bookmarksCount: 8420,
+    rating: 0,
+    views: 0,
+    bookmarksCount: 0,
     monetizationModel: 'hybrid',
     chapters: [],
   };
@@ -297,8 +297,8 @@ export async function triggerTestChapterDropFcmPush(): Promise<ChapterDropNotifi
     pageCount: 28,
     accessType: 'free',
     pages: [],
-    likesCount: 1420,
-    commentsCount: 95,
+    likesCount: 0,
+    commentsCount: 0,
   };
 
   await dispatchChapterDropPush(sampleManga, sampleChapter);

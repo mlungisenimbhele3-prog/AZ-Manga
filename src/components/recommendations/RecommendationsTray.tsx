@@ -197,7 +197,7 @@ export const RecommendationsTray: React.FC<RecommendationsTrayProps> = ({
                 {/* Rating overlay */}
                 <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
                   <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
-                  <span>{manga.rating}</span>
+                  <span>{(manga.rating || 0).toFixed(1)}</span>
                 </div>
               </div>
 

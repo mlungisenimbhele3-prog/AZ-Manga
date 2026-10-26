@@ -3,6 +3,8 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
   getFirestore,
+  initializeFirestore,
+  setLogLevel,
   collection,
   doc,
   setDoc,
@@ -36,9 +38,40 @@ import {
 import { getDatabase, Database } from 'firebase/database';
 import firebaseConfig from '../../firebase-applet-config.json';
 
+// Prevent internal WebChannel 10s offline fallback notices from triggering runtime error overlays
+// when readers use the PWA on high-latency mobile networks or in offline mode.
+// Explicit security/permission errors are still logged and thrown via handleFirestoreError().
+setLogLevel('silent');
+
 export const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth: Auth = getAuth(app);
-export const db: Firestore = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+function createFirestoreInstance(firebaseApp: FirebaseApp): Firestore {
+  const databaseId = firebaseConfig.firestoreDatabaseId;
+  if (typeof window !== 'undefined') {
+    try {
+      return initializeFirestore(
+        firebaseApp,
+        {
+          // Force HTTP long-polling in browser/iframe/mobile-proxy environments so buffered
+          // WebChannel streams never hang for 10 seconds waiting on an open chunked response.
+          experimentalForceLongPolling: true,
+          experimentalLongPollingOptions: {
+            timeoutSeconds: 15,
+          },
+          ignoreUndefinedProperties: true,
+        },
+        databaseId
+      );
+    } catch {
+      // Instance was already initialized (e.g., during module re-evaluation)
+      return getFirestore(firebaseApp, databaseId);
+    }
+  }
+  return getFirestore(firebaseApp, databaseId);
+}
+
+export const db: Firestore = createFirestoreInstance(app);
 
 const configuredRtdbUrl = (firebaseConfig as Record<string, unknown>).databaseURL;
 export const rtdb: Database | null =
@@ -106,12 +139,49 @@ export function isPermissionError(error: unknown): boolean {
   return msg.includes('missing or insufficient permissions') || msg.includes('permission-denied');
 }
 
+function hasProvisionedFirebaseConfig(): boolean {
+  return Boolean(
+    firebaseConfig.apiKey &&
+      firebaseConfig.projectId &&
+      firebaseConfig.projectId !== 'remixed-project-id' &&
+      firebaseConfig.appId &&
+      firebaseConfig.firestoreDatabaseId
+  );
+}
+
 async function testConnection() {
+  if (!hasProvisionedFirebaseConfig()) {
+    console.error('Please check your Firebase configuration.');
+    return;
+  }
+
+  // Skip remote probe if the browser explicitly reports offline mode (PWA offline reading)
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return;
+  }
+
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Please check your Firebase configuration.');
+      // If browser went offline mid-flight or hit a transient mobile network drop while config is valid,
+      // retry once after a short backoff and degrade gracefully to offline cache mode.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return;
+      }
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (retryError) {
+        const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+        if (retryMsg.includes('the client is offline') && !hasProvisionedFirebaseConfig()) {
+          console.error('Please check your Firebase configuration.');
+        } else if (retryMsg.includes('the client is offline')) {
+          console.info(
+            '[OVERVERSE Firebase] Operating in offline-resilient mode until network connectivity stabilizes.'
+          );
+        }
+      }
     }
   }
 }

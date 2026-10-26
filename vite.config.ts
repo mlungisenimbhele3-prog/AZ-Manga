@@ -23,7 +23,7 @@ export default defineConfig(() => {
               {
                 tag: 'script',
                 injectTo: 'head-prepend',
-                children: `(function(){if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){if(k==='oververse-v2'||k==='oververse-v3'||k==='oververse-v4'||k==='oververse-pwa-v5'){caches.delete(k).catch(function(){});}});}).catch(function(){});}if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.update().catch(function(){});});}).catch(function(){});}var W=window.WebSocket;if(typeof W==='function'){var P=function(u,p){var h=p==='vite-hmr'||p==='vite-ping'||(Array.isArray(p)&&(p.indexOf('vite-hmr')!==-1||p.indexOf('vite-ping')!==-1));if(h){var t=new EventTarget();Object.defineProperties(t,{url:{value:String(u),enumerable:true},protocol:{value:typeof p==='string'?p:(p&&p[0])||'',enumerable:true},readyState:{value:1,enumerable:true},bufferedAmount:{value:0,enumerable:true},extensions:{value:'',enumerable:true},binaryType:{value:'blob',writable:true,enumerable:true},CONNECTING:{value:0,enumerable:true},OPEN:{value:1,enumerable:true},CLOSING:{value:2,enumerable:true},CLOSED:{value:3,enumerable:true},send:{value:function(){}},close:{value:function(){}}});t.onopen=null;t.onmessage=null;t.onerror=null;t.onclose=null;return t;}return arguments.length>1?new W(u,p):new W(u);};P.prototype=W.prototype;P.CONNECTING=W.CONNECTING;P.OPEN=W.OPEN;P.CLOSING=W.CLOSING;P.CLOSED=W.CLOSED;window.WebSocket=P;}})();`,
+                children: `(function(){if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){if(k==='oververse-v2'||k==='oververse-v3'||k==='oververse-v4'||k==='oververse-pwa-v5'||k==='oververse-pwa-v6'){caches.delete(k).catch(function(){});}});}).catch(function(){});}if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.update().catch(function(){});});}).catch(function(){});}var W=window.WebSocket;if(typeof W==='function'){var P=function(u,p){var h=p==='vite-hmr'||p==='vite-ping'||(Array.isArray(p)&&(p.indexOf('vite-hmr')!==-1||p.indexOf('vite-ping')!==-1));if(h){var t=new EventTarget();Object.defineProperties(t,{url:{value:String(u),enumerable:true},protocol:{value:typeof p==='string'?p:(p&&p[0])||'',enumerable:true},readyState:{value:1,enumerable:true},bufferedAmount:{value:0,enumerable:true},extensions:{value:'',enumerable:true},binaryType:{value:'blob',writable:true,enumerable:true},CONNECTING:{value:0,enumerable:true},OPEN:{value:1,enumerable:true},CLOSING:{value:2,enumerable:true},CLOSED:{value:3,enumerable:true},send:{value:function(){}},close:{value:function(){}}});t.onopen=null;t.onmessage=null;t.onerror=null;t.onclose=null;return t;}return arguments.length>1?new W(u,p):new W(u);};P.prototype=W.prototype;P.CONNECTING=W.CONNECTING;P.OPEN=W.OPEN;P.CLOSING=W.CLOSING;P.CLOSED=W.CLOSED;window.WebSocket=P;}})();`,
               },
             ];
           },
@@ -148,6 +148,7 @@ export default defineConfig(() => {
           skipWaiting: true,
           navigateFallbackDenylist: [
             /^\/api\//,
+            /^\/__\//,
             /^\/\.well-known\//,
             /^\/@vite\//,
             /^\/@id\//,

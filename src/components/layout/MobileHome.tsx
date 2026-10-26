@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Manga } from '../../types';
 import { MangaCard } from '../manga/MangaCard';
 import { MangaGrid } from '../manga/MangaGrid';
+import { GenreFilterBar, getGenreDefinition } from '../manga/GenreFilterBar';
 import { RecommendationsTray } from '../recommendations/RecommendationsTray';
 import { UserTasteProfile } from '../../services/recommendationEngine';
 import {
@@ -108,35 +109,15 @@ export const MobileHome: React.FC<MobileHomeProps> = ({
         </button>
       </div>
 
-      {/* Filter Pills (Scrollable) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        {[
-          { id: 'all', label: 'All' },
-          { id: 'favorites', label: `❤️ Favs (${favoriteIds.length})` },
-          { id: 'moty_awards', label: '🏆 MOTY' },
-          { id: 'Shonen', label: '🔥 Shonen' },
-          { id: 'Seinen', label: '🛡️ Seinen' },
-          { id: 'Romance', label: '💖 Romance' },
-          { id: 'Slice of Life', label: '☕ Slice of Life' },
-          { id: 'Action', label: '⚔️ Action' },
-          { id: 'Fantasy', label: '✨ Fantasy' },
-          { id: 'Sci-Fi', label: '🤖 Sci-Fi' },
-          { id: 'vip_only', label: 'VIP Pass' },
-          { id: 'free_only', label: 'Free' },
-        ].map((tab, idx) => (
-          <button
-            key={`mobile-tab-${tab.id}-${idx}`}
-            onClick={() => onSelectFilter(tab.id)}
-            className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold transition shrink-0 ${
-              selectedFilter === tab.id
-                ? 'bg-amber-500 text-black font-bold shadow'
-                : 'bg-slate-900 border border-slate-800 text-slate-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Genre-Based Filtering UI Below Search Bar */}
+      <GenreFilterBar
+        mangaList={mangaList}
+        selectedFilter={selectedFilter}
+        onSelectFilter={onSelectFilter}
+        favoriteCount={favoriteIds.length}
+        filteredCount={filteredManga.length}
+        compact
+      />
 
       {/* Mobile Personalized Recommendations Tray */}
       {selectedFilter === 'all' && !searchQuery && (
@@ -155,16 +136,32 @@ export const MobileHome: React.FC<MobileHomeProps> = ({
           1. KA+ ORIGINALS 👑 (Top horizontal scroll)
           2. BACKDROP - Rising Creators (2-column mobile grid below) */}
       {filteredManga.length === 0 ? (
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-8 text-center space-y-2">
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-8 text-center space-y-2.5">
           <BookOpen className="w-8 h-8 text-slate-600 mx-auto" />
-          <h4 className="text-sm font-bold text-white">No manga found</h4>
-          <p className="text-[11px] text-slate-400">Try adjusting your search query.</p>
-          <button
-            onClick={onClearSearch}
-            className="rounded-lg bg-amber-500 text-black px-3 py-1.5 text-xs font-bold"
-          >
-            Clear Search
-          </button>
+          <h4 className="text-sm font-bold text-white">
+            {selectedFilter !== 'all'
+              ? `No ${getGenreDefinition(selectedFilter)?.label || selectedFilter} series yet`
+              : 'No manga found'}
+          </h4>
+          <p className="text-[11px] text-slate-400">
+            {getGenreDefinition(selectedFilter)?.tagline || 'Try adjusting your search query.'}
+          </p>
+          <div className="flex items-center justify-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClearSearch}
+              className="rounded-lg bg-amber-500 text-black px-3 py-1.5 text-xs font-bold"
+            >
+              Show All
+            </button>
+            <button
+              type="button"
+              onClick={onOpenPublishModal}
+              className="rounded-lg border border-slate-700 bg-slate-900 text-slate-200 px-3 py-1.5 text-xs font-semibold"
+            >
+              Publish
+            </button>
+          </div>
         </div>
       ) : isDefaultView ? (
         <div className="space-y-6">

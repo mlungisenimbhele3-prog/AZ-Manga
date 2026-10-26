@@ -238,7 +238,7 @@ export const MangaOfTheYearAwardsModal: React.FC<MangaOfTheYearAwardsModalProps>
                         </span>
                         <span className="flex items-center gap-1 text-xs text-yellow-400 font-semibold">
                           <Star className="w-3.5 h-3.5 fill-yellow-400" />
-                          <span>{winnerManga.rating}</span>
+                          <span>{(winnerManga.rating || 0).toFixed(1)}</span>
                         </span>
                         <span className="flex items-center gap-1 text-xs text-slate-400">
                           <Eye className="w-3.5 h-3.5" />

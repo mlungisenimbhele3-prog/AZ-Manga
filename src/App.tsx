@@ -229,11 +229,20 @@ try {
   localStorage.removeItem('ka_pulse_supabase_mangas_cache');
   localStorage.removeItem('ka_pulse_creator_coin_payouts_zar');
   localStorage.removeItem('ka_pulse_coin_unlocks');
+  if (localStorage.getItem('az_oververse_app_metrics_reset_v1') !== 'true') {
+    localStorage.removeItem('ka_moty_voted_grand-prix');
+    localStorage.removeItem('ka_moty_voted_manga_id');
+    localStorage.removeItem('ka_all_comments');
+    localStorage.setItem('az_oververse_app_metrics_reset_v1', 'true');
+  }
   const cachedStr = localStorage.getItem('az_oververse_mangas_cache');
   if (
     cachedStr &&
     (!cachedStr.includes('nkosi-the-tale-of-myths') ||
       !cachedStr.includes('862620681_1304598868406485') ||
+      !cachedStr.includes('Afro-Fantasy') ||
+      !cachedStr.includes('Kasi-Punk') ||
+      !cachedStr.includes('Ancestral Horror') ||
       !cachedStr.includes('862516203_2025904894785875') ||
       !cachedStr.includes('858773050_1090471570458562'))
   ) {
@@ -390,6 +399,9 @@ export default function App() {
             (m, i) =>
               m.id === supaMangas[i]?.id &&
               m.coverImage === supaMangas[i]?.coverImage &&
+              m.rating === supaMangas[i]?.rating &&
+              m.views === supaMangas[i]?.views &&
+              m.genres.join('|') === (supaMangas[i]?.genres || []).join('|') &&
               m.chapters.length === supaMangas[i]?.chapters.length
           )
         ) {

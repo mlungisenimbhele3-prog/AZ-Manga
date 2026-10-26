@@ -83,7 +83,7 @@ export const MangaOfTheYearShowcase: React.FC<MangaOfTheYearShowcaseProps> = ({
                 </span>
                 <span className="flex items-center gap-1 text-xs text-yellow-400 font-bold">
                   <Star className="w-3.5 h-3.5 fill-yellow-400" />
-                  <span>{grandWinner.rating}</span>
+                  <span>{(grandWinner.rating || 0).toFixed(1)}</span>
                 </span>
               </div>
 
@@ -163,7 +163,7 @@ export const MangaOfTheYearShowcase: React.FC<MangaOfTheYearShowcaseProps> = ({
                         {manga.title}
                       </h4>
                       <p className="text-[10px] text-slate-400 truncate">
-                        By {manga.author} • {manga.rating} ★
+                        By {manga.author} • {(manga.rating || 0).toFixed(1)} ★
                       </p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition" />

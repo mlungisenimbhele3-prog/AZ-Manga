@@ -293,12 +293,16 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
         <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between text-[11px] text-slate-300 z-10 tabular-nums">
           <div className="flex items-center gap-1 text-amber-400 font-bold">
             <Star className="w-3.5 h-3.5 fill-amber-400" />
-            <span>{manga.rating.toFixed(2)}</span>
+            <span>{(manga.rating || 0).toFixed(1)}</span>
           </div>
 
           <div className="flex items-center gap-1 text-slate-200 bg-black/70 px-2 py-0.5 rounded-full font-mono text-[10px]">
             <Eye className="w-3 h-3" />
-            <span>{(manga.views / 1000).toFixed(0)}k</span>
+            <span>
+              {manga.views >= 1000
+                ? `${(manga.views / 1000).toFixed(1)}k`
+                : (manga.views || 0).toLocaleString()}
+            </span>
           </div>
         </div>
       </div>

@@ -429,7 +429,7 @@ export const MangaOfTheYearAwardsPage: React.FC<MangaOfTheYearAwardsPageProps> =
                               </span>
                             )}
                             <span className="text-[10px] text-amber-400 font-bold">
-                              ★ {manga.rating}
+                              ★ {(manga.rating || 0).toFixed(1)}
                             </span>
                           </div>
 

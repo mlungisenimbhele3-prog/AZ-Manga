@@ -72,34 +72,34 @@ export const TASTE_PRESETS: {
 }[] = [
   {
     id: 'shonen_action',
-    name: 'Shonen & Action Enthusiast',
+    name: 'Afro-Fantasy & Shonen Battles',
     icon: '🔥',
-    description: 'High octane battles, martial arts, tournaments and superhuman powers',
-    likedGenres: ['Shonen', 'Action', 'Fantasy'],
+    description: 'Zulu myths + Shonen battles, sacred lineages, and high-stakes clashes',
+    likedGenres: ['Afro-Fantasy', 'Shonen', 'Action', 'Fantasy'],
     mockHistoryMangaIds: ['nkosi-the-tale-of-myths'],
   },
   {
     id: 'pan_african_folklore',
-    name: 'Folklore & Spiritual Seeker',
+    name: 'Ancestral Horror & Folklore',
     icon: '🌍',
-    description: 'Indigenous mythology, spirit realm diviners, and ancestral legends',
-    likedGenres: ['Pan-African', 'Fantasy', 'Mythology', 'Supernatural'],
+    description: 'Folklore that was never fiction, spirit realm diviners, and ancient legends',
+    likedGenres: ['Ancestral Horror', 'Afro-Fantasy', 'Fantasy', 'Supernatural'],
     mockHistoryMangaIds: ['last-shaman-of-zambezi', 'nkosi-the-tale-of-myths'],
   },
   {
     id: 'cyberpunk_scifi',
-    name: 'Cyberpunk & Sci-Fi Explorer',
+    name: 'Kasi-Punk & Sci-Fi Explorer',
     icon: '🤖',
-    description: 'Neon skylines, android mercenaries, quantum neural nets and hackers',
-    likedGenres: ['Sci-Fi', 'Action', 'Cyberpunk', 'Seinen'],
+    description: 'Township streets + cyber gods, neon skylines, and high-tech survival',
+    likedGenres: ['Kasi-Punk', 'Sci-Fi', 'Action', 'Seinen'],
     mockHistoryMangaIds: ['echoes-of-the-highveld'],
   },
   {
     id: 'romance_slice_of_life',
-    name: 'Heartfelt Romance & Slice of Life',
+    name: 'Afro-Romance, Comedy & Slice of Life',
     icon: '💖',
-    description: 'Vibrant urban melodies, creative sparks, youth surfing and cozy vibes',
-    likedGenres: ['Romance', 'Slice of Life', 'Seinen'],
+    description: 'Love stories with lobola, not just cherry blossoms, plus warm humor',
+    likedGenres: ['Afro-Romance', 'Romance', 'Comedy', 'Slice of Life'],
     mockHistoryMangaIds: ['nkosi-the-tale-of-myths'],
   },
 ];
@@ -108,11 +108,17 @@ export const TASTE_PRESETS: {
  * Common keyword vocabulary for thematic content-based text similarity
  */
 const THEMATIC_KEYWORDS = [
+  'zulu',
+  'kasi',
+  'township',
+  'lobola',
+  'folklore',
   'ancestor',
   'ancestral',
   'spirit',
   'diviner',
   'cyberpunk',
+  'cyber',
   'neon',
   'hacker',
   'battle',
@@ -177,15 +183,19 @@ export function extractUniqueGenres(mangaList: Manga[]): string[] {
   const genreSet = new Set<string>();
   // Pre-seed with standard major genres
   const baseline = [
+    'Afro-Fantasy',
+    'Kasi-Punk',
+    'Ancestral Horror',
+    'Afro-Romance',
+    'Action',
+    'Romance',
+    'Fantasy',
+    'Comedy',
     'Shonen',
     'Seinen',
-    'Action',
-    'Fantasy',
-    'Sci-Fi',
-    'Romance',
     'Slice of Life',
+    'Sci-Fi',
     'Pan-African',
-    'Afro-Futurism',
     'Supernatural',
   ];
   baseline.forEach((g) => genreSet.add(g));
@@ -402,32 +412,40 @@ function calculateContentBasedScore(
   let compositeScore = 0;
   let reason = '';
 
+  const ratingSignal = candidate.rating > 0 ? candidate.rating / 5 : 0;
+
   if (profile.readingHistory.length === 0 && (!profile.favoriteMangaIds || profile.favoriteMangaIds.length === 0)) {
-    compositeScore = Math.min(1.0, genreMatchRatio * 0.85 + (candidate.rating / 5) * 0.15);
+    compositeScore = Math.min(
+      1.0,
+      candidate.rating > 0 ? genreMatchRatio * 0.85 + ratingSignal * 0.15 : genreMatchRatio
+    );
     reason =
       matchedGenres.length > 0
         ? `Matches your favorite genres: ${matchedGenres.slice(0, 3).join(', ')}`
-        : `Acclaimed series in ${candidate.genres[0] || 'Shonen'}`;
+        : `Featured series in ${candidate.genres[0] || 'Shonen'}`;
   } else if (bestMatchingManga && bestMangaMatchScore > 0.22) {
     compositeScore =
-      bestMangaMatchScore * 0.52 +
-      genreMatchRatio * 0.38 +
-      (candidate.rating / 5) * 0.10;
+      candidate.rating > 0
+        ? bestMangaMatchScore * 0.52 + genreMatchRatio * 0.38 + ratingSignal * 0.10
+        : bestMangaMatchScore * 0.58 + genreMatchRatio * 0.42;
     reason =
       matchedGenres.length > 0
         ? `Because you read ${bestMatchingManga.title} · ${matchedGenres.slice(0, 2).join(' & ')}`
         : `Because you read ${bestMatchingManga.title}`;
   } else if (isAlreadyRead && matchedGenres.length > 0) {
     compositeScore =
-      genreMatchRatio * 0.72 + (candidate.rating / 5) * 0.28;
+      candidate.rating > 0 ? genreMatchRatio * 0.72 + ratingSignal * 0.28 : genreMatchRatio;
     reason = `In your reading history · Matches ${matchedGenres.slice(0, 2).join(' & ')}`;
   } else if (matchedGenres.length > 0) {
     compositeScore =
-      genreMatchRatio * 0.72 + (candidate.rating / 5) * 0.28;
+      candidate.rating > 0 ? genreMatchRatio * 0.72 + ratingSignal * 0.28 : genreMatchRatio;
     reason = `Matches your favorite genres: ${matchedGenres.slice(0, 3).join(', ')}`;
   } else {
-    compositeScore = (candidate.rating / 5) * 0.55;
-    reason = `High-rated ${candidate.genres[0] || 'Original'} series (${candidate.rating.toFixed(1)} ★)`;
+    compositeScore = candidate.rating > 0 ? ratingSignal * 0.55 : 0.35;
+    reason =
+      candidate.rating > 0
+        ? `High-rated ${candidate.genres[0] || 'Original'} series (${candidate.rating.toFixed(1)} ★)`
+        : `Featured ${candidate.genres[0] || 'Original'} series on AZ OVERVERSE`;
   }
 
   return {
@@ -504,11 +522,11 @@ function calculateCollaborativeScore(
     };
   }
 
-  // Implicit baseline based on overall platform bookmarks/views
-  const popularityScore = Math.min(0.7, (candidate.views || 5000) / 30000);
+  // Implicit baseline based on real organic platform views (0 when no views yet)
+  const popularityScore = candidate.views > 0 ? Math.min(0.7, candidate.views / 30000) : 0;
   return {
     score: popularityScore,
-    reason: 'Trending among readers with similar profiles',
+    reason: candidate.views > 0 ? 'Trending among readers with similar profiles' : 'Curated discovery pick',
   };
 }
 
@@ -569,16 +587,19 @@ export function getRecommendedManga(
       const candidateGenres = new Set(manga.genres || []);
       const matched = profile.likedGenres.filter((g) => candidateGenres.has(g));
       const genreRatio = profile.likedGenres.length > 0 ? matched.length / profile.likedGenres.length : 0.5;
-      finalScore = Math.min(0.98, genreRatio * 0.7 + (manga.rating / 5) * 0.3);
+      finalScore = Math.min(
+        0.98,
+        manga.rating > 0 ? genreRatio * 0.7 + (manga.rating / 5) * 0.3 : genreRatio
+      );
       primaryReason = matched.length > 0
         ? `Direct match for liked genres: ${matched.join(', ')}`
         : `Curated pick in ${manga.genres[0] || 'Shonen'}`;
       explanation = `100% matched against your explicitly selected favorite genres.`;
     } else {
       // 'hybrid' (Weighted ensemble of Content + Collaborative + Quality prior)
-      const wContent = 0.55;
+      const wContent = manga.rating > 0 ? 0.55 : 0.65;
       const wCollab = 0.35;
-      const wQuality = 0.10;
+      const wQuality = manga.rating > 0 ? 0.10 : 0;
       const qualityScore = (manga.rating / 5) * 0.8 + (manga.award ? 0.2 : 0);
 
       finalScore =
