@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
 import { Manga } from '../../types';
 import { MangaCard } from '../manga/MangaCard';
@@ -43,7 +43,7 @@ export interface MobileHomeProps {
   onNavigateToCanvas?: () => void;
 }
 
-export const MobileHome: React.FC<MobileHomeProps> = ({
+const MobileHomeComponent: React.FC<MobileHomeProps> = ({
   mangaList,
   filteredManga,
   favoriteIds,
@@ -62,8 +62,17 @@ export const MobileHome: React.FC<MobileHomeProps> = ({
   onNavigateToCanvas,
 }) => {
   const isDefaultView = selectedFilter === 'all' && !searchQuery;
-  const originalSeries = mangaList.filter((m) => m.isOriginal && m.id !== 'placeholder');
-  const canvasSeries = mangaList.filter((m) => (!m.isOriginal || m.isCanvas || m.isBackdrop) && m.id !== 'placeholder');
+  const { originalSeries, canvasSeries } = useMemo(() => {
+    const originals: Manga[] = [];
+    const canvas: Manga[] = [];
+    for (let i = 0; i < mangaList.length; i++) {
+      const m = mangaList[i];
+      if (!m || m.id === 'placeholder') continue;
+      if (m.isOriginal) originals.push(m);
+      if (!m.isOriginal || m.isCanvas || m.isBackdrop) canvas.push(m);
+    }
+    return { originalSeries: originals, canvasSeries: canvas };
+  }, [mangaList]);
   return (
     <div id="shonen-mobile-home" className="space-y-4 pb-6">
       {/* Mobile Top Search Bar + Upload Button */}
@@ -278,4 +287,6 @@ export const MobileHome: React.FC<MobileHomeProps> = ({
     </div>
   );
 };
+
+export const MobileHome = React.memo(MobileHomeComponent);
 

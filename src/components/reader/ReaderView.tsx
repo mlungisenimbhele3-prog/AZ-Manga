@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -9,11 +9,24 @@ import {
   Minimize2,
   Play,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import { Chapter, Manga, UserSubscription } from '../../types';
-import { ReadingMode, preloadUpcomingPages, DEFAULT_READER_CONFIG } from './ReaderConfig';
+import {
+  ReadingMode,
+  preloadUpcomingPages,
+  isPagePreloaded,
+  getPageLoadStatus,
+  markPageLoadedExternally,
+  subscribeToPageLoadState,
+  retryPreloadMangaImage,
+  DEFAULT_READER_CONFIG,
+} from './ReaderConfig';
 import { AdMobBanner } from '../ads/AdMobBanner';
 import { safeStorage } from '../../utils/safeStorage';
+import { getProfileConfig, scheduleIdleTask } from '../../utils/devicePerformance';
+import { recordChapterRead } from '../../utils/readingStreak';
+import { saveReadingProgress } from '../../services/userProfile';
 import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 
 export interface ReaderViewProps {
@@ -24,7 +37,167 @@ export interface ReaderViewProps {
   onChapterChange?: (chapterId: string) => void;
   onRequestRewardedAd?: (chapter: Chapter, onUnlocked?: () => void) => void;
   onUpgradeClick?: () => void;
+  dataSaverMode?: boolean;
 }
+
+interface ReaderPageSurfaceProps {
+  imageUrl: string;
+  pageIndex: number;
+  isWithinActiveWindow: boolean;
+  isCurrentPage: boolean;
+  mode: ReadingMode;
+  onImageNode?: (index: number, node: HTMLImageElement | null) => void;
+  onPageDecoded?: () => void;
+}
+
+/**
+ * Memoized, slow-network-resilient manga page renderer.
+ * - Renders immediately with zero fade/skeleton flash when already cached by the 3-page preloader.
+ * - Displays a clean dark shimmer skeleton while streaming over slow 2G/3G connections.
+ * - Provides 1-tap retry recovery if a flaky connection drops mid-chapter.
+ */
+const ReaderPageSurface = React.memo<ReaderPageSurfaceProps>(
+  ({
+    imageUrl,
+    pageIndex,
+    isWithinActiveWindow,
+    isCurrentPage,
+    mode,
+    onImageNode,
+    onPageDecoded,
+  }) => {
+    const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(() =>
+      isPagePreloaded(imageUrl) ? 'loaded' : getPageLoadStatus(imageUrl) === 'error' ? 'error' : 'loading'
+    );
+    const [retryNonce, setRetryNonce] = useState(0);
+
+    useEffect(() => {
+      if (isPagePreloaded(imageUrl)) {
+        setStatus('loaded');
+        return;
+      }
+      const current = getPageLoadStatus(imageUrl);
+      if (current === 'loaded') {
+        setStatus('loaded');
+      } else if (current === 'error') {
+        setStatus('error');
+      } else {
+        setStatus('loading');
+      }
+
+      return subscribeToPageLoadState(imageUrl, (nextStatus) => {
+        if (nextStatus === 'loaded') {
+          setStatus('loaded');
+        } else if (nextStatus === 'error') {
+          setStatus('error');
+        } else if (nextStatus === 'loading') {
+          setStatus('loading');
+        }
+      });
+    }, [imageUrl]);
+
+    const handleRetry = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setStatus('loading');
+        setRetryNonce((n) => n + 1);
+        void retryPreloadMangaImage(imageUrl);
+      },
+      [imageUrl]
+    );
+
+    const setImgRef = useCallback(
+      (el: HTMLImageElement | null) => {
+        onImageNode?.(pageIndex, el);
+        if (el && el.complete && el.naturalWidth > 0) {
+          markPageLoadedExternally(imageUrl);
+          setStatus('loaded');
+        }
+      },
+      [onImageNode, pageIndex, imageUrl]
+    );
+
+    const effectiveSrc =
+      retryNonce === 0
+        ? imageUrl
+        : `${imageUrl}${imageUrl.includes('?') ? '&' : '?'}retry=${retryNonce}`;
+
+    return (
+      <div
+        className={
+          mode === 'vertical'
+            ? 'relative w-full flex justify-center items-center bg-black m-0 p-0 border-0 manga-page-container min-h-[320px]'
+            : 'relative w-full h-full flex items-center justify-center bg-black m-0 p-0'
+        }
+      >
+        {status === 'loading' && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-black/90 pointer-events-none">
+            <div className="h-7 w-7 rounded-full border-2 border-amber-500/25 border-t-amber-400 animate-spin" />
+            <span className="text-[11px] font-mono tabular-nums text-slate-400">
+              Page {pageIndex + 1}
+            </span>
+          </div>
+        )}
+
+        {status === 'error' ? (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center bg-slate-950/90 rounded-2xl border border-slate-800 max-w-xs mx-auto my-6"
+          >
+            <img
+              src={APP_LOGO_SRC}
+              alt="AZ OVERVERSE"
+              className="w-10 h-10 rounded-full object-cover opacity-80"
+            />
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-white">Page {pageIndex + 1} paused on slow network</p>
+              <p className="text-[11px] text-slate-400">
+                Check your connection and tap below to reload this panel.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="min-h-[40px] inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs px-4 py-2 transition active:scale-95"
+            >
+              <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+              <span>Retry Page {pageIndex + 1}</span>
+            </button>
+          </div>
+        ) : (
+          <img
+            ref={setImgRef}
+            src={effectiveSrc}
+            alt={`Page ${pageIndex + 1}`}
+            referrerPolicy="no-referrer"
+            loading={isWithinActiveWindow ? 'eager' : 'lazy'}
+            decoding="async"
+            {...{ fetchpriority: isCurrentPage ? 'high' : isWithinActiveWindow ? 'auto' : 'low' }}
+            onLoad={() => {
+              markPageLoadedExternally(imageUrl);
+              setStatus('loaded');
+              onPageDecoded?.();
+            }}
+            onError={() => {
+              setStatus('error');
+            }}
+            className={
+              mode === 'vertical'
+                ? `max-h-screen w-auto max-w-full object-contain mx-auto select-none block m-0 p-0 manga-page-img reader-page-touch-vertical transition-opacity duration-150 ${
+                    status === 'loaded' ? 'opacity-100' : 'opacity-0'
+                  }`
+                : `max-h-full h-full w-auto max-w-full object-contain mx-auto select-none block manga-page-img reader-page-touch-pinch transition-opacity duration-150 ${
+                    status === 'loaded' ? 'opacity-100' : 'opacity-0'
+                  }`
+            }
+          />
+        )}
+      </div>
+    );
+  }
+);
+
+ReaderPageSurface.displayName = 'ReaderPageSurface';
 
 export const ReaderView: React.FC<ReaderViewProps> = ({
   manga,
@@ -34,22 +207,21 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   onChapterChange,
   onRequestRewardedAd,
   onUpgradeClick,
+  dataSaverMode = false,
 }) => {
-  const pages = chapter?.pages || [];
+  const pages = useMemo(() => chapter?.pages || [], [chapter?.pages]);
   const totalPages = pages.length;
   const hasPages = Boolean(chapter && totalPages > 0);
 
   // Reading mode: Mode A ('vertical') or Mode B ('horizontal_ltr')
   const [readingMode, setReadingMode] = useState<ReadingMode>(() => {
-    try {
-      const saved = localStorage.getItem('az_reader_mode');
-      if (saved === 'vertical') return 'vertical';
-      if (saved === 'horizontal_rtl') {
-        localStorage.setItem('az_reader_mode', 'horizontal_ltr');
-        return 'horizontal_ltr';
-      }
-      if (saved === 'horizontal_ltr') return 'horizontal_ltr';
-    } catch {}
+    const saved = safeStorage.getItem('az_reader_mode');
+    if (saved === 'vertical') return 'vertical';
+    if (saved === 'horizontal_rtl') {
+      safeStorage.setItem('az_reader_mode', 'horizontal_ltr');
+      return 'horizontal_ltr';
+    }
+    if (saved === 'horizontal_ltr') return 'horizontal_ltr';
     return DEFAULT_READER_CONFIG.readingMode;
   });
 
@@ -58,27 +230,94 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const [showOverlay, setShowOverlay] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
-  // Touch & scroll refs (RAF-throttled for 120Hz zero-jank scrolling)
+  // Compositor & scroll measurement refs (zero synchronous layout reads during scroll frames)
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const touchStartTimeRef = useRef<number>(0);
   const verticalContainerRef = useRef<HTMLDivElement>(null);
-  const pageImageRefs = useRef<{ [key: number]: HTMLImageElement | null }>({});
+  const progressBarFillRef = useRef<HTMLDivElement>(null);
+  const horizontalTrackRef = useRef<HTMLDivElement>(null);
+  const pageImageRefs = useRef<Record<number, HTMLImageElement | null>>({});
+  const pageMidpointsRef = useRef<number[]>([]);
+  const maxScrollCachedRef = useRef<number>(0);
   const scrollRafRef = useRef<number | null>(null);
+  const measureRafRef = useRef<number | null>(null);
+
+  const currentChapterIndex = useMemo(
+    () => (manga?.chapters ? manga.chapters.findIndex((c) => c.id === chapter?.id) : -1),
+    [manga?.chapters, chapter?.id]
+  );
+
+  const nextChapter = useMemo(
+    () =>
+      currentChapterIndex >= 0 && manga?.chapters && currentChapterIndex < manga.chapters.length - 1
+        ? manga.chapters[currentChapterIndex + 1]
+        : null,
+    [currentChapterIndex, manga?.chapters]
+  );
+
+  const nextChapterFirstPageUrl = nextChapter?.pages?.[0]?.imageUrl || null;
 
   const handleToggleReadingMode = useCallback((mode: ReadingMode) => {
     setReadingMode(mode);
-    try {
-      localStorage.setItem('az_reader_mode', mode);
-    } catch {}
+    safeStorage.setItem('az_reader_mode', mode);
   }, []);
 
-  // Image preloading algorithm: Silently cache upcoming pages in background
+  const registerImageNode = useCallback((idx: number, node: HTMLImageElement | null) => {
+    pageImageRefs.current[idx] = node;
+  }, []);
+
+  /**
+   * 3-Page Chapter Preloading Strategy:
+   * Always caches at least the next 3 pages (Page X+1, X+2, X+3) ahead of `currentPageIndex`
+   * using network-aware sequential/parallel scheduling + Cache Storage persistence.
+   */
   useEffect(() => {
-    if (totalPages > 0) {
-      preloadUpcomingPages(pages, currentPageIndex, DEFAULT_READER_CONFIG.preloadAheadCount);
-    }
-  }, [currentPageIndex, pages, totalPages]);
+    if (totalPages === 0) return;
+    const profileAhead = getProfileConfig().imagePreloadCount;
+    const aheadCount = Math.max(DEFAULT_READER_CONFIG.preloadAheadCount, profileAhead, 3);
+    preloadUpcomingPages(pages, currentPageIndex, aheadCount, {
+      dataSaverMode,
+      nextChapterFirstPageUrl,
+    });
+  }, [currentPageIndex, pages, totalPages, dataSaverMode, nextChapterFirstPageUrl]);
+
+  /**
+   * Recalculates vertical page offsets off the scroll hot-path (on resize / image decode)
+   * so `handleVerticalScroll` uses O(log N) binary search with zero synchronous DOM reflows.
+   */
+  const recomputeVerticalLayoutMetrics = useCallback(() => {
+    if (measureRafRef.current !== null) return;
+    measureRafRef.current = window.requestAnimationFrame(() => {
+      measureRafRef.current = null;
+      const container = verticalContainerRef.current;
+      if (!container) return;
+
+      maxScrollCachedRef.current = Math.max(0, container.scrollHeight - container.clientHeight);
+      const bottoms: number[] = new Array(totalPages);
+      let lastBottom = 0;
+
+      for (let i = 0; i < totalPages; i++) {
+        const el = pageImageRefs.current[i];
+        if (el) {
+          lastBottom = el.offsetTop + el.offsetHeight;
+        }
+        bottoms[i] = lastBottom;
+      }
+      pageMidpointsRef.current = bottoms;
+
+      if (maxScrollCachedRef.current > 0) {
+        const pct = Math.min(
+          100,
+          Math.max(0, (container.scrollTop / maxScrollCachedRef.current) * 100)
+        );
+        if (progressBarFillRef.current) {
+          progressBarFillRef.current.style.transform = `scaleX(${pct / 100})`;
+        }
+        setScrollProgress((prev) => (Math.abs(prev - pct) >= 1 ? pct : prev));
+      }
+    });
+  }, [totalPages]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -144,7 +383,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     if (e.touches.length === 1) {
       touchStartXRef.current = e.touches[0].clientX;
       touchStartYRef.current = e.touches[0].clientY;
-      touchStartTimeRef.current = Date.now();
+      touchStartTimeRef.current = performance.now();
     }
   }, []);
 
@@ -155,14 +394,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       const endY = e.changedTouches[0].clientY;
       const deltaX = endX - touchStartXRef.current;
       const deltaY = endY - touchStartYRef.current;
-      const timeTaken = Date.now() - touchStartTimeRef.current;
+      const timeTaken = performance.now() - touchStartTimeRef.current;
 
       touchStartXRef.current = null;
       touchStartYRef.current = null;
 
       if (
         readingMode === 'horizontal_ltr' &&
-        Math.abs(deltaX) > 40 &&
+        Math.abs(deltaX) > 36 &&
         Math.abs(deltaX) > Math.abs(deltaY) &&
         timeTaken < 600
       ) {
@@ -176,7 +415,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     [readingMode, goToNextPage, goToPrevPage]
   );
 
-  // RAF-throttled vertical scroll listener (prevents synchronous layout thrashing at 120Hz)
+  /**
+   * 120Hz Compositor-Bound Vertical Scroll Handler:
+   * - Updates top progress bar directly via GPU `scaleX()` without React re-renders per pixel.
+   * - Uses O(log N) binary search over cached page bottoms instead of per-frame offsetTop reflows.
+   */
   const handleVerticalScroll = useCallback(() => {
     if (scrollRafRef.current !== null) return;
 
@@ -187,66 +430,82 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
       const scrollTop = container.scrollTop;
       const clientHeight = container.clientHeight;
-      const maxScroll = container.scrollHeight - clientHeight;
+      const maxScroll =
+        maxScrollCachedRef.current > 0
+          ? maxScrollCachedRef.current
+          : Math.max(0, container.scrollHeight - clientHeight);
 
       if (maxScroll > 0) {
-        const pct = Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100));
-        setScrollProgress(pct);
+        const ratio = Math.min(1, Math.max(0, scrollTop / maxScroll));
+        if (progressBarFillRef.current) {
+          progressBarFillRef.current.style.transform = `scaleX(${ratio})`;
+        }
+        const pct = Math.round(ratio * 100);
+        setScrollProgress((prev) => (prev === pct ? prev : pct));
       } else {
-        setScrollProgress(0);
+        if (progressBarFillRef.current) {
+          progressBarFillRef.current.style.transform = 'scaleX(0)';
+        }
+        setScrollProgress((prev) => (prev === 0 ? prev : 0));
       }
 
-      const viewportMiddle = scrollTop + clientHeight / 2;
-      for (let i = 0; i < totalPages; i++) {
-        const el = pageImageRefs.current[i];
-        if (el) {
-          const top = el.offsetTop;
-          const height = el.offsetHeight;
-          if (viewportMiddle >= top && viewportMiddle < top + height) {
-            setCurrentPageIndex((prev) => (prev === i ? prev : i));
-            break;
+      const bottoms = pageMidpointsRef.current;
+      if (bottoms.length > 0) {
+        const viewportMiddle = scrollTop + clientHeight * 0.5;
+        let low = 0;
+        let high = bottoms.length - 1;
+        let matchedIdx = high;
+
+        while (low <= high) {
+          const mid = (low + high) >>> 1;
+          if (bottoms[mid] > viewportMiddle) {
+            matchedIdx = mid;
+            high = mid - 1;
+          } else {
+            low = mid + 1;
           }
         }
+        setCurrentPageIndex((prev) => (prev === matchedIdx ? prev : matchedIdx));
       }
     });
-  }, [totalPages]);
+  }, []);
 
   useEffect(() => {
     return () => {
       if (scrollRafRef.current !== null) {
         window.cancelAnimationFrame(scrollRafRef.current);
       }
+      if (measureRafRef.current !== null) {
+        window.cancelAnimationFrame(measureRafRef.current);
+      }
     };
   }, []);
 
-  // Keep scroll progress accurate as chapter images decode/resize
+  // Observe layout changes once via ResizeObserver so cached scroll offsets stay accurate
   useEffect(() => {
     if (!hasPages || readingMode !== 'vertical' || !verticalContainerRef.current) return;
     const container = verticalContainerRef.current;
 
-    const updateScrollProgress = () => {
-      const maxScroll = container.scrollHeight - container.clientHeight;
-      if (maxScroll > 0) {
-        const pct = Math.min(100, Math.max(0, (container.scrollTop / maxScroll) * 100));
-        setScrollProgress(pct);
-      }
-    };
-
-    updateScrollProgress();
+    recomputeVerticalLayoutMetrics();
 
     let resizeObserver: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(updateScrollProgress);
+      resizeObserver = new ResizeObserver(() => {
+        recomputeVerticalLayoutMetrics();
+      });
       resizeObserver.observe(container);
     }
 
     return () => {
       if (resizeObserver) resizeObserver.disconnect();
     };
-  }, [hasPages, readingMode, chapter?.id, totalPages]);
+  }, [hasPages, readingMode, chapter?.id, totalPages, recomputeVerticalLayoutMetrics]);
 
   // Reset scroll and page index when switching chapter
   useEffect(() => {
+    pageImageRefs.current = {};
+    pageMidpointsRef.current = [];
+    maxScrollCachedRef.current = 0;
     setCurrentPageIndex(0);
     setScrollProgress(0);
     if (verticalContainerRef.current) {
@@ -254,29 +513,79 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     }
   }, [chapter?.id]);
 
-  // Debounced reading progress persistence (prevents synchronous localStorage writes during fast scroll)
+  // Record daily reading streak cleanly in idle time when a chapter opens
+  useEffect(() => {
+    if (!manga?.id || !chapter?.id || !hasPages) return;
+    return scheduleIdleTask(() => {
+      try {
+        recordChapterRead(
+          manga.id,
+          chapter.id,
+          `Ch. ${chapter.number}: ${chapter.title || `Chapter ${chapter.number}`}`
+        );
+      } catch {}
+    }, 1500);
+  }, [manga?.id, chapter?.id, chapter?.number, chapter?.title, hasPages]);
+
+  const currentProgress =
+    readingMode === 'vertical'
+      ? scrollProgress
+      : totalPages > 0
+      ? Math.min(100, Math.max(0, ((currentPageIndex + 1) / totalPages) * 100))
+      : 0;
+
+  // Keep GPU compositor transforms synced without inline style objects
+  useLayoutEffect(() => {
+    if (progressBarFillRef.current) {
+      progressBarFillRef.current.style.transform = `scaleX(${Math.max(
+        0,
+        Math.min(1, currentProgress / 100)
+      )})`;
+    }
+    if (horizontalTrackRef.current && readingMode === 'horizontal_ltr') {
+      horizontalTrackRef.current.style.transform = `translate3d(-${currentPageIndex * 100}%, 0, 0)`;
+    }
+  }, [currentProgress, currentPageIndex, readingMode]);
+
+  // Debounced reading progress persistence (prevents synchronous storage writes during fast scroll)
   useEffect(() => {
     if (!manga || !chapter || !hasPages) return;
     const timer = window.setTimeout(() => {
-      try {
-        safeStorage.setJSON('ka_pulse_last_read', {
-          mangaId: manga.id,
-          mangaTitle: manga.title,
-          coverImage: manga.coverImage || (manga as any).cover || '',
-          chapterId: chapter.id,
-          chapterNumber: chapter.number,
-          chapterTitle: chapter.title || `Chapter ${chapter.number}`,
-          pageIndex: currentPageIndex,
-          totalPages,
-          timestamp: new Date().toISOString(),
-        });
-      } catch {}
+      const cover = manga.coverImage || (manga as any).cover || '';
+      safeStorage.setJSON('ka_pulse_last_read', {
+        mangaId: manga.id,
+        mangaTitle: manga.title,
+        coverImage: cover,
+        chapterId: chapter.id,
+        chapterNumber: chapter.number,
+        chapterTitle: chapter.title || `Chapter ${chapter.number}`,
+        pageIndex: currentPageIndex,
+        totalPages,
+        timestamp: new Date().toISOString(),
+      });
+
+      scheduleIdleTask(() => {
+        try {
+          saveReadingProgress({
+            mangaId: manga.id,
+            mangaTitle: manga.title,
+            mangaCover: cover,
+            chapterId: chapter.id,
+            chapterNumber: chapter.number,
+            chapterTitle: chapter.title || `Chapter ${chapter.number}`,
+            pageNumber: currentPageIndex + 1,
+            totalPages: Math.max(1, totalPages),
+            progressPercent: Math.round(((currentPageIndex + 1) / Math.max(1, totalPages)) * 100),
+            completed: currentPageIndex >= totalPages - 1,
+          });
+        } catch {}
+      }, 2000);
     }, 350);
 
     return () => window.clearTimeout(timer);
   }, [manga, chapter, hasPages, currentPageIndex, totalPages]);
 
-  // Safe empty-chapter guard AFTER all hooks (strictly preserves React Rules of Hooks)
+  // Safe empty-chapter guard AFTER all hooks
   if (!hasPages) {
     return (
       <div className="fixed inset-0 z-50 bg-[#0a0d14] text-white flex flex-col items-center justify-center p-6 text-center space-y-4">
@@ -298,21 +607,6 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       </div>
     );
   }
-
-  const currentProgress =
-    readingMode === 'vertical'
-      ? scrollProgress
-      : totalPages > 0
-      ? Math.min(100, Math.max(0, ((currentPageIndex + 1) / totalPages) * 100))
-      : 0;
-
-  const currentChapterIndex = manga?.chapters
-    ? manga.chapters.findIndex((c) => c.id === chapter.id)
-    : -1;
-  const nextChapter =
-    currentChapterIndex >= 0 && currentChapterIndex < manga.chapters.length - 1
-      ? manga.chapters[currentChapterIndex + 1]
-      : null;
 
   const targetNextChapter: Chapter = nextChapter || {
     ...chapter,
@@ -344,13 +638,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       onClick={handleScreenClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[100] m-0 p-0 w-screen h-screen-dynamic bg-black text-white select-none overflow-hidden"
-      style={{
-        backgroundColor: '#000000',
-        touchAction: 'pan-x pan-y pinch-zoom',
-      }}
+      className="fixed inset-0 z-[100] m-0 p-0 w-screen h-screen-dynamic bg-black text-white select-none overflow-hidden reader-viewport-touch"
     >
-      {/* GPU-COMPOSITED TOP HORIZONTAL READING PROGRESS BAR (transform: scaleX instead of layout width) */}
+      {/* GPU-COMPOSITED TOP HORIZONTAL READING PROGRESS BAR */}
       <div
         id="reader-top-progress-container"
         className="fixed top-0 left-0 right-0 z-[120] pointer-events-none"
@@ -363,11 +653,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         <div className="w-full h-1 sm:h-[4px] bg-slate-900/60 overflow-hidden">
           <div
             id="reader-top-progress-bar-fill"
-            className="h-full w-full origin-left bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 will-change-transform transition-transform ease-out"
-            style={{
-              transform: `scaleX(${Math.max(0, Math.min(1, currentProgress / 100))})`,
-              transitionDuration: readingMode === 'vertical' ? '50ms' : '180ms',
-            }}
+            ref={progressBarFillRef}
+            className={`h-full w-full origin-left bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 will-change-transform transition-transform ease-out scale-x-0 ${
+              readingMode === 'vertical' ? 'duration-75' : 'duration-200'
+            }`}
           />
         </div>
       </div>
@@ -377,7 +666,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-black/85 backdrop-blur-md border-b border-white/10 transition-[transform,opacity] duration-200 ease-out ${
+        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-black/85 backdrop-blur-md border-b border-white/10 transition-[transform,opacity] duration-200 ease-out safe-top-inset ${
           showOverlay
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-full opacity-0 pointer-events-none'
@@ -451,41 +740,30 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           onScroll={handleVerticalScroll}
           className="w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar flex flex-col items-center bg-black m-0 p-0 overscroll-y-contain smooth-scroll-container"
         >
-          {pages.map((p, idx) => (
-            <React.Fragment key={`row-${p.id || idx}-${idx}`}>
-              <div
-                className="w-full flex justify-center items-center bg-black m-0 p-0 border-0 manga-page-container"
-              >
-                <img
-                  ref={(el) => {
-                    pageImageRefs.current[idx] = el;
-                  }}
-                  src={p.imageUrl}
-                  alt={`Page ${idx + 1}`}
-                  referrerPolicy="no-referrer"
-                  loading={idx <= 1 ? 'eager' : 'lazy'}
-                  decoding="async"
-                  {...{ fetchpriority: idx === 0 ? 'high' : 'auto' }}
-                  className="max-h-screen w-auto max-w-full object-contain mx-auto select-none block m-0 p-0 manga-page-img"
-                  style={{
-                    touchAction: 'pan-y pinch-zoom',
-                  }}
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    if (target.src !== window.location.origin + APP_LOGO_SRC) {
-                      target.src = APP_LOGO_SRC;
-                    }
-                  }}
+          {pages.map((p, idx) => {
+            // Eagerly keep current page, previous page, and the next 3 preloaded pages active
+            const isWithinActiveWindow =
+              idx <= 3 || (idx >= currentPageIndex - 1 && idx <= currentPageIndex + 3);
+            return (
+              <React.Fragment key={`row-${p.id || idx}-${idx}`}>
+                <ReaderPageSurface
+                  imageUrl={p.imageUrl}
+                  pageIndex={idx}
+                  isWithinActiveWindow={isWithinActiveWindow}
+                  isCurrentPage={idx === currentPageIndex}
+                  mode="vertical"
+                  onImageNode={registerImageNode}
+                  onPageDecoded={recomputeVerticalLayoutMetrics}
                 />
-              </div>
 
-              {userSubscription?.tier !== 'vip' && idx === 1 && (
-                <div className="w-full max-w-2xl px-4 py-2">
-                  <AdMobBanner bannerId="ca-app-pub-3940256099942544/6300978111" />
-                </div>
-              )}
-            </React.Fragment>
-          ))}
+                {userSubscription?.tier !== 'vip' && idx === 1 && (
+                  <div className="w-full max-w-2xl px-4 py-2">
+                    <AdMobBanner bannerId="ca-app-pub-3940256099942544/6300978111" />
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
 
           {/* End of Chapter Unlock & Next Chapter Section */}
           <div
@@ -550,42 +828,33 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       ) : (
         <div
           dir="ltr"
-          className="w-full h-full flex items-center justify-center bg-black relative m-0 p-0 overflow-hidden"
-          style={{
-            touchAction: 'pan-x pan-y pinch-zoom',
-          }}
+          className="w-full h-full flex items-center justify-center bg-black relative m-0 p-0 overflow-hidden reader-viewport-touch"
         >
           <div
+            ref={horizontalTrackRef}
             className="w-full h-full flex flex-row will-change-transform transition-transform duration-200 ease-out"
-            style={{
-              transform: `translate3d(-${currentPageIndex * 100}%, 0, 0)`,
-            }}
           >
-            {pages.map((p, idx) => (
-              <div
-                key={`ltr-slide-${p.id || idx}-${idx}`}
-                className="w-full h-full shrink-0 flex items-center justify-center p-0 m-0"
-              >
-                {Math.abs(idx - currentPageIndex) <= 2 ? (
-                  <img
-                    src={p.imageUrl}
-                    alt={`Page ${idx + 1}`}
-                    referrerPolicy="no-referrer"
-                    decoding="async"
-                    className="max-h-full h-full w-auto max-w-full object-contain mx-auto select-none block manga-page-img"
-                    style={{
-                      touchAction: 'pinch-zoom',
-                    }}
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      if (target.src !== window.location.origin + APP_LOGO_SRC) {
-                        target.src = APP_LOGO_SRC;
-                      }
-                    }}
-                  />
-                ) : null}
-              </div>
-            ))}
+            {pages.map((p, idx) => {
+              // Mount previous page, current page, and the next 3 preloaded pages in GPU layer
+              // so swiping forward up to 3 pages on slow networks has 0ms decode delay
+              const isMountedSlide = idx >= currentPageIndex - 1 && idx <= currentPageIndex + 3;
+              return (
+                <div
+                  key={`ltr-slide-${p.id || idx}-${idx}`}
+                  className="w-full h-full shrink-0 flex items-center justify-center p-0 m-0"
+                >
+                  {isMountedSlide ? (
+                    <ReaderPageSurface
+                      imageUrl={p.imageUrl}
+                      pageIndex={idx}
+                      isWithinActiveWindow
+                      isCurrentPage={idx === currentPageIndex}
+                      mode="horizontal_ltr"
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
 
           {showOverlay && (
@@ -642,7 +911,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
-        className={`fixed bottom-[44px] left-0 right-0 z-50 px-4 py-3.5 bg-black/85 backdrop-blur-md border-t border-white/10 transition-[transform,opacity] duration-200 ease-out space-y-3 ${
+        className={`fixed bottom-[44px] left-0 right-0 z-50 px-4 py-3.5 bg-black/85 backdrop-blur-md border-t border-white/10 transition-[transform,opacity] duration-200 ease-out space-y-3 safe-bottom-inset ${
           showOverlay
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : 'translate-y-full opacity-0 pointer-events-none'

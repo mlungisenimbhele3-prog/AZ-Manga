@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
 import { Manga } from '../../types';
 import { MangaCard } from '../manga/MangaCard';
@@ -62,7 +62,7 @@ export interface DesktopHomeProps {
   isAdmin?: boolean;
 }
 
-export const DesktopHome: React.FC<DesktopHomeProps> = ({
+const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
   mangaList,
   filteredManga,
   featuredManga,
@@ -92,14 +92,39 @@ export const DesktopHome: React.FC<DesktopHomeProps> = ({
   userTasteProfile,
   isAdmin = false,
 }) => {
-  const aiMangaCount = mangaList.filter((m) => m.isAiGenerated && !m.isBanned).length;
-  const bannedCount = mangaList.filter((m) => m.isBanned).length;
+  const { aiMangaCount, bannedCount, originalSeries, canvasSeries } = useMemo(() => {
+    let aiCount = 0;
+    let banned = 0;
+    const originals: Manga[] = [];
+    const canvas: Manga[] = [];
+
+    for (let i = 0; i < mangaList.length; i++) {
+      const m = mangaList[i];
+      if (!m) continue;
+      if (m.isBanned) {
+        banned++;
+      } else if (m.isAiGenerated) {
+        aiCount++;
+      }
+      if (m.id === 'placeholder') continue;
+      if (m.isOriginal) {
+        originals.push(m);
+      }
+      if (!m.isOriginal || m.isCanvas || m.isBackdrop) {
+        canvas.push(m);
+      }
+    }
+
+    return {
+      aiMangaCount: aiCount,
+      bannedCount: banned,
+      originalSeries: originals,
+      canvasSeries: canvas,
+    };
+  }, [mangaList]);
 
   const spotlightManga = featuredManga || mangaList[0];
-
   const isDefaultView = selectedFilter === 'all' && !searchQuery;
-  const originalSeries = mangaList.filter((m) => m.isOriginal && m.id !== 'placeholder');
-  const canvasSeries = mangaList.filter((m) => (!m.isOriginal || m.isCanvas || m.isBackdrop) && m.id !== 'placeholder');
 
   return (
     <div id="shonen-desktop-home" className="flex w-full items-start gap-6 pt-2 pb-12">
@@ -708,3 +733,5 @@ export const DesktopHome: React.FC<DesktopHomeProps> = ({
     </div>
   );
 };
+
+export const DesktopHome = React.memo(DesktopHomeComponent);

@@ -70,7 +70,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                     <img
                       src={APP_LOGO_SRC}
                       alt="AZ OVERVERSE"
-                      className="h-9 w-9 rounded-xl object-cover border border-slate-700 shrink-0"
+                      className="h-9 w-9 rounded-full bg-black object-contain shrink-0"
                     />
                     <h3 className="text-base font-bold text-white">Install OVERVERSE</h3>
                   </div>
@@ -114,7 +114,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                     <img
                       src={APP_LOGO_SRC}
                       alt="AZ OVERVERSE"
-                      className="h-9 w-9 rounded-xl object-cover border border-slate-700 shrink-0"
+                      className="h-9 w-9 rounded-full bg-black object-contain shrink-0"
                     />
                     <div>
                       <h3 className="text-base font-bold text-white">Install on iPhone / iPad</h3>

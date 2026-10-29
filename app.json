@@ -1,11 +1,14 @@
 {
-  "name": "OVERVERSE",
-  "displayName": "OVERVERSE",
+  "name": "AZ OVERVERSE",
+  "displayName": "AZ OVERVERSE",
+  "version": "1.0.2",
   "expo": {
-    "name": "OVERVERSE",
-    "slug": "oververse",
+    "name": "AZ OVERVERSE",
+    "slug": "az-oververse",
+    "version": "1.0.2",
     "android": {
-      "package": "com.oververse.app",
+      "package": "com.azoververse.app",
+      "versionCode": 102,
       "config": {
         "googleMobileAdsAppId": "ca-app-pub-3940256099942544~3347511713"
       }

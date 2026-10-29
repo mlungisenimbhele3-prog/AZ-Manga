@@ -74,7 +74,11 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black border border-amber-500/40 shadow-inner overflow-hidden">
-                <img src={APP_LOGO_SRC} alt="AZ OVERVERSE App Icon" className="w-full h-full object-cover" />
+                <img
+                  src={APP_LOGO_SRC}
+                  alt="AZ OVERVERSE App Logo"
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -82,7 +86,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                     AZ OVERVERSE Mobile App
                   </h3>
                   <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-extrabold text-emerald-400">
-                    Live v1.0.0
+                    Signed v1.0.2
                   </span>
                 </div>
                 <p className="text-xs text-amber-400 font-semibold flex items-center gap-1.5 mt-0.5">
@@ -185,55 +189,33 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                 </button>
               </div>
 
-              {/* GitHub Public Release v1.0.0: BOTH app-debug.apk & app-release.aab */}
-              <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-4 sm:p-5 space-y-4">
+              {/* Signed Google Play Console Release Bundle v1.0.2 */}
+              <div className="rounded-2xl border border-cyan-500/40 bg-cyan-950/25 p-4 sm:p-5 space-y-4">
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-cyan-300 font-semibold">
-                    <span>Release v1.0.0</span>
+                    <span>Release v1.0.2 (Code 102)</span>
                     <span aria-hidden="true">·</span>
-                    <span>mlungisenimbhele3-prog/manga-publisher-app</span>
+                    <span>com.azoververse.app</span>
                     <span aria-hidden="true">·</span>
-                    <span>Public Assets</span>
+                    <span>RSA-2048 SHA256withRSA Signed</span>
                   </div>
                   <h4 className="text-sm font-bold text-white">
-                    Android Direct APK &amp; Signed Google Play Bundle
+                    Signed Google Play Store Release Bundle (AZ-OVERVERSE-signed.aab)
                   </h4>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Download <code className="text-emerald-300 font-mono text-[11px]">app-debug.apk</code> for direct Android device testing or signed <code className="text-cyan-300 font-mono text-[11px]">app-release.aab</code> (API 35, JDK 21 &amp; Gradle 8.11.1) for Google Play Console submission.
+                    Ready for Google Play Console upload: cryptographically signed <code className="text-cyan-300 font-mono text-[11px]">AZ-OVERVERSE-signed.aab</code> built with package <code className="text-emerald-300 font-mono text-[11px]">com.azoververse.app</code>, version <code className="text-amber-300 font-mono text-[11px]">1.0.2</code> (versionCode 102), Target SDK 35, and the Black AZ launcher icon.
                   </p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
                   <a
-                    id="android-apk-direct-download-link"
-                    href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-debug.apk"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs px-4 py-2.5 shadow-lg shadow-emerald-950/50 transition whitespace-nowrap"
-                  >
-                    <Download className="w-4 h-4 shrink-0" />
-                    <span>Download app-debug.apk</span>
-                  </a>
-                  <a
                     id="android-aab-direct-download-link"
-                    href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-release.aab"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs px-4 py-2.5 shadow-lg shadow-cyan-950/50 transition whitespace-nowrap"
+                    href="/AZ-OVERVERSE-signed.aab"
+                    download="AZ-OVERVERSE-signed.aab"
+                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs px-5 py-2.5 shadow-lg shadow-cyan-950/50 transition whitespace-nowrap"
                   >
                     <Download className="w-4 h-4 shrink-0" />
-                    <span>Download app-release.aab</span>
-                  </a>
-                  <a
-                    id="github-repo-link-btn"
-                    href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/tag/v1.0.0"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs px-4 py-2.5 transition whitespace-nowrap"
-                    title="View Release v1.0.0 on GitHub"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                    <span>Release v1.0.0</span>
+                    <span>Download AZ-OVERVERSE-signed.aab</span>
                   </a>
                 </div>
               </div>
@@ -242,18 +224,22 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
               <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-emerald-400">
-                      <Smartphone className="w-5 h-5" />
+                    <div className="h-10 w-10 rounded-xl bg-black border border-slate-700 flex items-center justify-center overflow-hidden">
+                      <img
+                        src={APP_LOGO_SRC}
+                        alt="AZ OVERVERSE Logo"
+                        className="w-full h-full object-contain"
+                      />
                     </div>
                     <div>
                       <h5 className="text-xs font-bold text-white">Google Play Store Submission Profile</h5>
                       <p className="text-[11px] text-slate-400">
-                        Package: <code className="text-emerald-400">com.oververse.app</code>
+                        Package: <code className="text-emerald-400">com.azoververse.app</code> · v1.0.2
                       </p>
                     </div>
                   </div>
                   <span className="text-[11px] text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-500/30 rounded-full px-2.5 py-0.5">
-                    TWA Compliant
+                    Play Console Signed
                   </span>
                 </div>
 
@@ -358,7 +344,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                 <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-xs space-y-1">
                   <div className="flex items-center justify-between text-slate-400 text-[11px]">
                     <span>Bundle / Package ID:</span>
-                    <code className="text-amber-400">com.oververse.app</code>
+                    <code className="text-amber-400">com.azoververse.app</code>
                   </div>
                   <div className="flex items-center justify-between text-slate-400 text-[11px]">
                     <span>Developer Team:</span>

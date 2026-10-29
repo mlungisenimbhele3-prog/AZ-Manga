@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { motion, Variants, useReducedMotion } from 'motion/react';
 import { Manga } from '../../types';
 import { MangaCard } from './MangaCard';
+import { isLowEndOrReducedMotion } from '../../utils/devicePerformance';
 
 interface MangaGridProps {
   mangaList: Manga[];
@@ -24,7 +25,8 @@ const MangaGridComponent: React.FC<MangaGridProps> = ({
   className,
   onOpenAiReport,
 }) => {
-  const shouldReduceMotion = useReducedMotion();
+  const osReducedMotion = useReducedMotion();
+  const skipMotionOverhead = Boolean(osReducedMotion) || isLowEndOrReducedMotion();
 
   // O(1) favorite lookup instead of O(N) Array.includes on every card
   const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
@@ -64,36 +66,49 @@ const MangaGridComponent: React.FC<MangaGridProps> = ({
       hidden: { opacity: 0 },
       visible: {
         opacity: 1,
-        transition: shouldReduceMotion
-          ? { duration: 0 }
-          : {
-              staggerChildren: 0.032,
-              delayChildren: 0.01,
-            },
+        transition: {
+          staggerChildren: 0.025,
+          delayChildren: 0.005,
+        },
       },
     }),
-    [shouldReduceMotion]
+    []
   );
 
   const itemVariants: Variants = useMemo(
     () => ({
-      hidden: shouldReduceMotion
-        ? { opacity: 1, y: 0, scale: 1 }
-        : { opacity: 0, y: 14, scale: 0.97 },
+      hidden: { opacity: 0, y: 10, scale: 0.985 },
       visible: {
         opacity: 1,
         y: 0,
         scale: 1,
-        transition: shouldReduceMotion
-          ? { duration: 0 }
-          : {
-              duration: 0.24,
-              ease: [0.16, 1, 0.3, 1],
-            },
+        transition: {
+          duration: 0.2,
+          ease: [0.16, 1, 0.3, 1],
+        },
       },
     }),
-    [shouldReduceMotion]
+    []
   );
+
+  // Fast-path for lower-end devices & reduced motion: zero JS animation wrapper overhead
+  if (skipMotionOverhead) {
+    return (
+      <div className={resolvedGridClass}>
+        {mangaList.map((manga, idx) => (
+          <div key={`grid-manga-${manga.id}-${idx}`} className="flex flex-col h-full">
+            <MangaCard
+              manga={manga}
+              isFavorite={favoriteSet.has(manga.id)}
+              onToggleFavorite={handleCardToggleFavorite}
+              onSelect={onSelect}
+              onOpenAiReport={handleCardOpenAiReport}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <motion.div

@@ -263,7 +263,7 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Standard 60fps reading experience optimized for battery efficiency and general mobile devices.
+                  Smooth 60fps reading with 3-page adaptive chapter preloading and balanced battery efficiency across mobile devices.
                 </p>
               </button>
 
@@ -288,7 +288,7 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Zero GPU blur overhead, eliminates thermal throttling on budget phones, reduces RAM consumption by 70%, instant touch response.
+                  Zero GPU blur overhead, sequential 3-page slow-network preloading, bounded bitmap LRU memory cap, and instant touch response.
                 </p>
               </button>
             </div>
@@ -345,9 +345,20 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
             </div>
             <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden mb-3">
               <div
-                className="bg-amber-500 h-full transition-all duration-300 rounded-full"
-                style={{ width: `${Math.min(100, Math.max(5, storageStats.percent))}%` }}
-              ></div>
+                className={`bg-amber-500 h-full transition-all duration-300 rounded-full ${
+                  storageStats.percent >= 90
+                    ? 'w-full'
+                    : storageStats.percent >= 75
+                    ? 'w-4/5'
+                    : storageStats.percent >= 55
+                    ? 'w-3/5'
+                    : storageStats.percent >= 35
+                    ? 'w-2/5'
+                    : storageStats.percent >= 15
+                    ? 'w-1/5'
+                    : 'w-1/12'
+                }`}
+              />
             </div>
             <div className="flex items-center justify-between">
               <p className="text-[11px] text-slate-400 max-w-sm">

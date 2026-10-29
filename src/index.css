@@ -149,10 +149,24 @@ html.lite-mode-active .gpu-layer {
   backface-visibility: visible !important;
 }
 
-html.lite-mode-active * {
+html.lite-mode-active *:not(.animate-spin) {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
+}
+
+/* Reader Touch & Gesture Physics (Zero inline style allocation) */
+.reader-viewport-touch {
+  background-color: #000000;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.reader-page-touch-vertical {
+  touch-action: pan-y pinch-zoom;
+}
+
+.reader-page-touch-pinch {
+  touch-action: pinch-zoom;
 }
 
 /* Compositor-only entrance animations */
@@ -201,7 +215,9 @@ html.lite-mode-active * {
 
 /* Respect OS-level Reduced Motion Preferences */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *:not(.animate-spin),
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -282,5 +298,5 @@ html.lite-mode-active * {
   -webkit-backdrop-filter: none !important;
   box-shadow: none !important;
   text-shadow: none !important;
-  will-change: auto !important;
 }
+

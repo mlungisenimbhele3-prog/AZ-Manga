@@ -104,18 +104,24 @@ const GenreFilterBarComponent: React.FC<GenreFilterBarProps> = ({
 }) => {
   const genreCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    const visibleCatalog = mangaList.filter(
-      (m) => m && m.id !== 'placeholder' && m.approvalStatus !== 'draft' && !m.isBanned
-    );
-    counts.set('all', visibleCatalog.length);
+    let visibleTotal = 0;
 
-    for (const genre of CORE_READER_GENRES) {
-      const target = genre.id.toLowerCase();
-      const matchCount = visibleCatalog.filter((m) =>
-        m.genres.some((g) => g.trim().toLowerCase() === target)
-      ).length;
-      counts.set(target, matchCount);
+    for (let i = 0; i < mangaList.length; i++) {
+      const m = mangaList[i];
+      if (!m || m.id === 'placeholder' || m.approvalStatus === 'draft' || m.isBanned) {
+        continue;
+      }
+      visibleTotal++;
+      const seenOnCard = new Set<string>();
+      for (let j = 0; j < m.genres.length; j++) {
+        const key = m.genres[j].trim().toLowerCase();
+        if (!key || seenOnCard.has(key)) continue;
+        seenOnCard.add(key);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
     }
+
+    counts.set('all', visibleTotal);
     return counts;
   }, [mangaList]);
 

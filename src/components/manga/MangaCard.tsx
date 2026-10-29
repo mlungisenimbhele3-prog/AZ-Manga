@@ -1,6 +1,11 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Manga, isMangaComingSoon } from '../../types';
 import { MangaCoverImage } from '../common/MangaCoverImage';
+import {
+  prewarmReaderChunk,
+  getNetworkDiagnostics,
+  preloadMangaImages,
+} from '../../utils/devicePerformance';
 import {
   Star,
   Eye,
@@ -59,17 +64,23 @@ export const isMangaRecentlyPublished = (manga: Manga): boolean => {
   return false;
 };
 
-const GENRE_COLORS: Record<string, string> = {
-  Action: '#ef4444',
-  Fantasy: '#8b5cf6',
-  'Sci-Fi': '#06b6d4',
-  'Slice of Life': '#10b981',
-  Romance: '#ec4899',
-  Horror: '#374151',
-  Adventure: '#f59e0b',
+const GENRE_BADGE_CLASSES: Record<string, string> = {
+  Action: 'bg-red-500',
+  Fantasy: 'bg-violet-500',
+  'Afro-Fantasy': 'bg-amber-600',
+  'Kasi-Punk': 'bg-cyan-600',
+  'Ancestral Horror': 'bg-rose-800',
+  'Afro-Romance': 'bg-pink-600',
+  'Sci-Fi': 'bg-cyan-500',
+  'Slice of Life': 'bg-emerald-500',
+  Romance: 'bg-pink-500',
+  Comedy: 'bg-amber-500 text-black',
+  Horror: 'bg-gray-700',
+  Adventure: 'bg-amber-500',
 };
 
-const getGenreColor = (genre: string): string => GENRE_COLORS[genre] || '#64748b';
+const getGenreBadgeClass = (genre: string): string =>
+  GENRE_BADGE_CLASSES[genre] || 'bg-slate-600';
 
 const MangaCardComponent: React.FC<MangaCardProps> = ({
   manga,
@@ -89,6 +100,14 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
   const aiScore = manga.aiConfidenceScore || (isBanned ? 94 : isAi ? 88 : 0);
   const isNew = React.useMemo(() => isMangaRecentlyPublished(manga), [manga]);
 
+  const handleCardIntent = useCallback(() => {
+    prewarmReaderChunk();
+    const firstPage = manga.chapters?.[0]?.pages?.[0]?.imageUrl;
+    if (firstPage && !getNetworkDiagnostics().isSlowConnection) {
+      preloadMangaImages([firstPage], 1);
+    }
+  }, [manga.chapters]);
+
   const handleCardClick = () => {
     if (isBanned && onOpenAiReport) {
       onOpenAiReport({} as any, manga);
@@ -101,6 +120,8 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
     <div
       id={`manga-card-${manga.id}`}
       onClick={handleCardClick}
+      onPointerEnter={handleCardIntent}
+      onFocus={handleCardIntent}
       className={`group relative flex h-full flex-col overflow-visible rounded-2xl border transition-[transform,border-color] duration-150 ease-out hover:scale-[1.015] active:scale-[0.985] cursor-pointer manga-grid-item ${
         isBanned
           ? 'border-rose-900/80 bg-slate-950/95 hover:border-rose-500'
@@ -354,10 +375,9 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
           {manga.genres.map((genre, idx) => (
             <span
               key={`${instanceId}-genre-${genre}-${idx}`}
-              className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
-              style={{
-                backgroundColor: getGenreColor(genre),
-              }}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${getGenreBadgeClass(
+                genre
+              )}`}
             >
               {genre}
             </span>

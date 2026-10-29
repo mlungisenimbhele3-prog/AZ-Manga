@@ -37,10 +37,11 @@ export interface ReaderPageProps {
   isAdmin?: boolean;
 }
 
-export const ReaderPage: React.FC<ReaderPageProps> = (props) => {
+const NOOP = () => {};
+
+const ReaderPageComponent: React.FC<ReaderPageProps> = (props) => {
   return (
     <div id="reader-hub-page" className="w-full animate-fadeIn">
-
       {/* ResponsiveLayout delegates between MobileHome and DesktopHome at 800px */}
       <ResponsiveLayout
         mobileView={
@@ -55,7 +56,7 @@ export const ReaderPage: React.FC<ReaderPageProps> = (props) => {
             selectedFilter={props.selectedFilter}
             onSelectFilter={props.onSelectFilter}
             searchQuery={props.searchQuery || ''}
-            onSearchChange={props.onSearchChange || (() => {})}
+            onSearchChange={props.onSearchChange || NOOP}
             onClearSearch={props.onClearSearch}
             isVipUser={props.isVipUser}
             ads={props.ads}
@@ -81,7 +82,7 @@ export const ReaderPage: React.FC<ReaderPageProps> = (props) => {
             selectedFilter={props.selectedFilter}
             onSelectFilter={props.onSelectFilter}
             searchQuery={props.searchQuery || ''}
-            onSearchChange={props.onSearchChange || (() => {})}
+            onSearchChange={props.onSearchChange || NOOP}
             onClearSearch={props.onClearSearch}
             isVipUser={props.isVipUser}
             ads={props.ads}
@@ -89,9 +90,9 @@ export const ReaderPage: React.FC<ReaderPageProps> = (props) => {
             onOpenCreatorDashboard={props.onOpenCreatorDashboard}
             onOpenPublishModal={props.onOpenPublishModal}
             onNavigateToAwards={props.onNavigateToAwards}
-            onNavigateToWallet={props.onNavigateToWallet || (() => {})}
-            onNavigateToStudio={props.onNavigateToStudio || (() => {})}
-            onNavigateToChats={props.onNavigateToChats || (() => {})}
+            onNavigateToWallet={props.onNavigateToWallet || NOOP}
+            onNavigateToStudio={props.onNavigateToStudio || NOOP}
+            onNavigateToChats={props.onNavigateToChats || NOOP}
             onNavigateToCanvas={props.onNavigateToCanvas}
             onOpenAiReport={props.onOpenAiReport}
             onRunAiScanCatalog={props.onRunAiScanCatalog}
@@ -106,3 +107,5 @@ export const ReaderPage: React.FC<ReaderPageProps> = (props) => {
     </div>
   );
 };
+
+export const ReaderPage = React.memo(ReaderPageComponent);

@@ -41,13 +41,25 @@ async function startServer() {
     next();
   });
   app.use(import_express.default.json({ limit: "10mb" }));
+  app.use((err, _req, res, next) => {
+    if (err && err.type === "entity.parse.failed") {
+      return res.status(400).json({ error: "Invalid JSON request payload" });
+    }
+    return next(err);
+  });
   const coversStaticPath = import_path.default.join(process.cwd(), "public", "covers");
-  app.use("/covers", import_express.default.static(coversStaticPath));
+  app.use(
+    "/covers",
+    import_express.default.static(coversStaticPath, {
+      maxAge: "7d",
+      etag: true
+    })
+  );
   const limiter = (0, import_express_rate_limit.default)({
     windowMs: 15 * 60 * 1e3,
     // 15 minutes
-    max: 100,
-    // limit each IP to 100 requests per windowMs
+    max: 150,
+    // limit each IP per windowMs
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => {
@@ -69,6 +81,25 @@ async function startServer() {
   };
   app.use("/api/", validateApiPayload);
   const PORT = 3e3;
+  app.get("/api/health", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ status: "ok", timestamp: Date.now() });
+  });
+  const serveSignedAab = async (_req, res) => {
+    const fs = await import("fs");
+    const aabPath = import_path.default.join(process.cwd(), "AZ-OVERVERSE-signed.aab");
+    if (!fs.existsSync(aabPath)) {
+      return res.status(404).json({ error: "AZ-OVERVERSE-signed.aab not found on server" });
+    }
+    const stat = await fs.promises.stat(aabPath);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", 'attachment; filename="AZ-OVERVERSE-signed.aab"');
+    res.setHeader("Content-Length", String(stat.size));
+    res.setHeader("Cache-Control", "no-store");
+    fs.createReadStream(aabPath).pipe(res);
+  };
+  app.get("/AZ-OVERVERSE-signed.aab", serveSignedAab);
+  app.get("/api/download-aab", serveSignedAab);
   app.post("/api/upload-cover", async (req, res) => {
     try {
       const { fileData, fileName } = req.body;
@@ -86,7 +117,7 @@ async function startServer() {
         fs.mkdirSync(coversDir, { recursive: true });
       }
       const filePath = import_path.default.join(coversDir, safeFileName);
-      fs.writeFileSync(filePath, buffer);
+      await fs.promises.writeFile(filePath, buffer);
       const host = req.get("host") || "localhost:3000";
       const forwardedProto = req.headers["x-forwarded-proto"];
       const protocol = (typeof forwardedProto === "string" ? forwardedProto.split(",")[0].trim() : req.protocol) || "https";
@@ -115,8 +146,23 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = import_path.default.join(process.cwd(), "dist");
-    app.use(import_express.default.static(distPath));
-    app.get("*", (req, res) => {
+    app.use(
+      import_express.default.static(distPath, {
+        etag: true,
+        setHeaders: (res, filePath) => {
+          const normalized = filePath.replace(/\\/g, "/");
+          if (normalized.includes("/assets/")) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          } else if (normalized.endsWith("/sw.js") || normalized.endsWith("/manifest.json") || normalized.endsWith("/index.html")) {
+            res.setHeader("Cache-Control", "no-cache");
+          } else {
+            res.setHeader("Cache-Control", "public, max-age=86400");
+          }
+        }
+      })
+    );
+    app.get("*", (_req, res) => {
+      res.setHeader("Cache-Control", "no-cache");
       res.sendFile(import_path.default.join(distPath, "index.html"));
     });
   }

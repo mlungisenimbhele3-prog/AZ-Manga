@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BookOpen, Zap } from 'lucide-react';
 import { ChapterPage, Chapter } from '../../types';
-import { AdBreakCard } from '../ads/AdBreakCard';
+import { isPagePreloaded, markPageLoadedExternally } from './ReaderConfig';
 import { AdMobBanner } from '../ads/AdMobBanner';
 
 interface LazyMangaPageProps {
@@ -30,9 +30,10 @@ const LazyMangaPageComponent: React.FC<LazyMangaPageProps> = ({
   rootContainerRef,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  // Pre-load first 2 pages immediately for instant initial rendering
-  const [isInView, setIsInView] = useState<boolean>(index < 2);
-  const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  const alreadyCached = isPagePreloaded(page.imageUrl);
+  // Pre-load first 4 pages or any page already warmed in the 3-page preloader cache
+  const [isInView, setIsInView] = useState<boolean>(() => index < 4 || alreadyCached);
+  const [isLoaded, setIsLoaded] = useState<boolean>(() => alreadyCached);
   const [hasError, setHasError] = useState<boolean>(false);
 
   // IntersectionObserver for lazy-loading image bytes
@@ -127,13 +128,16 @@ const LazyMangaPageComponent: React.FC<LazyMangaPageProps> = ({
             <img
               src={page.imageUrl}
               alt={`Page ${page.pageNumber}`}
-              className={`w-full h-auto object-cover block transition-opacity duration-300 ${
+              className={`w-full h-auto object-cover block transition-opacity duration-200 ${
                 isLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               referrerPolicy="no-referrer"
               decoding="async"
-              loading={index < 2 ? 'eager' : 'lazy'}
-              onLoad={() => setIsLoaded(true)}
+              loading={index < 4 || isLoaded ? 'eager' : 'lazy'}
+              onLoad={() => {
+                markPageLoadedExternally(page.imageUrl);
+                setIsLoaded(true);
+              }}
               onError={() => {
                 setHasError(true);
                 setIsLoaded(true);

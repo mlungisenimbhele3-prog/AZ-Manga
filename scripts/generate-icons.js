@@ -3,8 +3,10 @@ import fs from 'fs';
 import path from 'path';
 
 async function generate() {
-  const svgPath = path.resolve('public/icon.svg');
-  const svgBuffer = fs.readFileSync(svgPath);
+  const logoPath = path.resolve(
+    'public/assets/aistudio/az_oververse_black_silver_transparent_29ae4c4c.png'
+  );
+  const svgBuffer = fs.readFileSync(logoPath);
 
   // 192x192
   await sharp(svgBuffer)

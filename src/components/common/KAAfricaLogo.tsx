@@ -1,7 +1,7 @@
 import React from 'react';
 
 export const APP_LOGO_SRC =
-  '/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp';
+  '/assets/aistudio/az_oververse_black_silver_transparent_29ae4c4c.png';
 
 interface KAAfricaLogoProps {
   className?: string;
@@ -30,7 +30,7 @@ export const KAAfricaLogo: React.FC<KAAfricaLogoProps> = ({
       <img
         src={APP_LOGO_SRC}
         alt="AZ OVERVERSE"
-        className="w-full h-full object-cover rounded-full select-none pointer-events-none"
+        className="w-full h-full object-contain rounded-full select-none pointer-events-none"
         loading="eager"
       />
     </div>

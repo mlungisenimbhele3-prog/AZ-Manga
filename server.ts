@@ -75,6 +75,24 @@ async function startServer() {
     res.json({ status: 'ok', timestamp: Date.now() });
   });
 
+  // Direct download route for signed Google Play Store Android App Bundle (AZ-OVERVERSE-signed.aab)
+  const serveSignedAab = async (_req: express.Request, res: express.Response) => {
+    const fs = await import('fs');
+    const aabPath = path.join(process.cwd(), 'AZ-OVERVERSE-signed.aab');
+    if (!fs.existsSync(aabPath)) {
+      return res.status(404).json({ error: 'AZ-OVERVERSE-signed.aab not found on server' });
+    }
+    const stat = await fs.promises.stat(aabPath);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', 'attachment; filename="AZ-OVERVERSE-signed.aab"');
+    res.setHeader('Content-Length', String(stat.size));
+    res.setHeader('Cache-Control', 'no-store');
+    fs.createReadStream(aabPath).pipe(res);
+  };
+
+  app.get('/AZ-OVERVERSE-signed.aab', serveSignedAab);
+  app.get('/api/download-aab', serveSignedAab);
+
   // Upload Cover Image endpoint (persists in public/covers and returns real https URL)
   app.post("/api/upload-cover", async (req, res) => {
     try {

@@ -16,7 +16,7 @@ export const INITIAL_CREATOR_STATS: CreatorStats = {
 };
 
 export const NKOSI_COVER_SRC =
-  '/assets/aistudio/862620681_1304598868406485_898394409428393681_n_8fa8ea5a.webp';
+  '/assets/aistudio/876507702_1790968748807516_1967466416315700542_n_aea98a38.webp';
 
 // Original Manga requested by user: "Nkosi the tale of Myths" (No panels inside -> Coming Soon)
 export const NKOSI_MANGA: Manga = {

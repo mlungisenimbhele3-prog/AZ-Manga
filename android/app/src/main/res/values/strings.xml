@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">OVERVERSE</string>
-    <string name="title_activity_main">OVERVERSE</string>
-    <string name="package_name">com.oververse.app</string>
-    <string name="custom_url_scheme">com.oververse.app</string>
+    <string name="app_name">AZ OVERVERSE</string>
+    <string name="title_activity_main">AZ OVERVERSE</string>
+    <string name="package_name">com.azoververse.app</string>
+    <string name="custom_url_scheme">com.azoververse.app</string>
 </resources>

@@ -1,4 +1,4 @@
-package com.oververse.app;
+package com.azoververse.app;
 
 import android.graphics.Color;
 import android.os.Build;
@@ -49,7 +49,7 @@ public class MainActivity extends BridgeActivity {
 
             // Force hardware acceleration layer for smooth GPU compositing
             webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-            webView.setBackgroundColor(Color.parseColor("#0a0d14"));
+            webView.setBackgroundColor(Color.parseColor("#000000"));
             webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
             WebSettings settings = this.bridge.getWebView().getSettings();
@@ -73,7 +73,7 @@ public class MainActivity extends BridgeActivity {
                 settings.setOffscreenPreRaster(true);
             }
 
-            settings.setUserAgentString("Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36 AZOververse/1.0.0");
+            settings.setUserAgentString("Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 AZOververse/1.0.2");
         }
     }
 }

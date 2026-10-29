@@ -8,7 +8,9 @@ coverage/
 !.env.example
 *.apk
 *.aab
+!/AZ-OVERVERSE-signed.aab
 *.sha256
 SHA256SUMS.txt
 *.keystore
+!/android/app/az-oververse-upload.keystore
 

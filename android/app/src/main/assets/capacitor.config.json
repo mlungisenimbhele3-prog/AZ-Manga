@@ -1,8 +1,8 @@
 {
-	"appId": "com.oververse.app",
-	"appName": "OVERVERSE",
+	"appId": "com.azoververse.app",
+	"appName": "AZ OVERVERSE",
 	"webDir": "dist",
-	"backgroundColor": "#0f172a",
+	"backgroundColor": "#000000",
 	"plugins": {
 		"AdMob": {
 			"appId": "ca-app-pub-3940256099942544~3347511713"
@@ -12,6 +12,6 @@
 		"allowMixedContent": true,
 		"captureInput": true,
 		"webContentsDebuggingEnabled": false,
-		"backgroundColor": "#0f172a"
+		"backgroundColor": "#000000"
 	}
 }

@@ -28,6 +28,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { LazyMangaPage } from './LazyMangaPage';
+import { preloadUpcomingPages } from './ReaderConfig';
 import { saveChapterOffline } from '../../services/offlineCache';
 import { safeStorage } from '../../utils/safeStorage';
 import { getProfileConfig } from '../../utils/devicePerformance';
@@ -242,24 +243,15 @@ export const MangaReader: React.FC<MangaReaderProps> = ({
     }
   }, [manga?.id, currentChapter?.id]);
 
-  // Adaptive Preloading based on Device Performance Profile (Instant page flips)
+  // Shared 3-page upcoming preloader (network-aware sequential/parallel + LRU cache)
   useEffect(() => {
-    if (!currentChapter || !currentChapter.pages) return;
-    try {
-      const config = getProfileConfig();
-      const preloadCount = config.imagePreloadCount || 2;
-      for (let i = 1; i <= preloadCount; i++) {
-        const targetIdx = currentPageIndex + i;
-        if (currentChapter.pages[targetIdx]?.imageUrl) {
-          const img = new Image();
-          img.decoding = 'async';
-          img.src = currentChapter.pages[targetIdx].imageUrl;
-        }
-      }
-    } catch (e) {
-      // Safe fallback if preloading unavailable
-    }
-  }, [currentChapter, currentPageIndex]);
+    if (!currentChapter || !currentChapter.pages || currentChapter.pages.length === 0) return;
+    const config = getProfileConfig();
+    const preloadCount = Math.max(3, config.imagePreloadCount);
+    preloadUpcomingPages(currentChapter.pages, currentPageIndex, preloadCount, {
+      nextChapterFirstPageUrl: nextChapter?.pages?.[0]?.imageUrl || null,
+    });
+  }, [currentChapter, currentPageIndex, nextChapter]);
 
   // 120Hz/60Hz Hardware RAF Auto-Scroll loop for buttery-smooth AZ Vertical reading
   useEffect(() => {

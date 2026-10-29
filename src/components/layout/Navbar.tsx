@@ -184,10 +184,10 @@ const NavbarComponent: React.FC<NavbarProps> = ({
                 src={APP_LOGO_SRC}
                 alt="AZ OVERVERSE Logo"
                 decoding="async"
-                width={36}
-                height={36}
+                width={38}
+                height={38}
                 {...{ fetchpriority: 'high' }}
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black shadow-lg shadow-amber-500/25 object-cover ring-1 ring-amber-400/50"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black shadow-lg shadow-amber-500/25 object-contain"
               />
             </div>
 
@@ -299,12 +299,27 @@ const NavbarComponent: React.FC<NavbarProps> = ({
                     <div className="flex items-center gap-2">
                       <Smartphone className="w-4 h-4 text-cyan-400 shrink-0" />
                       <span className="text-xs font-semibold text-slate-200">
-                        OVERVERSE App &amp; TWA Hub
+                        AZ OVERVERSE Play Store Hub
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono text-cyan-400">com.oververse.app</span>
+                    <span className="text-[10px] font-mono text-cyan-400">com.azoververse.app</span>
                   </button>
                 )}
+
+                <a
+                  href="/AZ-OVERVERSE-signed.aab"
+                  download="AZ-OVERVERSE-signed.aab"
+                  onClick={() => setIsMoreMenuOpen(false)}
+                  className="min-h-[44px] w-full flex items-center justify-between rounded-xl p-2.5 bg-cyan-950/30 hover:bg-cyan-950/50 border border-cyan-500/40 text-left transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="text-xs font-bold text-cyan-200">
+                      Download AZ-OVERVERSE-signed.aab
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-emerald-400">v1.0.2 Signed</span>
+                </a>
 
                 {/* Shield/Security icon */}
                 {onOpenSecurityDefense && (

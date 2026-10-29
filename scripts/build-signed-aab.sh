@@ -1,62 +1,40 @@
 #!/usr/bin/env bash
-# Make mlungisenimbhele3-prog/manga-publisher-app public, push all code, and publish Release v1.0.0
-# with BOTH app-debug.apk and signed app-release.aab
+# Build and cryptographically sign AZ-OVERVERSE-signed.aab (com.azoververse.app v1.0.2)
 # Produced by Mlungiseni Mbhele - AZ OVERVERSE
 set -e
 
 echo "=================================================================="
-echo "  AZ OVERVERSE v1.0.0 - Public GitHub Repo + APK & AAB Release    "
+echo "  AZ OVERVERSE v1.0.2 - Signed Google Play Release Bundle (AAB)   "
 echo "=================================================================="
 
-KEYSTORE_PATH="android/app/release.keystore"
-KEY_ALIAS="${ANDROID_KEY_ALIAS:-azoververse}"
-KEY_PASS="${ANDROID_KEY_PASSWORD:-azoververse2026}"
-STORE_PASS="${ANDROID_KEYSTORE_PASSWORD:-azoververse2026}"
-REPO_SLUG="${GITHUB_REPOSITORY:-mlungisenimbhele3-prog/manga-publisher-app}"
-RELEASE_TAG="${RELEASE_TAG:-v1.0.0}"
+KEYSTORE_FILE_NAME="az-oververse-upload.keystore"
+KEYSTORE_PATH="android/app/$KEYSTORE_FILE_NAME"
+KEY_ALIAS="${ANDROID_KEY_ALIAS:-azoververse_upload}"
+KEY_PASS="${ANDROID_KEY_PASSWORD:-AzOverversePlay2026!}"
+STORE_PASS="${ANDROID_KEYSTORE_PASSWORD:-AzOverversePlay2026!}"
+VERSION_CODE="${ANDROID_VERSION_CODE:-102}"
+VERSION_NAME="${ANDROID_VERSION_NAME:-1.0.2}"
 
-# 1. Make repository public & push all current code if GitHub CLI is available
-if command -v gh >/dev/null 2>&1; then
-  echo "Ensuring GitHub repository $REPO_SLUG exists and is PUBLIC..."
-  if gh repo view "$REPO_SLUG" >/dev/null 2>&1; then
-    gh repo edit "$REPO_SLUG" --visibility public --accept-visibility-change-consequences || true
-  else
-    gh repo create "$REPO_SLUG" --public --description "AZ OVERVERSE - Pan-African Manga Publishing Platform produced by Mlungiseni Mbhele" || true
-  fi
+# 1. Generate Black AZ launcher icons & splash screens
+echo "Generating Black AZ launcher icons and splash screens..."
+node scripts/generate-android-assets.cjs
 
-  echo "Enabling GitHub Actions Read & Write workflow permissions..."
-  gh api -X PUT "repos/$REPO_SLUG/actions/permissions/workflow" \
-    -f default_workflow_permissions=write \
-    -F can_approve_pull_request_reviews=true >/dev/null 2>&1 || true
-
-  if [ ! -d ".git" ]; then
-    git init -b main
-  fi
-  git remote remove origin >/dev/null 2>&1 || true
-  git remote add origin "https://github.com/$REPO_SLUG.git"
-  git add -A
-  git commit -m "chore: AZ OVERVERSE v1.0.0 release (LTR reader, az-oververse.ai.studio, APK + signed AAB)" || true
-  git branch -M main
-  git push -u origin main --force
-fi
-
-# 2. Check or generate release keystore
+# 2. Check or generate PKCS12 RSA-2048 upload keystore
 if [ ! -f "$KEYSTORE_PATH" ]; then
-  if command -v keytool >/dev/null 2>&1; then
-    echo "Generating signed RSA-2048 upload keystore at $KEYSTORE_PATH..."
-    keytool -genkeypair -v \
-      -storetype PKCS12 \
-      -keystore "$KEYSTORE_PATH" \
-      -alias "$KEY_ALIAS" \
-      -keyalg RSA -keysize 2048 -validity 10000 \
-      -storepass "$STORE_PASS" \
-      -keypass "$KEY_PASS" \
-      -dname "CN=Mlungiseni Mbhele, OU=AZ Oververse, O=AZ Oververse, L=Durban, ST=KZN, C=ZA"
-  else
-    echo "keytool not found locally. GitHub Actions CI (.github/workflows/build-release-aab.yml) will sign and publish $RELEASE_TAG."
-  fi
+  echo "Generating signed RSA-2048 PKCS12 upload keystore at $KEYSTORE_PATH..."
+  keytool -genkeypair -v \
+    -storetype PKCS12 \
+    -keystore "$KEYSTORE_PATH" \
+    -alias "$KEY_ALIAS" \
+    -keyalg RSA \
+    -keysize 2048 \
+    -sigalg SHA256withRSA \
+    -validity 10000 \
+    -storepass "$STORE_PASS" \
+    -keypass "$KEY_PASS" \
+    -dname "CN=Mlungiseni Mbhele, OU=AZ OVERVERSE, O=AZ OVERVERSE, L=Durban, ST=KwaZulu-Natal, C=ZA"
 else
-  echo "Found existing release keystore at $KEYSTORE_PATH"
+  echo "Using upload keystore at $KEYSTORE_PATH"
 fi
 
 # 3. Build Web Application & Capacitor Sync
@@ -66,50 +44,49 @@ npm run build
 echo "Syncing Capacitor Android assets..."
 npx cap sync android
 
-# 4. Check for Java / Gradle to run local build of BOTH app-debug.apk and app-release.aab
-if command -v java >/dev/null 2>&1; then
-  echo "Compiling BOTH app-debug.apk (:app:assembleDebug) and Signed app-release.aab (:app:bundleRelease)..."
-  cd android
-  chmod +x gradlew
-  ANDROID_VERSION_NAME="1.0.0" ./gradlew :app:assembleDebug :app:bundleRelease -x lint -x lintVitalRelease --stacktrace
-  cd ..
+# Re-ensure Black AZ launcher icons after cap sync
+node scripts/generate-android-assets.cjs
 
-  APK_OUTPUT="android/app/build/outputs/apk/debug/app-debug.apk"
-  AAB_OUTPUT="android/app/build/outputs/bundle/release/app-release.aab"
-
-  if [ -f "$APK_OUTPUT" ] && [ -f "$AAB_OUTPUT" ]; then
-    if command -v jarsigner >/dev/null 2>&1; then
-      jarsigner -verify -verbose -certs "$AAB_OUTPUT" | head -n 20
-    fi
-    cp "$APK_OUTPUT" ./app-debug.apk
-    cp "$AAB_OUTPUT" ./app-release.aab
-    cp "$AAB_OUTPUT" ./AZ-Oververse-PlayStore.aab
-    sha256sum ./app-debug.apk ./app-release.aab ./AZ-Oververse-PlayStore.aab > ./SHA256SUMS.txt
-    echo "Built BOTH ./app-debug.apk and ./app-release.aab"
-
-    # 5. Create/Update Public Release v1.0.0 via GitHub CLI
-    if command -v gh >/dev/null 2>&1; then
-      echo "Publishing public GitHub Release $RELEASE_TAG on $REPO_SLUG..."
-      if gh release view "$RELEASE_TAG" --repo "$REPO_SLUG" >/dev/null 2>&1; then
-        gh release edit "$RELEASE_TAG" --repo "$REPO_SLUG" --draft=false --prerelease=false --latest
-        gh release upload "$RELEASE_TAG" ./app-debug.apk ./app-release.aab ./AZ-Oververse-PlayStore.aab ./SHA256SUMS.txt --clobber --repo "$REPO_SLUG"
-      else
-        gh release create "$RELEASE_TAG" ./app-debug.apk ./app-release.aab ./AZ-Oververse-PlayStore.aab ./SHA256SUMS.txt \
-          --repo "$REPO_SLUG" \
-          --latest \
-          --title "AZ OVERVERSE v1.0.0 — Android APK & Google Play Release AAB" \
-          --notes "Public v1.0.0 release containing BOTH app-debug.apk and signed app-release.aab."
-      fi
-      echo "Public APK URL: https://github.com/$REPO_SLUG/releases/download/$RELEASE_TAG/app-debug.apk"
-      echo "Public AAB URL: https://github.com/$REPO_SLUG/releases/download/$RELEASE_TAG/app-release.aab"
-    fi
-  fi
-else
-  if command -v gh >/dev/null 2>&1; then
-    echo "Triggering GitHub Actions workflow to build & publish Release $RELEASE_TAG..."
-    gh workflow run build-release-aab.yml --repo "$REPO_SLUG" -f release_tag="$RELEASE_TAG" || true
-  fi
-  echo "Public Release Page: https://github.com/$REPO_SLUG/releases/tag/$RELEASE_TAG"
-  echo "Public APK Download: https://github.com/$REPO_SLUG/releases/download/$RELEASE_TAG/app-debug.apk"
-  echo "Public AAB Download: https://github.com/$REPO_SLUG/releases/download/$RELEASE_TAG/app-release.aab"
+# 4. Build Signed Release AAB via Gradle
+if [ -d "/opt/android-sdk" ] && [ -z "${ANDROID_HOME:-}" ]; then
+  export ANDROID_HOME="/opt/android-sdk"
+  export ANDROID_SDK_ROOT="/opt/android-sdk"
 fi
+
+export ANDROID_KEYSTORE_PATH="$KEYSTORE_FILE_NAME"
+export ANDROID_KEY_ALIAS="$KEY_ALIAS"
+export ANDROID_KEYSTORE_PASSWORD="$STORE_PASS"
+export ANDROID_KEY_PASSWORD="$KEY_PASS"
+export ANDROID_VERSION_CODE="$VERSION_CODE"
+export ANDROID_VERSION_NAME="$VERSION_NAME"
+
+cd android
+chmod +x gradlew
+./gradlew :app:bundleRelease --no-daemon --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process -x lint -x lintVitalRelease --stacktrace
+cd ..
+
+AAB_OUTPUT="android/app/build/outputs/bundle/release/app-release.aab"
+if [ ! -f "$AAB_OUTPUT" ]; then
+  echo "Error: Release bundle not found at $AAB_OUTPUT"
+  exit 1
+fi
+
+cp "$AAB_OUTPUT" ./AZ-OVERVERSE-signed.aab
+
+# Verify signature with jarsigner (re-sign explicitly if needed, then verify strictly)
+echo "Verifying cryptographic signature on AZ-OVERVERSE-signed.aab..."
+if ! jarsigner -verify -strict ./AZ-OVERVERSE-signed.aab >/dev/null 2>&1; then
+  echo "Applying explicit SHA256withRSA signature via jarsigner..."
+  jarsigner -verbose \
+    -sigalg SHA256withRSA \
+    -digestalg SHA-256 \
+    -keystore "$KEYSTORE_PATH" \
+    -storepass "$STORE_PASS" \
+    -keypass "$KEY_PASS" \
+    ./AZ-OVERVERSE-signed.aab "$KEY_ALIAS"
+fi
+
+jarsigner -verify -verbose -certs ./AZ-OVERVERSE-signed.aab | head -n 35
+sha256sum ./AZ-OVERVERSE-signed.aab > ./AZ-OVERVERSE-signed.aab.sha256
+ls -lh ./AZ-OVERVERSE-signed.aab ./AZ-OVERVERSE-signed.aab.sha256
+echo "✅ Successfully built and verified SIGNED Play Console bundle: ./AZ-OVERVERSE-signed.aab"

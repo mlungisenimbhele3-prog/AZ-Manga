@@ -1,15 +1,15 @@
 {
   "id": "/",
-  "name": "OVERVERSE",
-  "short_name": "OVERVERSE",
-  "description": "OVERVERSE: Next-generation manga publishing and reading platform. Read Left-to-Right manga chapters offline, support creators, and publish originals.",
-  "package_name": "com.oververse.app",
+  "name": "AZ OVERVERSE",
+  "short_name": "AZ OVERVERSE",
+  "description": "AZ OVERVERSE: Next-generation manga publishing and reading platform. Read Left-to-Right manga chapters offline, support creators, and publish originals.",
+  "package_name": "com.azoververse.app",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "theme_color": "#0f172a",
-  "background_color": "#0f172a",
+  "theme_color": "#000000",
+  "background_color": "#000000",
   "categories": ["books", "entertainment", "comics"],
   "lang": "en",
   "dir": "ltr",
@@ -17,8 +17,8 @@
   "related_applications": [
     {
       "platform": "play",
-      "id": "com.oververse.app",
-      "url": "https://play.google.com/store/apps/details?id=com.oververse.app"
+      "id": "com.azoververse.app",
+      "url": "https://play.google.com/store/apps/details?id=com.azoververse.app"
     }
   ],
   "icons": [

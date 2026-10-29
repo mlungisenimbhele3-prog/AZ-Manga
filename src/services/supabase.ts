@@ -62,7 +62,7 @@ function getLocalFallbackMangas(): Manga[] {
       cached.some(
         (m) =>
           m.id === 'nkosi-the-tale-of-myths' &&
-          m.coverImage?.includes('862620681_1304598868406485') &&
+          m.coverImage === NKOSI_COVER_SRC &&
           m.genres?.includes('Afro-Fantasy')
       ) &&
       cached.some(

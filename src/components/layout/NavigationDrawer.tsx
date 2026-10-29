@@ -185,7 +185,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               <img
                 src={APP_LOGO_SRC}
                 alt="AZ OVERVERSE Logo"
-                className="w-9 h-9 rounded-full bg-black shadow-lg shadow-amber-500/25 object-cover ring-1 ring-amber-400/50"
+                className="w-9 h-9 rounded-full bg-black shadow-lg shadow-amber-500/25 object-contain"
               />
             </div>
             <div>
@@ -940,42 +940,25 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 >
                   <div className="flex items-center gap-2">
                     <Smartphone className="w-4 h-4 text-cyan-400 shrink-0" />
-                    <span>OVERVERSE PWA &amp; Play Store Hub</span>
+                    <span>AZ OVERVERSE Play Store Hub</span>
                   </div>
-                  <span className="text-[10px] font-mono text-cyan-300">com.oververse.app</span>
+                  <span className="text-[10px] font-mono text-cyan-300">com.azoververse.app</span>
                 </button>
               )}
 
-              {/* GitHub Release v1.0.0 Public Assets: app-debug.apk & app-release.aab */}
+              {/* Signed Google Play Bundle v1.0.2 Direct Download */}
               <a
-                id="drawer-github-apk-link"
-                href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-debug.apk"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-h-[44px] w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-emerald-500/30 text-xs text-emerald-300 hover:text-white hover:border-emerald-400 hover:bg-emerald-950/20 transition"
+                id="drawer-signed-aab-link"
+                href="/AZ-OVERVERSE-signed.aab"
+                download="AZ-OVERVERSE-signed.aab"
+                className="min-h-[44px] w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-emerald-500/40 text-xs text-emerald-300 hover:text-white hover:border-emerald-400 hover:bg-emerald-950/25 transition"
               >
                 <div className="flex items-center gap-2">
                   <ExternalLink className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="truncate">Download app-debug.apk</span>
+                  <span className="truncate font-bold">Download AZ-OVERVERSE-signed.aab</span>
                 </div>
                 <span className="text-[11px] font-mono text-emerald-300 shrink-0">
-                  v1.0.0
-                </span>
-              </a>
-
-              <a
-                id="drawer-github-repo-link"
-                href="https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-release.aab"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-h-[44px] w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-cyan-500/30 text-xs text-cyan-300 hover:text-white hover:border-cyan-400 hover:bg-cyan-950/20 transition"
-              >
-                <div className="flex items-center gap-2">
-                  <ExternalLink className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <span className="truncate">Download app-release.aab</span>
-                </div>
-                <span className="text-[11px] font-mono text-cyan-300 shrink-0">
-                  v1.0.0
+                  v1.0.2
                 </span>
               </a>
             </div>

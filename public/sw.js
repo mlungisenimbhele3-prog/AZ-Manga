@@ -1,5 +1,7 @@
 // OVERVERSE Progressive Web App Service Worker (Fallback / Static Reference)
-const CACHE_NAME = 'oververse-pwa-v7';
+const CACHE_NAME = 'oververse-pwa-v9';
+const IMAGE_CACHE_NAME = 'oververse-manga-images';
+const MAX_IMAGE_CACHE_ENTRIES = 180;
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -12,8 +14,22 @@ const STATIC_ASSETS = [
   '/pwa-maskable-512x512.png',
   '/apple-touch-icon.png',
   '/master-logo.png',
-  '/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp'
+  '/assets/aistudio/az_oververse_black_silver_transparent_29ae4c4c.png',
+  '/assets/aistudio/876507702_1790968748807516_1967466416315700542_n_aea98a38.webp'
 ];
+
+function trimCache(cacheName, maxEntries) {
+  caches.open(cacheName).then((cache) => {
+    cache.keys().then((keys) => {
+      if (keys.length > maxEntries) {
+        const overflow = keys.length - maxEntries;
+        for (let i = 0; i < overflow; i += 1) {
+          cache.delete(keys[i]);
+        }
+      }
+    });
+  });
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -33,7 +49,12 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== CACHE_NAME && !key.startsWith('workbox-'))
+            .filter(
+              (key) =>
+                key !== CACHE_NAME &&
+                key !== IMAGE_CACHE_NAME &&
+                !key.startsWith('workbox-')
+            )
             .map((key) => caches.delete(key))
         )
       )
@@ -67,7 +88,8 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/@') ||
     url.pathname.startsWith('/__vite') ||
     url.pathname.startsWith('/src/') ||
-    url.pathname.startsWith('/node_modules/')
+    url.pathname.startsWith('/node_modules/') ||
+    /\.(aab|apk|keystore|sha256)$/i.test(url.pathname)
   ) {
     return;
   }
@@ -92,23 +114,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Manga covers, chapter pages, and icons: Stale-While-Revalidate
+  // Manga covers, chapter pages, and icons: Cache-First for instant preloaded page turns on slow networks
   if (
     request.destination === 'image' ||
     /\.(png|jpg|jpeg|svg|webp|gif|ico)$/i.test(url.pathname)
   ) {
     event.respondWith(
       caches.match(request).then((cached) => {
-        const networkFetch = fetch(request)
-          .then((response) => {
-            if (response && response.status === 200) {
-              const copy = response.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-            }
-            return response;
-          })
-          .catch(() => cached);
-        return cached || networkFetch;
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response && (response.status === 200 || response.type === 'opaque')) {
+            const copy = response.clone();
+            caches.open(IMAGE_CACHE_NAME).then((cache) => {
+              cache.put(request, copy).then(() => {
+                trimCache(IMAGE_CACHE_NAME, MAX_IMAGE_CACHE_ENTRIES);
+              });
+            });
+          }
+          return response;
+        });
       })
     );
     return;

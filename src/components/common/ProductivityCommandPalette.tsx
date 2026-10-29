@@ -364,25 +364,18 @@ export const ProductivityCommandPalette: React.FC<ProductivityCommandPaletteProp
       },
     },
     {
-      id: 'download-debug-apk-v1',
-      title: 'Copy Release v1.0.0 Direct APK Link (app-debug.apk)',
-      category: 'Developer & CI/CD',
-      icon: <Smartphone className="w-4 h-4 text-emerald-400" />,
-      action: () => {
-        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-debug.apk').catch(() => {});
-        onClose();
-        onOpenGlobalShare?.();
-      },
-    },
-    {
       id: 'download-release-aab',
-      title: 'Copy Release v1.0.0 Signed Play Bundle Link (app-release.aab)',
+      title: 'Download AZ-OVERVERSE-signed.aab (Signed Play Store Bundle v1.0.2 · com.azoververse.app)',
       category: 'Developer & CI/CD',
       icon: <Smartphone className="w-4 h-4 text-cyan-400" />,
       action: () => {
-        navigator.clipboard?.writeText('https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-release.aab').catch(() => {});
         onClose();
-        onOpenGlobalShare?.();
+        const link = document.createElement('a');
+        link.href = '/AZ-OVERVERSE-signed.aab';
+        link.download = 'AZ-OVERVERSE-signed.aab';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       },
     },
     {

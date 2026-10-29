@@ -16,8 +16,13 @@
 
     <!-- Performance & High-Refresh Screen Hints -->
     <meta name="color-scheme" content="dark" />
-    <link rel="dns-prefetch" href="https://images.unsplash.com" />
-    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link
+      rel="preload"
+      as="image"
+      href="/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp"
+      type="image/webp"
+      fetchpriority="high"
+    />
     <title>AZ OVERVERSE</title>
     <meta name="description" content="AZ OVERVERSE: Produced by Mlungiseni Mbhele. Next-gen manga publishing and reading platform with full-screen reader, 70% creator revenue share via Google AdMob & Google Play Billing." />
     <meta name="keywords" content="manga, az vertical, anime, AZ OVERVERSE, AZ Manga, Mlungiseni Mbhele, creator monetization, 70% rev-share, Google Play Billing, Google AdMob, MANGA Plus style reader" />
@@ -33,7 +38,7 @@
     <meta property="og:site_name" content="AZ OVERVERSE" />
     <meta property="og:title" content="AZ OVERVERSE" />
     <meta property="og:description" content="Next-gen manga publishing platform produced by Mlungiseni Mbhele. 70% creator payouts via Google AdMob & Google Play Billing." />
-    <meta property="og:image" content="https://az-oververse.ai.studio/pwa-512x512.png" />
+    <meta property="og:image" content="/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp" />
 
     <!-- Twitter / X Card -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -41,7 +46,7 @@
     <meta name="twitter:title" content="AZ OVERVERSE" />
     <meta name="twitter:description" content="Next-gen manga publishing platform produced by Mlungiseni Mbhele with 70% creator payouts via Google AdMob & Google Play Billing." />
     <meta name="twitter:site" content="@AZOververse" />
-    <meta name="twitter:image" content="https://az-oververse.ai.studio/pwa-512x512.png" />
+    <meta name="twitter:image" content="/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp" />
 
     <!-- Mobile & PWA Theme -->
     <meta name="theme-color" content="#0f172a" />
@@ -53,10 +58,10 @@
 
     <!-- Icons & Manifest -->
     <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png?v=6" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg?v=6" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png?v=6" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=6" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -115,8 +120,16 @@
       ]
     }
     </script>
-    <script type="module" crossorigin src="/assets/index-jZ9yQO0X.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-D32t1QQs.css">
+    <script type="module" crossorigin src="/assets/index-B0UePo-N.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-B0Z9INg1.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-charts-ZAeb2kp1.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-M-U5T2k7.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-motion-C7lkAO7t.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-DzpdHQ1E.js">
+    <link rel="modulepreload" crossorigin href="/assets/safeStorage-DaX-BBjB.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-firebase-COyu5S2f.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-supabase-DlWE8pix.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-DHOVKknJ.css">
   </head>
   <body class="bg-[#0f172a] text-slate-100 antialiased selection:bg-amber-500 selection:text-black">
     <div id="root"></div>

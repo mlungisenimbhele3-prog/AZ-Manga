@@ -1,4 +1,4 @@
-name: Build & Publish Release v1.0.0 (app-debug.apk + app-release.aab)
+name: Build & Publish Signed AZ-OVERVERSE-signed.aab (v1.0.2)
 
 on:
   push:
@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release Tag (defaults to v1.0.0)'
+        description: 'Release Tag (defaults to v1.0.2)'
         required: false
-        default: 'v1.0.0'
+        default: 'v1.0.2'
 
 concurrency:
   group: build-release-v1-${{ github.ref }}
@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   build-android-release:
-    name: Build app-debug.apk + Signed app-release.aab & Publish v1.0.0
+    name: Build Signed AZ-OVERVERSE-signed.aab (com.azoververse.app v1.0.2)
     runs-on: ubuntu-latest
 
     steps:
@@ -41,11 +41,16 @@ jobs:
       - name: Install NPM Dependencies
         run: npm ci || npm install
 
+      - name: Generate Black AZ Launcher Icons & Splash Screens
+        run: node scripts/generate-android-assets.cjs
+
       - name: Build Production Web Application
         run: npm run build
 
       - name: Sync Capacitor Android Assets
-        run: npx cap sync android
+        run: |
+          npx cap sync android
+          node scripts/generate-android-assets.cjs
 
       - name: Set up JDK 21 (Temurin)
         uses: actions/setup-java@v4
@@ -76,130 +81,59 @@ jobs:
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           mkdir -p android/app
-          ALIAS_VAL="${KEY_ALIAS:-azoververse}"
-          SPASS_VAL="${STORE_PASS:-azoververse2026}"
-          KPASS_VAL="${KEY_PASS:-azoververse2026}"
+          ALIAS_VAL="${KEY_ALIAS:-azoververse_upload}"
+          SPASS_VAL="${STORE_PASS:-AzOverversePlay2026!}"
+          KPASS_VAL="${KEY_PASS:-AzOverversePlay2026!}"
 
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 --decode > android/app/release.keystore
-            echo "Decoded release.keystore from ANDROID_KEYSTORE_BASE64 secret."
-          else
-            echo "Generating signed RSA-2048 PKCS12 upload keystore..."
+            echo "$KEYSTORE_B64" | base64 --decode > android/app/az-oververse-upload.keystore
+          elif [ ! -f android/app/az-oververse-upload.keystore ]; then
             keytool -genkeypair -v \
               -storetype PKCS12 \
-              -keystore android/app/release.keystore \
+              -keystore android/app/az-oververse-upload.keystore \
               -alias "$ALIAS_VAL" \
-              -keyalg RSA -keysize 2048 -validity 10000 \
+              -keyalg RSA -keysize 2048 -sigalg SHA256withRSA -validity 10000 \
               -storepass "$SPASS_VAL" \
               -keypass "$KPASS_VAL" \
-              -dname "CN=Mlungiseni Mbhele, OU=AZ Oververse, O=AZ Oververse, L=Durban, ST=KZN, C=ZA"
+              -dname "CN=Mlungiseni Mbhele, OU=AZ OVERVERSE, O=AZ OVERVERSE, L=Durban, ST=KwaZulu-Natal, C=ZA"
           fi
-          test -s android/app/release.keystore
+          test -s android/app/az-oververse-upload.keystore
 
-      - name: Build BOTH app-debug.apk and Signed app-release.aab
+      - name: Build Signed AZ-OVERVERSE-signed.aab
         id: build_android
         env:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          VERSION_CODE=$((100 + ${GITHUB_RUN_NUMBER:-1}))
+          VERSION_CODE=$((102 + ${GITHUB_RUN_NUMBER:-0}))
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
-          export ANDROID_KEYSTORE_PATH="release.keystore"
-          export ANDROID_KEY_ALIAS="${KEY_ALIAS:-azoververse}"
-          export ANDROID_KEYSTORE_PASSWORD="${STORE_PASS:-azoververse2026}"
-          export ANDROID_KEY_PASSWORD="${KEY_PASS:-azoververse2026}"
+          export ANDROID_KEYSTORE_PATH="az-oververse-upload.keystore"
+          export ANDROID_KEY_ALIAS="${KEY_ALIAS:-azoververse_upload}"
+          export ANDROID_KEYSTORE_PASSWORD="${STORE_PASS:-AzOverversePlay2026!}"
+          export ANDROID_KEY_PASSWORD="${KEY_PASS:-AzOverversePlay2026!}"
           export ANDROID_VERSION_CODE="$VERSION_CODE"
-          export ANDROID_VERSION_NAME="1.0.0"
+          export ANDROID_VERSION_NAME="1.0.2"
 
           cd android
           chmod +x gradlew
-          ./gradlew :app:assembleDebug :app:bundleRelease -x lint -x lintVitalRelease --stacktrace
+          ./gradlew :app:bundleRelease -x lint -x lintVitalRelease --stacktrace
 
-      - name: Verify & Stage app-debug.apk and app-release.aab
+      - name: Verify Cryptographic Signature & Stage AZ-OVERVERSE-signed.aab
         run: |
-          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
-          if [ ! -f "$APK_PATH" ]; then
-            APK_PATH=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -n 1)
-          fi
-          if [ -z "$APK_PATH" ] || [ ! -f "$APK_PATH" ]; then
-            echo "Error: app-debug.apk was not generated!"
-            exit 1
-          fi
-
           AAB_PATH="android/app/build/outputs/bundle/release/app-release.aab"
-          if [ ! -f "$AAB_PATH" ]; then
-            AAB_PATH=$(find android/app/build/outputs/bundle/release -name "*.aab" | head -n 1)
-          fi
-          if [ -z "$AAB_PATH" ] || [ ! -f "$AAB_PATH" ]; then
-            echo "Error: Signed app-release.aab was not generated!"
-            exit 1
-          fi
+          cp "$AAB_PATH" ./AZ-OVERVERSE-signed.aab
+          jarsigner -verify -verbose -certs ./AZ-OVERVERSE-signed.aab | head -n 35
+          sha256sum AZ-OVERVERSE-signed.aab > SHA256SUMS.txt
+          ls -lh AZ-OVERVERSE-signed.aab SHA256SUMS.txt
 
-          echo "Verifying cryptographic signature on $AAB_PATH..."
-          jarsigner -verify -verbose -certs "$AAB_PATH" | head -n 30
-
-          cp "$APK_PATH" ./app-debug.apk
-          cp "$AAB_PATH" ./app-release.aab
-          cp "$AAB_PATH" ./AZ-Oververse-PlayStore.aab
-          sha256sum app-debug.apk app-release.aab AZ-Oververse-PlayStore.aab > SHA256SUMS.txt
-          ls -lh app-debug.apk app-release.aab AZ-Oververse-PlayStore.aab SHA256SUMS.txt
-
-      - name: Upload Build Artifacts to GitHub Actions
+      - name: Upload Signed AAB Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AZ-Oververse-v1.0.0-Android-Assets
+          name: AZ-OVERVERSE-signed-v1.0.2
           path: |
-            app-debug.apk
-            app-release.aab
-            AZ-Oververse-PlayStore.aab
+            AZ-OVERVERSE-signed.aab
             SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 90
-
-      - name: Determine Release Tag (v1.0.0)
-        id: release_meta
-        env:
-          INPUT_TAG: ${{ inputs.release_tag }}
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$INPUT_TAG" ]; then
-            echo "TAG=$INPUT_TAG" >> "$GITHUB_OUTPUT"
-          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            echo "TAG=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          else
-            echo "TAG=v1.0.0" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Publish Public GitHub Release v1.0.0 with app-debug.apk & app-release.aab
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release_meta.outputs.TAG }}
-          target_commitish: ${{ github.sha }}
-          name: "AZ OVERVERSE v1.0.0 — Android APK & Google Play Release AAB"
-          draft: false
-          prerelease: false
-          make_latest: true
-          body: |
-            ## 🚀 AZ OVERVERSE `v1.0.0` — Public Android Release
-            **Produced by Mlungiseni Mbhele** • Live Web Platform: [https://az-oververse.ai.studio](https://az-oververse.ai.studio)
-
-            ### ⬇️ Direct Public Downloads (`v1.0.0`)
-            - **Direct Install APK (`app-debug.apk`)**: [`${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-debug.apk`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-debug.apk)
-            - **Signed Google Play Bundle (`app-release.aab`)**: [`${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-release.aab`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.release_meta.outputs.TAG }}/app-release.aab)
-
-            ### 📋 Build & Signing Specification
-            - **Application ID**: `com.oververse.app`
-            - **Version**: `1.0.0` (Version Code `${{ steps.build_android.outputs.VERSION_CODE }}`)
-            - **Reading Mode**: Left-to-Right (`LTR`) Manga + AZ Vertical Webtoon
-            - **Target / Compile SDK**: API 35 (Android 15 — Google Play Store compliant)
-            - **Toolchain**: JDK 21 (Temurin) • Gradle 8.11.1 • AGP 8.7.3
-            - **Monetization**: Google AdMob & Google Play Billing
-            - **Commit**: `${{ github.sha }}`
-          files: |
-            app-debug.apk
-            app-release.aab
-            AZ-Oververse-PlayStore.aab
-            SHA256SUMS.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

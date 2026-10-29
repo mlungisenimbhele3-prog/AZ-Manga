@@ -43,6 +43,8 @@ import {
   getActivePerformanceTier,
   setActivePerformanceTier,
   applyPerformanceClasses,
+  subscribeToPerformanceTier,
+  isLowEndOrReducedMotion,
   DeviceTier,
 } from './utils/devicePerformance';
 import { safeStorage } from './utils/safeStorage';
@@ -239,7 +241,7 @@ try {
   if (
     cachedStr &&
     (!cachedStr.includes('nkosi-the-tale-of-myths') ||
-      !cachedStr.includes('862620681_1304598868406485') ||
+      !cachedStr.includes(NKOSI_COVER_SRC) ||
       !cachedStr.includes('Afro-Fantasy') ||
       !cachedStr.includes('Kasi-Punk') ||
       !cachedStr.includes('Ancestral Horror') ||
@@ -261,6 +263,16 @@ const DEFAULT_ADMOB_REWARDED_AD: AdData = {
   imageUrl: APP_LOGO_SRC,
   accentColor: 'amber',
 };
+
+const MANGA_SEARCH_CACHE = new WeakMap<Manga, string>();
+
+function getMangaSearchBlob(manga: Manga): string {
+  const cached = MANGA_SEARCH_CACHE.get(manga);
+  if (cached !== undefined) return cached;
+  const blob = `${manga.title}\n${manga.author}\n${manga.genres.join('\n')}`.toLowerCase();
+  MANGA_SEARCH_CACHE.set(manga, blob);
+  return blob;
+}
 
 export default function App() {
   const [mangaList, setMangaList] = useState<Manga[]>(INITIAL_MANGA_LIST);
@@ -663,10 +675,16 @@ export default function App() {
     return saved;
   });
 
-  // Apply device performance classes immediately on mount or tier change
+  // Apply device performance classes immediately on mount or tier change, and subscribe to live network/battery shifts
   React.useEffect(() => {
     applyPerformanceClasses(performanceTier);
   }, [performanceTier]);
+
+  React.useEffect(() => {
+    return subscribeToPerformanceTier((nextTier) => {
+      setPerformanceTier(nextTier);
+    });
+  }, []);
 
   // Global Ctrl+K / Cmd+K productivity keyboard listener
   React.useEffect(() => {
@@ -680,17 +698,22 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
-  const handleResumeReading = (mangaId: string, chapterId: string) => {
-    const target = mangaList.find((m) => m.id === mangaId);
-    if (target) {
-      handleStartReading(target, chapterId);
-    }
-  };
+  const handleResumeReading = useCallback(
+    (mangaId: string, chapterId: string) => {
+      const target = mangaListRef.current.find((m) => m.id === mangaId);
+      if (target) {
+        setSelectedDetailManga(null);
+        setActiveReaderManga(target);
+        setActiveReaderChapterId(chapterId || target.chapters[0]?.id || '');
+      }
+    },
+    []
+  );
 
-  const handleDismissResumeBanner = () => {
+  const handleDismissResumeBanner = useCallback(() => {
     setLastReadProgress(null);
     safeStorage.removeItem('ka_pulse_last_read');
-  };
+  }, []);
 
   // AI Content Detection & Moderation State
   const [selectedAiReportManga, setSelectedAiReportManga] = useState<Manga | null>(null);
@@ -807,9 +830,12 @@ export default function App() {
   };
 
   // Quick toggle helper for testing
-  const handleQuickToggleTier = (tier: SubscriptionTier, cycle: 'monthly' | 'yearly' = 'monthly') => {
-    handleUpdateSubscription(tier, cycle);
-  };
+  const handleQuickToggleTier = useCallback(
+    (tier: SubscriptionTier, cycle: 'monthly' | 'yearly' = 'monthly') => {
+      handleUpdateSubscription(tier, cycle);
+    },
+    []
+  );
 
   // Start reading a chapter
   const handleStartReading = useCallback(
@@ -979,37 +1005,47 @@ export default function App() {
     }
   };
 
-  const requireCreatorStudioAccess = (onAuthorized: () => void) => {
-    if (!hasCreatorAccount) {
-      handleTabChange('creators');
-      setSyncToastMessage('Sign in or create a Creator Account to open Studio.');
-      setTimeout(() => setSyncToastMessage(null), 4000);
-      return;
-    }
-    onAuthorized();
-  };
+  const requireCreatorStudioAccess = useCallback(
+    (onAuthorized: () => void) => {
+      if (!hasCreatorAccount) {
+        handleTabChange('creators');
+        setSyncToastMessage('Sign in or create a Creator Account to open Studio.');
+        setTimeout(() => setSyncToastMessage(null), 4000);
+        return;
+      }
+      onAuthorized();
+    },
+    [hasCreatorAccount, handleTabChange]
+  );
 
-  const handleOpenPublishStudio = (targetMangaId?: string) => {
-    requireCreatorStudioAccess(() => {
-      setUploadTargetMangaId(targetMangaId);
-      setIsPublishModalOpen(true);
-    });
-  };
+  const handleOpenPublishStudio = useCallback(
+    (targetMangaId?: string) => {
+      requireCreatorStudioAccess(() => {
+        setUploadTargetMangaId(targetMangaId);
+        setIsPublishModalOpen(true);
+      });
+    },
+    [requireCreatorStudioAccess]
+  );
 
-  const handleOpenCreatorMonetization = () => {
+  const handleOpenPublishDefault = useCallback(() => {
+    handleOpenPublishStudio();
+  }, [handleOpenPublishStudio]);
+
+  const handleOpenCreatorMonetization = useCallback(() => {
     requireCreatorStudioAccess(() => {
       setIsCreatorDashboardOpen(true);
     });
-  };
+  }, [requireCreatorStudioAccess]);
 
-  const handleOpenMangakaStudio = () => {
+  const handleOpenMangakaStudio = useCallback(() => {
     requireCreatorStudioAccess(() => {
       setIsMangakaDashboardOpen(true);
     });
-  };
+  }, [requireCreatorStudioAccess]);
 
   // Mangaka & Admin Handlers
-  const handleToggleAppMode = () => {
+  const handleToggleAppMode = useCallback(() => {
     if (appMode === 'reader') {
       if (!hasCreatorAccount) {
         handleTabChange('creators');
@@ -1026,7 +1062,7 @@ export default function App() {
     } else {
       setAppMode('reader');
     }
-  };
+  }, [appMode, hasCreatorAccount, currentUserEmail, handleTabChange]);
 
   const handleApproveManga = (mangaId: string) => {
     setMangaList((prev) =>
@@ -1246,10 +1282,13 @@ export default function App() {
     );
   };
 
-  const handleRunCatalogAiScan = () => {
+  const handleRunCatalogAiScan = useCallback(() => {
     setIsScanningCatalogAi(true);
     setTimeout(() => {
-      const { updatedList, newlyBannedCount, aiLabeledCount } = scanMangaList(mangaList, true);
+      const { updatedList, newlyBannedCount, aiLabeledCount } = scanMangaList(
+        mangaListRef.current,
+        true
+      );
       setMangaList(updatedList);
       setIsScanningCatalogAi(false);
       setAiScanToastMessage(
@@ -1257,7 +1296,38 @@ export default function App() {
       );
       setTimeout(() => setAiScanToastMessage(null), 5500);
     }, 900);
-  };
+  }, []);
+
+  // Stable UI callbacks so React.memo(Navbar) & React.memo(ReaderPage) skip unnecessary re-renders
+  const handleToggleOledMode = useCallback(() => setIsOledMode((prev) => !prev), []);
+  const handleToggleDataSaver = useCallback(() => setDataSaverMode((prev) => !prev), []);
+  const handleOpenProfileModal = useCallback(() => setIsProfileModalOpen(true), []);
+  const handleOpenSubscriptionModal = useCallback(() => setIsSubscriptionModalOpen(true), []);
+  const handleOpenApplyMangaka = useCallback(() => setIsApplyMangakaOpen(true), []);
+  const handleOpenAdminDashboard = useCallback(() => setIsAdminDashboardOpen(true), []);
+  const handleOpenAwardsModal = useCallback(() => setIsAwardsModalOpen(true), []);
+  const handleOpenGlobalShare = useCallback(() => setIsGlobalShareOpen(true), []);
+  const handleOpenPerformanceModal = useCallback(() => setIsPerformanceModalOpen(true), []);
+  const handleOpenCommandPalette = useCallback(() => setIsCommandPaletteOpen(true), []);
+  const handleOpenSecurityDefense = useCallback(() => setIsSecurityModalOpen(true), []);
+  const handleOpenFcmModal = useCallback(() => setIsFcmModalOpen(true), []);
+  const handleOpenWebViewerModal = useCallback(() => setIsWebViewerModalOpen(true), []);
+  const handleOpenStoreModal = useCallback(() => setIsStoreModalOpen(true), []);
+  const handleOpenTasteProfileModal = useCallback(() => setIsRecommendationModalOpen(true), []);
+  const handleClearSearch = useCallback(() => {
+    setSelectedFilter('all');
+    setSearchQuery('');
+  }, []);
+  const handleNavigateToAwards = useCallback(() => handleTabChange('awards'), [handleTabChange]);
+  const handleNavigateToWallet = useCallback(() => handleTabChange('wallet'), [handleTabChange]);
+  const handleNavigateToStudio = useCallback(() => handleTabChange('creators'), [handleTabChange]);
+  const handleNavigateToChats = useCallback(() => handleTabChange('chats'), [handleTabChange]);
+  const handleNavigateToCanvas = useCallback(() => handleTabChange('backdrop'), [handleTabChange]);
+  const handleCloseActiveReader = useCallback(() => {
+    setActiveReaderManga(null);
+    const updated = safeStorage.getJSON<LastReadProgress | null>('ka_pulse_last_read', null);
+    if (updated) setLastReadProgress(updated);
+  }, []);
 
   // Memoized & deferred manga catalog filtering for 60fps typing responsiveness
   const favoriteIdSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
@@ -1283,12 +1353,8 @@ export default function App() {
         return false;
       }
 
-      if (normalizedQuery) {
-        const matchesSearch =
-          m.title.toLowerCase().includes(normalizedQuery) ||
-          m.author.toLowerCase().includes(normalizedQuery) ||
-          m.genres.some((g) => g.toLowerCase().includes(normalizedQuery));
-        if (!matchesSearch) return false;
+      if (normalizedQuery && !getMangaSearchBlob(m).includes(normalizedQuery)) {
+        return false;
       }
 
       if (selectedFilter === 'all') return true;
@@ -1382,27 +1448,27 @@ export default function App() {
         currentLanguage={language}
         setLanguage={setLanguage}
         isOledMode={isOledMode}
-        toggleOledMode={() => setIsOledMode(!isOledMode)}
+        toggleOledMode={handleToggleOledMode}
         userSubscription={userSubscription}
         currentUserEmail={currentUserEmail}
-        onOpenProfileModal={() => setIsProfileModalOpen(true)}
-        onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
+        onOpenProfileModal={handleOpenProfileModal}
+        onUpgradeClick={handleOpenSubscriptionModal}
         onQuickToggleTier={handleQuickToggleTier}
-        onOpenPublish={() => handleOpenPublishStudio()}
+        onOpenPublish={handleOpenPublishDefault}
         onOpenCreatorDashboard={handleOpenCreatorMonetization}
-        onOpenApplyMangaka={() => setIsApplyMangakaOpen(true)}
+        onOpenApplyMangaka={handleOpenApplyMangaka}
         onOpenMangakaDashboard={handleOpenMangakaStudio}
-        onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
+        onOpenAdminDashboard={handleOpenAdminDashboard}
         appMode={appMode}
         onToggleAppMode={handleToggleAppMode}
-        onOpenAwardsModal={() => setIsAwardsModalOpen(true)}
-        onOpenGlobalShare={() => setIsGlobalShareOpen(true)}
-        onOpenPerformanceModal={() => setIsPerformanceModalOpen(true)}
-        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-        onOpenSecurityDefense={() => setIsSecurityModalOpen(true)}
-        onOpenFcmNotifications={() => setIsFcmModalOpen(true)}
-        onOpenWebViewerModal={() => setIsWebViewerModalOpen(true)}
-        onOpenStoreModal={() => setIsStoreModalOpen(true)}
+        onOpenAwardsModal={handleOpenAwardsModal}
+        onOpenGlobalShare={handleOpenGlobalShare}
+        onOpenPerformanceModal={handleOpenPerformanceModal}
+        onOpenCommandPalette={handleOpenCommandPalette}
+        onOpenSecurityDefense={handleOpenSecurityDefense}
+        onOpenFcmNotifications={handleOpenFcmModal}
+        onOpenWebViewerModal={handleOpenWebViewerModal}
+        onOpenStoreModal={handleOpenStoreModal}
         unreadNotificationsCount={unreadNotificationsCount}
         performanceTier={performanceTier}
         searchQuery={searchQuery}
@@ -1411,7 +1477,7 @@ export default function App() {
         onSelectFilter={setSelectedFilter}
         favoritesCount={favoriteIds.length}
         dataSaverMode={dataSaverMode}
-        onToggleDataSaver={() => setDataSaverMode((prev) => !prev)}
+        onToggleDataSaver={handleToggleDataSaver}
         activeTab={activeTab}
         onTabChange={handleTabChange}
         isAdmin={isAdmin}
@@ -1520,32 +1586,28 @@ export default function App() {
               }
             }
             userSubscription={userSubscription}
-            onChapterChange={(chId) => setActiveReaderChapterId(chId)}
+            dataSaverMode={dataSaverMode}
+            onChapterChange={setActiveReaderChapterId}
             onRequestRewardedAd={handleRequestRewardedAd}
-            onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
-            onBack={() => {
-              setActiveReaderManga(null);
-              const updated = safeStorage.getJSON<LastReadProgress | null>(
-                'ka_pulse_last_read',
-                null
-              );
-              if (updated) setLastReadProgress(updated);
-            }}
+            onUpgradeClick={handleOpenSubscriptionModal}
+            onBack={handleCloseActiveReader}
           />
         </Suspense>
       )}
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-6 space-y-8">
-        {/* Optimized Tab Switch: Butter-smooth GPU transition with zero latency */}
+        {/* Optimized Tab Switch: Butter-smooth GPU transition on high-refresh devices, instant 0ms swap on Lite Saver */}
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, y: 6 }}
+            initial={isLowEndOrReducedMotion(performanceTier) ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full"
-            style={{ transform: 'translateZ(0)' }}
+            exit={isLowEndOrReducedMotion(performanceTier) ? undefined : { opacity: 0, y: -6 }}
+            transition={{
+              duration: isLowEndOrReducedMotion(performanceTier) ? 0 : 0.14,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+            className="w-full gpu-layer"
           >
             {/* Route: /privacy */}
             {activeTab === 'privacy' && (
@@ -1609,25 +1671,22 @@ export default function App() {
                   onSelectFilter={setSelectedFilter}
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
-                  onClearSearch={() => {
-                    setSelectedFilter('all');
-                    setSearchQuery('');
-                  }}
+                  onClearSearch={handleClearSearch}
                   isVipUser={isVipUser}
                   ads={ads}
-                  onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
+                  onOpenSubscriptionModal={handleOpenSubscriptionModal}
                   onOpenCreatorDashboard={handleOpenCreatorMonetization}
-                  onOpenPublishModal={() => handleOpenPublishStudio()}
-                  onNavigateToAwards={() => handleTabChange('awards')}
-                  onNavigateToWallet={() => handleTabChange('wallet')}
-                  onNavigateToStudio={() => handleTabChange('creators')}
-                  onNavigateToChats={() => handleTabChange('chats')}
-                  onNavigateToCanvas={() => handleTabChange('backdrop')}
+                  onOpenPublishModal={handleOpenPublishDefault}
+                  onNavigateToAwards={handleNavigateToAwards}
+                  onNavigateToWallet={handleNavigateToWallet}
+                  onNavigateToStudio={handleNavigateToStudio}
+                  onNavigateToChats={handleNavigateToChats}
+                  onNavigateToCanvas={handleNavigateToCanvas}
                   onOpenAiReport={handleOpenAiReport}
                   onRunAiScanCatalog={handleRunCatalogAiScan}
                   isScanningAi={isScanningCatalogAi}
                   activeTab={activeTab}
-                  onOpenTasteProfileModal={() => setIsRecommendationModalOpen(true)}
+                  onOpenTasteProfileModal={handleOpenTasteProfileModal}
                   userTasteProfile={userTasteProfile}
                   isAdmin={isAdmin}
                 />

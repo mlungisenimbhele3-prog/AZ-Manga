@@ -57,20 +57,22 @@ export default defineConfig(() => {
           'apple-touch-icon.png',
           'icon.svg',
           'master-logo.png',
+          'playstore-icon-512.png',
           'pwa-192x192.png',
           'pwa-512x512.png',
           'pwa-maskable-192x192.png',
           'pwa-maskable-512x512.png',
-          'assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp',
+          'assets/aistudio/az_oververse_black_silver_transparent_29ae4c4c.png',
+          'assets/aistudio/876507702_1790968748807516_1967466416315700542_n_aea98a38.webp',
         ],
         manifest: {
           id: '/',
-          name: 'OVERVERSE',
-          short_name: 'OVERVERSE',
+          name: 'AZ OVERVERSE',
+          short_name: 'AZ OVERVERSE',
           description:
-            'OVERVERSE: Next-generation manga publishing and reading platform. Read Left-to-Right manga chapters offline, support creators, and publish originals.',
-          theme_color: '#0f172a',
-          background_color: '#0f172a',
+            'AZ OVERVERSE: Next-generation manga publishing and reading platform. Read Left-to-Right manga chapters offline, support creators, and publish originals.',
+          theme_color: '#000000',
+          background_color: '#000000',
           display: 'standalone',
           orientation: 'portrait-primary',
           scope: '/',
@@ -82,8 +84,8 @@ export default defineConfig(() => {
           related_applications: [
             {
               platform: 'play',
-              id: 'com.oververse.app',
-              url: 'https://play.google.com/store/apps/details?id=com.oververse.app',
+              id: 'com.azoververse.app',
+              url: 'https://play.google.com/store/apps/details?id=com.azoververse.app',
             },
           ],
           icons: [
@@ -142,6 +144,7 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2,json}'],
+          globIgnores: ['**/*.aab', '**/*.apk', '**/*.keystore', '**/AZ-OVERVERSE-signed.aab'],
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           cleanupOutdatedCaches: true,
           clientsClaim: true,
@@ -156,6 +159,9 @@ export default defineConfig(() => {
             /^\/@react-refresh/,
             /^\/src\//,
             /^\/node_modules\//,
+            /\.aab$/i,
+            /\.apk$/i,
+            /\.keystore$/i,
           ],
           runtimeCaching: [
             {

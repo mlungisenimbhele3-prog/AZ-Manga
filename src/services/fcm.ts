@@ -4,6 +4,7 @@ import { app as firebaseApp } from './firebase';
 import { getMessaging, getToken, onMessage, isSupported, Messaging } from 'firebase/messaging';
 import { Manga, Chapter } from '../types';
 import { safeStorage } from '../utils/safeStorage';
+import { APP_LOGO_SRC } from '../components/common/KAAfricaLogo';
 
 const FCM_TOKEN_STORAGE_KEY = 'ka_pulse_fcm_token';
 const FCM_SUBSCRIPTIONS_STORAGE_KEY = 'ka_pulse_fcm_chapter_subscriptions';
@@ -63,9 +64,7 @@ export async function initFcmMessaging(): Promise<Messaging | null> {
         id: `fcm-${Date.now()}`,
         mangaId: data.mangaId || 'manga-1',
         mangaTitle: payload.notification?.title || data.mangaTitle || 'New Chapter Released!',
-        coverImage:
-          data.coverImage ||
-          '/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp',
+        coverImage: data.coverImage || APP_LOGO_SRC,
         chapterNumber: Number(data.chapterNumber) || 1,
         chapterTitle: data.chapterTitle || payload.notification?.body || 'Latest chapter is available now',
         timestamp: new Date().toISOString(),
@@ -236,9 +235,7 @@ export async function dispatchChapterDropPush(
       const title = `🔥 New Chapter Drop: ${manga.title}!`;
       const options: NotificationOptions = {
         body: `Chapter ${chapter.number}: "${chapter.title}" is out now! Click to read immediately on AZ Oververse.`,
-        icon:
-          manga.coverImage ||
-          '/assets/aistudio/863828260_4617557535148066_7093504428428258727_n_00bb7391.webp',
+        icon: manga.coverImage || APP_LOGO_SRC,
         badge: '/pwa-192x192.png',
         tag: `chapter-drop-${manga.id}-${chapter.number}`,
         data: {
