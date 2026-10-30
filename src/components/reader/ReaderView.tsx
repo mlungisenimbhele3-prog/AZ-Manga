@@ -28,6 +28,15 @@ import { getProfileConfig, scheduleIdleTask } from '../../utils/devicePerformanc
 import { recordChapterRead } from '../../utils/readingStreak';
 import { saveReadingProgress } from '../../services/userProfile';
 import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
+import { RatingAverageDisplay, StarRatingInput } from '../common/StarRating';
+import {
+  buildVolumeTargetId,
+  getChapterRatingStats,
+  getMangaOverallRatingStats,
+  getVolumeRatingStats,
+  submitUserRating,
+  useRatingRevision,
+} from '../../services/ratingService';
 
 export interface ReaderViewProps {
   manga: Manga;
@@ -147,7 +156,7 @@ const ReaderPageSurface = React.memo<ReaderPageSurfaceProps>(
             <img
               src={APP_LOGO_SRC}
               alt="AZ OVERVERSE"
-              className="w-10 h-10 rounded-full object-cover opacity-80"
+              className="w-10 h-10 rounded-xl object-cover opacity-90"
             />
             <div className="space-y-1">
               <p className="text-xs font-bold text-white">Page {pageIndex + 1} paused on slow network</p>
@@ -257,6 +266,66 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   );
 
   const nextChapterFirstPageUrl = nextChapter?.pages?.[0]?.imageUrl || null;
+  const ratingRevision = useRatingRevision();
+
+  const currentVolumeNumber = useMemo(
+    () => chapter?.volumeNumber || Math.max(1, Math.ceil((chapter?.number || 1) / 5)),
+    [chapter?.volumeNumber, chapter?.number]
+  );
+
+  const chapterRatingStats = useMemo(
+    () => getChapterRatingStats(chapter?.id || `${manga?.id}-ch-1`),
+    [chapter?.id, manga?.id, ratingRevision]
+  );
+
+  const volumeRatingStats = useMemo(() => {
+    const volChIds = (manga?.chapters || [])
+      .filter(
+        (c) =>
+          (c.volumeNumber || Math.max(1, Math.ceil((c.number || 1) / 5))) === currentVolumeNumber
+      )
+      .map((c) => c.id);
+    if (chapter?.id && !volChIds.includes(chapter.id)) {
+      volChIds.push(chapter.id);
+    }
+    return getVolumeRatingStats(manga?.id || 'manga', currentVolumeNumber, volChIds);
+  }, [manga?.id, manga?.chapters, currentVolumeNumber, chapter?.id, ratingRevision]);
+
+  const mangaOverallStats = useMemo(
+    () => (manga ? getMangaOverallRatingStats(manga) : null),
+    [manga, ratingRevision]
+  );
+
+  const handleRateCurrentChapter = useCallback(
+    (score: 1 | 2 | 3 | 4 | 5) => {
+      if (!manga || !chapter) return;
+      void submitUserRating({
+        targetType: 'chapter',
+        targetId: chapter.id,
+        mangaId: manga.id,
+        chapterId: chapter.id,
+        score,
+        mangaTitle: manga.title,
+      });
+    },
+    [manga, chapter]
+  );
+
+  const handleRateCurrentVolume = useCallback(
+    (score: 1 | 2 | 3 | 4 | 5) => {
+      if (!manga) return;
+      const volId = buildVolumeTargetId(manga.id, currentVolumeNumber);
+      void submitUserRating({
+        targetType: 'volume',
+        targetId: volId,
+        mangaId: manga.id,
+        volumeNumber: currentVolumeNumber,
+        score,
+        mangaTitle: manga.title,
+      });
+    },
+    [manga, currentVolumeNumber]
+  );
 
   const handleToggleReadingMode = useCallback((mode: ReadingMode) => {
     setReadingMode(mode);
@@ -683,11 +752,20 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-white truncate max-w-[200px] sm:max-w-md">
-              {chapter.title || `Chapter ${chapter.number}`}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-white truncate max-w-[170px] sm:max-w-md">
+                {chapter.title || `Chapter ${chapter.number}`}
+              </h2>
+              <RatingAverageDisplay
+                rating={chapterRatingStats.averageRating}
+                ratingCount={chapterRatingStats.ratingCount}
+                size="xs"
+                showCount
+              />
+            </div>
             <span className="text-[11px] text-amber-400 font-semibold block truncate">
-              {manga.title} · {readingMode === 'horizontal_ltr' ? 'LTR Manga Mode' : 'AZ Vertical'}
+              {manga.title} · Vol. {currentVolumeNumber} ·{' '}
+              {readingMode === 'horizontal_ltr' ? 'LTR Manga Mode' : 'AZ Vertical'}
             </span>
           </div>
         </div>
@@ -758,7 +836,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
                 {userSubscription?.tier !== 'vip' && idx === 1 && (
                   <div className="w-full max-w-2xl px-4 py-2">
-                    <AdMobBanner bannerId="ca-app-pub-3940256099942544/6300978111" />
+                    <AdMobBanner bannerId="ca-app-pub-7570164094154420/3068852398" />
                   </div>
                 )}
               </React.Fragment>
@@ -770,7 +848,57 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-xl mx-auto px-4 pt-12 pb-28 text-center bg-black space-y-4"
           >
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/90 p-6 space-y-4">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/90 p-6 space-y-5">
+              {/* Chapter & Volume 1–5 Star Rating Card */}
+              <div
+                id="reader-end-chapter-rating-panel"
+                className="rounded-xl border border-slate-800/90 bg-slate-900/70 p-4 space-y-3 text-left"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+                      Rate Chapter {chapter.number}
+                    </span>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      {chapter.title || `Chapter ${chapter.number}`}
+                    </p>
+                  </div>
+                  <StarRatingInput
+                    idPrefix={`reader-end-ch-${chapter.id}`}
+                    value={chapterRatingStats.userScore}
+                    averageRating={chapterRatingStats.averageRating}
+                    ratingCount={chapterRatingStats.ratingCount}
+                    onRate={handleRateCurrentChapter}
+                    size="md"
+                    showAverageSummary
+                    showStatusLabel
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-0.5">
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-300">
+                      Volume {currentVolumeNumber} Rating
+                    </span>
+                    {mangaOverallStats && (
+                      <p className="text-[10px] text-slate-400 font-mono tabular-nums">
+                        Series Avg: ★ {mangaOverallStats.averageRating.toFixed(1)} (
+                        {mangaOverallStats.ratingCount})
+                      </p>
+                    )}
+                  </div>
+                  <StarRatingInput
+                    idPrefix={`reader-end-vol-${manga.id}-v${currentVolumeNumber}`}
+                    value={volumeRatingStats.userScore}
+                    averageRating={volumeRatingStats.averageRating}
+                    ratingCount={volumeRatingStats.ratingCount}
+                    onRate={handleRateCurrentVolume}
+                    size="sm"
+                    showAverageSummary
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1">
                 <p className="text-xs text-slate-400">
                   Finished {chapter.title || `Chapter ${chapter.number}`}
@@ -888,19 +1016,37 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </>
           )}
 
-          {currentPageIndex === totalPages - 1 && !isTargetUnlocked && onRequestRewardedAd && (
+          {currentPageIndex === totalPages - 1 && (
             <div
               onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-20 left-1/2 -translate-x-1/2 z-40 px-4 w-full max-w-md flex justify-center"
+              className="absolute bottom-20 left-1/2 -translate-x-1/2 z-40 px-4 w-full max-w-md flex flex-col items-center gap-2.5"
             >
-              <button
-                type="button"
-                onClick={handleWatchAdUnlockNext}
-                className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold px-5 py-3 text-sm shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
-              >
-                <Play className="w-4 h-4 fill-black shrink-0" />
-                <span>Watch ad to unlock next chapter</span>
-              </button>
+              <div className="w-full rounded-2xl border border-white/15 bg-black/85 backdrop-blur-md px-4 py-3 flex flex-col items-center gap-1.5 shadow-2xl">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+                  Rate Chapter {chapter.number}
+                </span>
+                <StarRatingInput
+                  idPrefix={`reader-ltr-end-ch-${chapter.id}`}
+                  value={chapterRatingStats.userScore}
+                  averageRating={chapterRatingStats.averageRating}
+                  ratingCount={chapterRatingStats.ratingCount}
+                  onRate={handleRateCurrentChapter}
+                  size="sm"
+                  showAverageSummary
+                  showStatusLabel
+                />
+              </div>
+
+              {!isTargetUnlocked && onRequestRewardedAd && (
+                <button
+                  type="button"
+                  onClick={handleWatchAdUnlockNext}
+                  className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold px-5 py-3 text-sm shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
+                >
+                  <Play className="w-4 h-4 fill-black shrink-0" />
+                  <span>Watch ad to unlock next chapter</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -958,7 +1104,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center justify-between max-w-lg mx-auto text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 max-w-lg mx-auto text-xs">
           <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl">
             <button
               type="button"
@@ -987,9 +1133,16 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </button>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-400">
-            <span>Tap right for next page · Center for menu</span>
-          </div>
+          <StarRatingInput
+            idPrefix={`reader-bottom-ch-${chapter.id}`}
+            label={`Ch. ${chapter.number}:`}
+            value={chapterRatingStats.userScore}
+            averageRating={chapterRatingStats.averageRating}
+            ratingCount={chapterRatingStats.ratingCount}
+            onRate={handleRateCurrentChapter}
+            size="xs"
+            showAverageSummary
+          />
         </div>
       </div>
     </div>

@@ -7,7 +7,6 @@ import {
   preloadMangaImages,
 } from '../../utils/devicePerformance';
 import {
-  Star,
   Eye,
   BookOpen,
   Sparkles,
@@ -21,6 +20,7 @@ import {
   Crown,
   Clock,
 } from 'lucide-react';
+import { RatingAverageDisplay } from '../common/StarRating';
 
 interface MangaCardProps {
   manga: Manga;
@@ -312,10 +312,12 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
 
         {/* Bottom Cover Metrics */}
         <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between text-[11px] text-slate-300 z-10 tabular-nums">
-          <div className="flex items-center gap-1 text-amber-400 font-bold">
-            <Star className="w-3.5 h-3.5 fill-amber-400" />
-            <span>{(manga.rating || 0).toFixed(1)}</span>
-          </div>
+          <RatingAverageDisplay
+            rating={manga.rating || 0}
+            ratingCount={manga.ratingCount || 0}
+            size="sm"
+            showCount
+          />
 
           <div className="flex items-center gap-1 text-slate-200 bg-black/70 px-2 py-0.5 rounded-full font-mono text-[10px]">
             <Eye className="w-3 h-3" />
@@ -419,6 +421,8 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
 function areMangaCardPropsEqual(prev: MangaCardProps, next: MangaCardProps): boolean {
   return (
     prev.manga === next.manga &&
+    prev.manga.rating === next.manga.rating &&
+    prev.manga.ratingCount === next.manga.ratingCount &&
     prev.isFavorite === next.isFavorite &&
     prev.isActive === next.isActive &&
     prev.onSelect === next.onSelect &&

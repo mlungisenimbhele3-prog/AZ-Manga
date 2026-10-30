@@ -58,6 +58,7 @@ import {
   saveLocalProfile,
   updateReadingPreferences,
   toggleMangaBookmark,
+  signInWithGoogleCreator,
   registerWithEmail,
   loginWithEmail,
   logoutUser,
@@ -183,6 +184,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       }
     } catch (err: any) {
       setAuthError(err.message || 'An unexpected error occurred.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleGoogleSignInDirect = async () => {
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      const res = await signInWithGoogleCreator();
+      if (res.success && res.profile) {
+        setProfile(res.profile);
+        onSwitchUserEmail?.(res.profile.email);
+        setJustLoggedToast(`Signed in as ${res.profile.displayName}!`);
+        setTimeout(() => setJustLoggedToast(null), 3500);
+      } else {
+        setAuthError(res.error || 'Google Sign-In cancelled or failed.');
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Google Sign-In failed.');
     } finally {
       setAuthLoading(false);
     }
@@ -493,6 +514,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <span>Sign Out</span>
                   </button>
                 </div>
+
+                <button
+                  type="button"
+                  id="profile-google-signin-btn"
+                  disabled={authLoading}
+                  onClick={handleGoogleSignInDirect}
+                  className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-black text-xs transition shadow flex items-center justify-center gap-2"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>{authLoading ? 'Signing in with Google...' : 'Sign In with Google'}</span>
+                </button>
 
                 <div className="flex items-center gap-2 mb-2">
                   <button

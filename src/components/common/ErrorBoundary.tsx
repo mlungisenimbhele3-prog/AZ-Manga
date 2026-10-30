@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <img
               src={APP_LOGO_SRC}
               alt="AZ OVERVERSE"
-              className="mx-auto h-14 w-14 rounded-full bg-black object-contain"
+              className="mx-auto h-14 w-14 rounded-2xl bg-[#0f0424] object-cover"
             />
             <div className="space-y-1.5">
               <h2 className="text-xl font-bold text-white">View Interrupted</h2>

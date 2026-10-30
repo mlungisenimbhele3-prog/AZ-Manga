@@ -63,6 +63,9 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
     : 0;
 
   const [chapterNumber, setChapterNumber] = useState<number>(maxExistingChapterNum + 1);
+  const [volumeNumber, setVolumeNumber] = useState<number>(
+    Math.max(1, Math.ceil((maxExistingChapterNum + 1) / 5))
+  );
   const [chapterTitle, setChapterTitle] = useState<string>('');
   const [accessType, setAccessType] = useState<AccessType>('free');
   const [releaseDate, setReleaseDate] = useState<string>(
@@ -119,6 +122,7 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
         ? Math.max(...selectedManga.chapters.map((c) => c.number), 0) + 1
         : 1;
       setChapterNumber(nextNum);
+      setVolumeNumber(Math.max(1, Math.ceil(nextNum / 5)));
       if (!chapterTitle) {
         setChapterTitle(`Chapter ${nextNum}: Awakening`);
       }
@@ -296,12 +300,15 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
         id: `ch-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         mangaId: targetMangaId,
         number: Number(chapterNumber),
+        volumeNumber: Math.max(1, Math.floor(Number(volumeNumber) || 1)),
         title: chapterTitle.trim() || `Chapter ${chapterNumber}`,
         releaseDate: releaseDate || new Date().toISOString().split('T')[0],
         pageCount: pages.length,
         accessType: accessType,
         likesCount: 0,
         commentsCount: 0,
+        rating: 0,
+        ratingCount: 0,
         pages: formattedPages,
       };
 
@@ -455,7 +462,7 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
             </h4>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             {/* Select Target Manga Series */}
             <div className="sm:col-span-1">
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
@@ -475,6 +482,29 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
               </select>
             </div>
 
+            {/* Volume Number */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Volume Number *
+              </label>
+              <div className="relative">
+                <input
+                  id="upload-volume-number"
+                  type="number"
+                  min="1"
+                  max="999"
+                  step="1"
+                  required
+                  value={volumeNumber}
+                  onChange={(e) => setVolumeNumber(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-xs sm:text-sm text-white focus:border-amber-500 focus:outline-none tabular-nums"
+                />
+                <span className="absolute right-3 top-2.5 text-xs font-mono text-slate-500">
+                  Vol.
+                </span>
+              </div>
+            </div>
+
             {/* Chapter Number */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
@@ -488,8 +518,12 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
                   step="0.5"
                   required
                   value={chapterNumber}
-                  onChange={(e) => setChapterNumber(parseFloat(e.target.value) || 1)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-xs sm:text-sm text-white focus:border-amber-500 focus:outline-none"
+                  onChange={(e) => {
+                    const nextCh = parseFloat(e.target.value) || 1;
+                    setChapterNumber(nextCh);
+                    setVolumeNumber(Math.max(1, Math.ceil(nextCh / 5)));
+                  }}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-xs sm:text-sm text-white focus:border-amber-500 focus:outline-none tabular-nums"
                 />
                 <span className="absolute right-3 top-2.5 text-xs font-mono text-slate-500">
                   Ch.

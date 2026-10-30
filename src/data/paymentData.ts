@@ -14,7 +14,7 @@ export const INITIAL_CREATOR_PAYOUT_SETTINGS: CreatorPayoutSettings = {
     developerAccountName: 'AZ Oververse Creator Studio',
   },
   admob: {
-    publisherId: 'pub-3940256099942544',
+    publisherId: 'pub-7570164094154420',
     accountName: 'AZ Oververse AdMob Revenue Pool',
   },
   autoPayoutEnabled: true,

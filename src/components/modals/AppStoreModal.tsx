@@ -73,11 +73,11 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
         <div className="relative border-b border-slate-800 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black border border-amber-500/40 shadow-inner overflow-hidden">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0f0424] border border-amber-500/40 shadow-inner overflow-hidden">
                 <img
                   src={APP_LOGO_SRC}
                   alt="AZ OVERVERSE App Logo"
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-cover"
                 />
               </div>
               <div>
@@ -224,11 +224,11 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
               <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-black border border-slate-700 flex items-center justify-center overflow-hidden">
+                    <div className="h-10 w-10 rounded-xl bg-[#0f0424] border border-slate-700 flex items-center justify-center overflow-hidden">
                       <img
                         src={APP_LOGO_SRC}
                         alt="AZ OVERVERSE Logo"
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-cover"
                       />
                     </div>
                     <div>
@@ -263,32 +263,32 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                 </div>
               </div>
 
-              {/* Google AdMob Verified Test Ad Units */}
+              {/* Google AdMob Production Ad Units */}
               <div className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4 sm:p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="rounded bg-amber-500 text-black px-2 py-0.5 text-[10px] font-black uppercase">
-                      AdMob Demo Units
+                      AdMob Live Units
                     </span>
-                    <h5 className="text-xs font-bold text-white">Google Mobile Ads Verified IDs</h5>
+                    <h5 className="text-xs font-bold text-white">Google Mobile Ads Production IDs</h5>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-300">
-                    Test Mode Active
+                  <span className="text-[10px] font-mono text-emerald-400">
+                    Production Active
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-xs font-mono">
                   <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-2.5 space-y-1">
-                    <div className="text-[10px] text-slate-400 font-sans font-semibold">App Open</div>
-                    <code className="text-[11px] text-amber-400 block break-all">ca-app-pub-3940256099942544/9257395921</code>
+                    <div className="text-[10px] text-slate-400 font-sans font-semibold">App ID (Manifest)</div>
+                    <code className="text-[11px] text-amber-400 block break-all">ca-app-pub-7570164094154420~3142297870</code>
                   </div>
                   <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-2.5 space-y-1">
-                    <div className="text-[10px] text-slate-400 font-sans font-semibold">Rewarded Interstitial</div>
-                    <code className="text-[11px] text-cyan-400 block break-all">ca-app-pub-3940256099942544/5354046379</code>
+                    <div className="text-[10px] text-slate-400 font-sans font-semibold">Banner</div>
+                    <code className="text-[11px] text-cyan-400 block break-all">ca-app-pub-7570164094154420/3068852398</code>
                   </div>
                   <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-2.5 space-y-1">
-                    <div className="text-[10px] text-slate-400 font-sans font-semibold">Rewarded Ads</div>
-                    <code className="text-[11px] text-emerald-400 block break-all">ca-app-pub-3940256099942544/5224354917</code>
+                    <div className="text-[10px] text-slate-400 font-sans font-semibold">Interstitial</div>
+                    <code className="text-[11px] text-emerald-400 block break-all">ca-app-pub-7570164094154420/2379433436</code>
                   </div>
                 </div>
               </div>

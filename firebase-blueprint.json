@@ -449,6 +449,143 @@
         }
       },
       "required": ["id", "senderId", "senderName", "text", "createdAt", "updatedAt"]
+    },
+    "userRating": {
+      "title": "User Rating",
+      "description": "Individual 1-5 star rating submitted by a verified user for a manga series, volume, or chapter",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "summaryId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 90,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "targetType": {
+          "type": "string",
+          "enum": ["manga", "volume", "chapter"]
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mangaId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "volumeNumber": {
+          "type": "integer"
+        },
+        "chapterId": {
+          "type": "string",
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "score": {
+          "type": "integer",
+          "enum": [1, 2, 3, 4, 5]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "summaryId",
+        "uid",
+        "targetType",
+        "targetId",
+        "mangaId",
+        "score",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ratingSummary": {
+      "title": "Rating Summary",
+      "description": "Public aggregated rating statistics (sum, count, average 1-5) for a manga series, volume, or chapter",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 90,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "targetType": {
+          "type": "string",
+          "enum": ["manga", "volume", "chapter"]
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mangaId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "volumeNumber": {
+          "type": "integer"
+        },
+        "chapterId": {
+          "type": "string",
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ratingSum": {
+          "type": "integer"
+        },
+        "ratingCount": {
+          "type": "integer"
+        },
+        "averageRating": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "targetType",
+        "targetId",
+        "mangaId",
+        "ratingSum",
+        "ratingCount",
+        "averageRating",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -491,6 +628,14 @@
     "/chat_messages/{messageId}": {
       "schema": "chatMessage",
       "description": "Direct and group messages"
+    },
+    "/ratings/{ratingId}": {
+      "schema": "userRating",
+      "description": "Per-user 1-5 star rating documents for manga, volumes, and chapters"
+    },
+    "/rating_summaries/{summaryId}": {
+      "schema": "ratingSummary",
+      "description": "Public aggregate rating counters and averages atomically linked to user ratings"
     }
   }
 }

@@ -171,7 +171,7 @@ export const CreatorAccountGate: React.FC<CreatorAccountGateProps> = ({
               <img
                 src={APP_LOGO_SRC}
                 alt="AZ OVERVERSE Logo"
-                className="h-12 w-12 rounded-full bg-black object-contain shadow-lg shrink-0"
+                className="h-12 w-12 rounded-2xl bg-[#0f0424] object-cover shadow-lg shrink-0"
               />
               <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400">
                 <Lock className="w-4 h-4" />

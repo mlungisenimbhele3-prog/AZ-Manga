@@ -30,6 +30,10 @@ service cloud.firestore {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isValidSummaryId(id) {
+      return id is string && id.size() >= 3 && id.size() <= 90 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -271,6 +275,95 @@ service cloud.firestore {
         (!('groupId' in data) || isValidId(data.groupId)) &&
         (('recipientId' in data) || ('groupId' in data)) &&
         data.text is string && data.text.size() >= 1 && data.text.size() <= 1000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserRating(data, ratingId) {
+      return data.keys().hasAll([
+          'id',
+          'summaryId',
+          'uid',
+          'targetType',
+          'targetId',
+          'mangaId',
+          'score',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'summaryId',
+          'uid',
+          'targetType',
+          'targetId',
+          'mangaId',
+          'volumeNumber',
+          'chapterId',
+          'score',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id == ratingId &&
+        isValidSummaryId(data.summaryId) &&
+        isValidId(data.uid) &&
+        data.id == data.summaryId + '__' + data.uid &&
+        data.targetType is string && data.targetType.size() <= 20 && data.targetType in ['manga', 'volume', 'chapter'] &&
+        isValidId(data.targetId) && data.targetId.size() <= 76 &&
+        isValidId(data.mangaId) && data.mangaId.size() <= 76 &&
+        (!('volumeNumber' in data) || (data.volumeNumber is int && data.volumeNumber >= 1 && data.volumeNumber <= 1000)) &&
+        (!('chapterId' in data) || (isValidId(data.chapterId) && data.chapterId.size() <= 76)) &&
+        (data.targetType != 'volume' || 'volumeNumber' in data) &&
+        (data.targetType == 'volume' || !('volumeNumber' in data)) &&
+        (data.targetType != 'chapter' || 'chapterId' in data) &&
+        (data.targetType == 'chapter' || !('chapterId' in data)) &&
+        data.score is int && data.score in [1, 2, 3, 4, 5] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidRatingSummary(data, summaryId) {
+      return data.keys().hasAll([
+          'id',
+          'targetType',
+          'targetId',
+          'mangaId',
+          'ratingSum',
+          'ratingCount',
+          'averageRating',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'targetType',
+          'targetId',
+          'mangaId',
+          'volumeNumber',
+          'chapterId',
+          'ratingSum',
+          'ratingCount',
+          'averageRating',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidSummaryId(data.id) &&
+        data.id == summaryId &&
+        data.targetType is string && data.targetType.size() <= 20 && data.targetType in ['manga', 'volume', 'chapter'] &&
+        isValidId(data.targetId) && data.targetId.size() <= 76 &&
+        isValidId(data.mangaId) && data.mangaId.size() <= 76 &&
+        (!('volumeNumber' in data) || (data.volumeNumber is int && data.volumeNumber >= 1 && data.volumeNumber <= 1000)) &&
+        (!('chapterId' in data) || (isValidId(data.chapterId) && data.chapterId.size() <= 76)) &&
+        (data.targetType != 'volume' || 'volumeNumber' in data) &&
+        (data.targetType == 'volume' || !('volumeNumber' in data)) &&
+        (data.targetType != 'chapter' || 'chapterId' in data) &&
+        (data.targetType == 'chapter' || !('chapterId' in data)) &&
+        data.ratingCount is int && data.ratingCount >= 1 && data.ratingCount <= 100000000 &&
+        data.ratingSum is int && data.ratingSum >= data.ratingCount && data.ratingSum <= data.ratingCount * 5 &&
+        data.averageRating is number && data.averageRating >= 1 && data.averageRating <= 5 &&
+        data.averageRating * data.ratingCount >= data.ratingSum - (0.02 * data.ratingCount) &&
+        data.averageRating * data.ratingCount <= data.ratingSum + (0.02 * data.ratingCount) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -637,6 +730,89 @@ service cloud.firestore {
         );
 
       allow delete: if isValidId(messageId) && (isAdmin() || (isVerifiedUser() && existing().senderId == request.auth.uid));
+    }
+
+    // 7. Individual User Ratings (1–5 Stars for Manga, Volumes, and Chapters)
+    match /ratings/{ratingId} {
+      allow get: if isValidId(ratingId) && isSignedIn() && (
+        existing().uid == request.auth.uid ||
+        isAdmin()
+      );
+
+      allow list: if isSignedIn() && existing().uid == request.auth.uid;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(ratingId) &&
+        isValidUserRating(incoming(), ratingId) &&
+        incoming().uid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        existsAfter(/databases/$(database)/documents/rating_summaries/$(incoming().summaryId));
+
+      allow update: if isVerifiedUser() &&
+        isValidId(ratingId) &&
+        isValidUserRating(incoming(), ratingId) &&
+        incoming().id == existing().id &&
+        incoming().summaryId == existing().summaryId &&
+        incoming().uid == existing().uid &&
+        incoming().targetType == existing().targetType &&
+        incoming().targetId == existing().targetId &&
+        incoming().mangaId == existing().mangaId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          (existing().uid == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['score', 'updatedAt']) &&
+            existsAfter(/databases/$(database)/documents/rating_summaries/$(incoming().summaryId))) ||
+          isAdmin()
+        );
+
+      allow delete: if isValidId(ratingId) && isAdmin();
+    }
+
+    // 8. Public Rating Summaries (Atomically Synchronized Aggregates)
+    match /rating_summaries/{summaryId} {
+      allow get: if isValidSummaryId(summaryId) && existing().targetType in ['manga', 'volume', 'chapter'];
+      allow list: if existing().targetType in ['manga', 'volume', 'chapter'];
+
+      allow create: if isVerifiedUser() &&
+        isValidSummaryId(summaryId) &&
+        isValidRatingSummary(incoming(), summaryId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        !exists(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)) &&
+        existsAfter(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)) &&
+        getAfter(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)).data.updatedAt == request.time &&
+        incoming().ratingCount == 1 &&
+        incoming().ratingSum == getAfter(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)).data.score;
+
+      allow update: if isVerifiedUser() &&
+        isValidSummaryId(summaryId) &&
+        isValidRatingSummary(incoming(), summaryId) &&
+        incoming().id == existing().id &&
+        incoming().targetType == existing().targetType &&
+        incoming().targetId == existing().targetId &&
+        incoming().mangaId == existing().mangaId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          (incoming().diff(existing()).affectedKeys().hasOnly([
+              'ratingSum',
+              'ratingCount',
+              'averageRating',
+              'updatedAt'
+            ]) &&
+            existsAfter(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)) &&
+            getAfter(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)).data.updatedAt == request.time && (
+              (!exists(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)) &&
+                incoming().ratingCount == existing().ratingCount + 1 &&
+                incoming().ratingSum == existing().ratingSum + getAfter(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)).data.score) ||
+              (exists(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)) &&
+                incoming().ratingCount == existing().ratingCount &&
+                incoming().ratingSum == existing().ratingSum - get(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)).data.score + getAfter(/databases/$(database)/documents/ratings/$(summaryId + '__' + request.auth.uid)).data.score)
+            )) ||
+          isAdmin()
+        );
+
+      allow delete: if isValidSummaryId(summaryId) && isAdmin();
     }
   }
 }

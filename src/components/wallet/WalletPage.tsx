@@ -141,8 +141,8 @@ export const WalletPage: React.FC<WalletPageProps> = ({
     return (
       <div className="mx-auto max-w-4xl pb-24 py-12">
         <div className="rounded-3xl border border-rose-500/40 bg-slate-950 p-8 sm:p-12 shadow-2xl text-center space-y-6">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-black overflow-hidden">
-            <img src={APP_LOGO_SRC} alt="AZ OVERVERSE" className="h-full w-full object-contain" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#0f0424] overflow-hidden shadow-lg">
+            <img src={APP_LOGO_SRC} alt="AZ OVERVERSE" className="h-full w-full object-cover" />
           </div>
           <div className="space-y-2">
             <p className="text-xs font-semibold text-rose-400">

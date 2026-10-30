@@ -29,7 +29,7 @@ export const SouthAfricaFlameLogo: React.FC<SouthAfricaFlameLogoProps> = ({
       alt="AZ OVERVERSE Logo"
       width={px}
       height={px}
-      className={`shrink-0 rounded-full bg-black object-contain shadow-sm select-none pointer-events-none ${imgClass} ${className}`}
+      className={`shrink-0 rounded-lg bg-[#0f0424] object-cover shadow-sm select-none pointer-events-none ${imgClass} ${className}`}
       loading="eager"
     />
   );

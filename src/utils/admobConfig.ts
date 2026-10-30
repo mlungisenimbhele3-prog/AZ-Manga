@@ -1,26 +1,28 @@
 /**
- * Google AdMob Demo & Test Ad Unit IDs
- * Configured for AZ OVERVERSE
+ * Google AdMob Production Ad Unit IDs
+ * Configured for AZ OVERVERSE (com.azoververse.app)
  */
 
-export const ADMOB_TEST_CONFIG = {
-  // Application ID: Initialized in AndroidManifest.xml and app.json
-  APP_ID: 'ca-app-pub-3940256099942544~3347511713',
+export const ADMOB_CONFIG = {
+  // Publisher ID
+  PUBLISHER_ID: 'pub-7570164094154420',
 
-  // App Open Ad Unit ID (Test / Demo)
-  APP_OPEN_ID: 'ca-app-pub-3940256099942544/9257395921',
+  // Application ID: Initialized in AndroidManifest.xml, capacitor.config.json, and app.json
+  APP_ID: 'ca-app-pub-7570164094154420~3142297870',
 
-  // Rewarded Interstitial Ad Unit ID (Test / Demo)
-  REWARDED_INTERSTITIAL_ID: 'ca-app-pub-3940256099942544/5354046379',
+  // Production Banner Ad Unit ID
+  BANNER_ID: 'ca-app-pub-7570164094154420/3068852398',
 
-  // Rewarded Ads Unit ID (Test / Demo)
-  REWARDED_ADS_ID: 'ca-app-pub-3940256099942544/5224354917',
+  // Production Interstitial Ad Unit ID
+  INTERSTITIAL_ID: 'ca-app-pub-7570164094154420/2379433436',
 
-  // Standard Banner Ad Unit ID (Test / Demo)
-  BANNER_ID: 'ca-app-pub-3940256099942544/6300978111',
-
-  // Standard Interstitial Ad Unit ID (Test / Demo)
-  INTERSTITIAL_ID: 'ca-app-pub-3940256099942544/1033173712',
+  // Mapped full-screen slots to the production Interstitial Ad Unit ID
+  APP_OPEN_ID: 'ca-app-pub-7570164094154420/2379433436',
+  REWARDED_INTERSTITIAL_ID: 'ca-app-pub-7570164094154420/2379433436',
+  REWARDED_ADS_ID: 'ca-app-pub-7570164094154420/2379433436',
 } as const;
 
-export type AdMobTestUnitKey = keyof typeof ADMOB_TEST_CONFIG;
+// Backwards-compatible export alias
+export const ADMOB_TEST_CONFIG = ADMOB_CONFIG;
+
+export type AdMobUnitKey = keyof typeof ADMOB_CONFIG;

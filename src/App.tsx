@@ -71,6 +71,11 @@ import {
   syncFavoritesWithTasteProfile,
   UserTasteProfile,
 } from './services/userTasteProfile';
+import {
+  buildPreviewChapterId,
+  enrichMangaListWithRatings,
+  useRatingRevision,
+} from './services/ratingService';
 import { initWebViewer } from './utils/webViewerConfig';
 import {
   Sparkles,
@@ -1329,6 +1334,14 @@ export default function App() {
     if (updated) setLastReadProgress(updated);
   }, []);
 
+  const ratingRevision = useRatingRevision();
+
+  // Enrich every manga, volume, and chapter with live real-time average ratings
+  const ratedMangaList = useMemo(
+    () => enrichMangaListWithRatings(mangaList),
+    [mangaList, ratingRevision]
+  );
+
   // Memoized & deferred manga catalog filtering for 60fps typing responsiveness
   const favoriteIdSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
 
@@ -1337,7 +1350,7 @@ export default function App() {
     const normalizedFilter = selectedFilter.trim().toLowerCase();
     const normalizedEmail = currentUserEmail.toLowerCase();
 
-    return mangaList.filter((m) => {
+    return ratedMangaList.filter((m) => {
       if (m.approvalStatus === 'draft') {
         return false;
       }
@@ -1381,26 +1394,36 @@ export default function App() {
       }
       return m.genres.some((g) => g.trim().toLowerCase() === normalizedFilter);
     });
-  }, [mangaList, deferredSearchQuery, selectedFilter, favoriteIdSet, currentUserEmail, isAdmin]);
+  }, [ratedMangaList, deferredSearchQuery, selectedFilter, favoriteIdSet, currentUserEmail, isAdmin]);
 
   const featuredManga = useMemo(
     () =>
-      mangaList.find(
+      ratedMangaList.find(
         (m) =>
           m.featured &&
           m.approvalStatus !== 'pending_review' &&
           m.approvalStatus !== 'rejected' &&
           m.approvalStatus !== 'draft'
       ) ||
-      mangaList.find(
+      ratedMangaList.find(
         (m) =>
           m.approvalStatus !== 'pending_review' &&
           m.approvalStatus !== 'rejected' &&
           m.approvalStatus !== 'draft'
       ) ||
-      mangaList[0],
-    [mangaList]
+      ratedMangaList[0],
+    [ratedMangaList]
   );
+
+  const activeRatedDetailManga = useMemo(() => {
+    if (!selectedDetailManga) return null;
+    return ratedMangaList.find((m) => m.id === selectedDetailManga.id) || selectedDetailManga;
+  }, [ratedMangaList, selectedDetailManga]);
+
+  const activeRatedReaderManga = useMemo(() => {
+    if (!activeReaderManga) return null;
+    return ratedMangaList.find((m) => m.id === activeReaderManga.id) || activeReaderManga;
+  }, [ratedMangaList, activeReaderManga]);
 
   const selectedMangaComments = useMemo(
     () =>
@@ -1537,7 +1560,7 @@ export default function App() {
       </div>
 
       {/* FULL-SCREEN MANGA PLUS MODELED READER (100vh, 100vw, Zero Light Leakage, Object-Contain, Center Tap Overlay) */}
-      {activeReaderManga && (
+      {activeRatedReaderManga && (
         <Suspense
           fallback={
             <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center gap-3 text-slate-300">
@@ -1549,13 +1572,14 @@ export default function App() {
           }
         >
           <ReaderView
-            manga={activeReaderManga}
+            manga={activeRatedReaderManga}
             chapter={
-              activeReaderManga.chapters.find((c) => c.id === activeReaderChapterId) ||
-              activeReaderManga.chapters[0] || {
-                id: 'ch-placeholder-1',
-                mangaId: activeReaderManga.id,
+              activeRatedReaderManga.chapters.find((c) => c.id === activeReaderChapterId) ||
+              activeRatedReaderManga.chapters[0] || {
+                id: buildPreviewChapterId(activeRatedReaderManga.id, 1),
+                mangaId: activeRatedReaderManga.id,
                 number: 1,
+                volumeNumber: 1,
                 title: 'Chapter 1',
                 releaseDate: '2026-10-01',
                 pageCount: 3,
@@ -1567,19 +1591,21 @@ export default function App() {
                     id: 'p-1',
                     pageNumber: 1,
                     imageUrl:
-                      activeReaderManga.coverImage || activeReaderManga.cover || APP_LOGO_SRC,
+                      activeRatedReaderManga.coverImage ||
+                      activeRatedReaderManga.cover ||
+                      APP_LOGO_SRC,
                     caption: 'Page 1',
                   },
                   {
                     id: 'p-2',
                     pageNumber: 2,
-                    imageUrl: activeReaderManga.bannerImage || APP_LOGO_SRC,
+                    imageUrl: activeRatedReaderManga.bannerImage || APP_LOGO_SRC,
                     caption: 'Page 2',
                   },
                   {
                     id: 'p-3',
                     pageNumber: 3,
-                    imageUrl: activeReaderManga.coverImage || APP_LOGO_SRC,
+                    imageUrl: activeRatedReaderManga.coverImage || APP_LOGO_SRC,
                     caption: 'Page 3',
                   },
                 ],
@@ -1639,7 +1665,7 @@ export default function App() {
               <Suspense fallback={<RouteLoadingFallback />}>
                 <MangaOfTheYearAwardsPage
                   categories={MOTY_CATEGORIES}
-                  mangaList={mangaList}
+                  mangaList={ratedMangaList}
                   onStartReading={(m, chId) => handleStartReading(m, chId)}
                   onSelectManga={handleSelectDetailManga}
                   onNavigateToReader={() => handleTabChange('readers')}
@@ -1651,7 +1677,7 @@ export default function App() {
             {activeTab === 'readers' && (
               <div className="space-y-6">
                 {/* Quick Resume Reading Banner (Maximizes Reader Productivity) */}
-                {!activeReaderManga && lastReadProgress && (
+                {!activeRatedReaderManga && lastReadProgress && (
                   <ResumeReadingBanner
                     progress={lastReadProgress}
                     onDismiss={handleDismissResumeBanner}
@@ -1660,7 +1686,7 @@ export default function App() {
                 )}
 
                 <ReaderPage
-                  mangaList={mangaList}
+                  mangaList={ratedMangaList}
                   filteredManga={filteredManga}
                   featuredManga={featuredManga}
                   favoriteIds={favoriteIds}
@@ -1698,10 +1724,13 @@ export default function App() {
               <Suspense fallback={<RouteLoadingFallback />}>
                 <BackdropPage
                   key="route-backdrop-view"
-                  mangaList={mangaList}
+                  mangaList={ratedMangaList}
                   onSelectManga={handleSelectDetailManga}
                   onStartReading={(m, chId) =>
-                    handleStartReading(m, chId || m.chapters[0]?.id || 'ch-1')
+                    handleStartReading(
+                      m,
+                      chId || m.chapters[0]?.id || buildPreviewChapterId(m.id, 1)
+                    )
                   }
                   onOpenPublishModal={() => handleOpenPublishStudio()}
                   onNavigateToHome={() => handleTabChange('readers')}
@@ -2013,15 +2042,15 @@ export default function App() {
 
       {/* Lazy-Loaded Modals — Mounted Only When Open to Keep Active DOM & Main-Thread Memory Minimal */}
       <Suspense fallback={null}>
-        {selectedDetailManga && (
+        {activeRatedDetailManga && (
           <MangaDetailModal
-            manga={selectedDetailManga}
-            isOpen={Boolean(selectedDetailManga)}
+            manga={activeRatedDetailManga}
+            isOpen={Boolean(activeRatedDetailManga)}
             onClose={() => setSelectedDetailManga(null)}
             userSubscription={userSubscription}
             onStartReading={(chId) => {
-              if (selectedDetailManga) {
-                handleStartReading(selectedDetailManga, chId);
+              if (activeRatedDetailManga) {
+                handleStartReading(activeRatedDetailManga, chId);
               }
             }}
             onRequestRewardedAd={handleRequestRewardedAd}
@@ -2029,13 +2058,13 @@ export default function App() {
             onUploadChapterClick={(mangaId) => {
               handleOpenPublishStudio(mangaId);
             }}
-            isFavorite={favoriteIdSet.has(selectedDetailManga.id)}
+            isFavorite={favoriteIdSet.has(activeRatedDetailManga.id)}
             onToggleFavorite={handleToggleFavorite}
             comments={selectedMangaComments}
             onAddComment={handleAddComment}
             onLikeComment={handleLikeComment}
             onOpenAiReport={handleOpenAiReport}
-            allManga={mangaList}
+            allManga={ratedMangaList}
             onSelectManga={handleSelectDetailManga}
           />
         )}

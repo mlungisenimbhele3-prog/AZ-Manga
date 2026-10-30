@@ -100,6 +100,39 @@ async function startServer() {
   };
   app.get("/AZ-OVERVERSE-signed.aab", serveSignedAab);
   app.get("/api/download-aab", serveSignedAab);
+  const FIREBASE_WEB_CLIENT_ID = process.env.GOOGLE_WEB_CLIENT_ID || "197009931605-p16sjppjk069g41lt740g920k9cb9m8s.apps.googleusercontent.com";
+  app.post("/api/auth/google", async (req, res) => {
+    try {
+      const idToken = typeof req.body?.idToken === "string" ? req.body.idToken.trim() : "";
+      if (!idToken || idToken.length < 40) {
+        return res.status(400).json({ error: "Missing or invalid Google ID token" });
+      }
+      const verifyRes = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
+      );
+      if (!verifyRes.ok) {
+        return res.status(401).json({ error: "Google ID token verification failed" });
+      }
+      const claims = await verifyRes.json();
+      const aud = String(claims.aud || "");
+      const iss = String(claims.iss || "");
+      if (aud !== FIREBASE_WEB_CLIENT_ID || iss !== "https://accounts.google.com" && iss !== "accounts.google.com") {
+        return res.status(401).json({ error: "Invalid Google ID token audience or issuer" });
+      }
+      return res.json({
+        success: true,
+        verified: true,
+        uid: String(claims.sub || ""),
+        email: String(claims.email || ""),
+        emailVerified: claims.email_verified === true || claims.email_verified === "true",
+        name: String(claims.name || ""),
+        picture: String(claims.picture || "")
+      });
+    } catch (err) {
+      console.error("[OVERVERSE Auth] Token verification error:", err);
+      return res.status(500).json({ error: "Failed to verify Google ID token" });
+    }
+  });
   app.post("/api/upload-cover", async (req, res) => {
     try {
       const { fileData, fileName } = req.body;

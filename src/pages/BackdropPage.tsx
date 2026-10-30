@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Manga, isMangaComingSoon } from '../types';
 import { USD_TO_ZAR_RATE } from '../data/paymentData';
 import { MangaCoverImage } from '../components/common/MangaCoverImage';
+import { RatingAverageDisplay } from '../components/common/StarRating';
 import {
   Sparkles,
   TrendingUp,
@@ -266,11 +267,13 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
                   </div>
 
                   {/* Bottom Stats */}
-                  <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between text-[11px] text-slate-300 z-10">
-                    <div className="flex items-center gap-1 text-amber-400 font-bold">
-                      <Star className="w-3.5 h-3.5 fill-amber-400" />
-                      <span>{(manga.rating ?? 0).toFixed(1)}</span>
-                    </div>
+                  <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between text-[11px] text-slate-300 z-10 tabular-nums">
+                    <RatingAverageDisplay
+                      rating={manga.rating ?? 0}
+                      ratingCount={manga.ratingCount ?? 0}
+                      size="sm"
+                      showCount
+                    />
                     <div className="flex items-center gap-1 text-slate-300 bg-black/60 px-2 py-0.5 rounded-full font-mono text-[10px]">
                       <Eye className="w-3 h-3" />
                       <span>{manga.views.toLocaleString()}</span>

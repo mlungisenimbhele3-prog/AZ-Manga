@@ -4,6 +4,16 @@ import { Chapter, Manga, UserSubscription, Comment, BonusContentItem, isMangaCom
 import { BonusContentViewerModal } from '../modals/BonusContentViewerModal';
 import { getSimilarManga } from '../../services/recommendationEngine';
 import { MangaCoverImage } from '../common/MangaCoverImage';
+import { RatingAverageDisplay, StarRatingInput } from '../common/StarRating';
+import {
+  buildPreviewChapterId,
+  getChapterRatingStats,
+  getMangaOverallRatingStats,
+  getVolumeRatingStats,
+  getVolumesForManga,
+  submitUserRating,
+  useRatingRevision,
+} from '../../services/ratingService';
 import { uploadCoverFile } from '../../services/coverStorage';
 import { publishMangaToSupabase } from '../../services/supabase';
 import { isMangaBookmarked, toggleMangaBookmark } from '../../services/userProfile';
@@ -35,6 +45,7 @@ import {
   Download,
   Image as ImageIcon,
   CheckCircle2,
+  Layers,
 } from 'lucide-react';
 import { isMangaRecentlyPublished } from './MangaCard';
 
@@ -111,8 +122,62 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [coverUploadToast, setCoverUploadToast] = useState<string | null>(null);
   const modalId = React.useId();
+  const ratingRevision = useRatingRevision();
 
   const activeManga = manga || cachedManga;
+
+  const mangaRatingStats = useMemo(() => {
+    if (!activeManga) {
+      return {
+        summaryId: '',
+        averageRating: 0,
+        ratingCount: 0,
+        ratingSum: 0,
+        userScore: null,
+      };
+    }
+    return getMangaOverallRatingStats(activeManga);
+  }, [activeManga, ratingRevision]);
+
+  const mangaVolumes = useMemo(() => {
+    if (!activeManga) return [];
+    return getVolumesForManga(activeManga);
+  }, [activeManga, ratingRevision]);
+
+  const handleRateMangaSeries = (score: 1 | 2 | 3 | 4 | 5) => {
+    if (!activeManga) return;
+    void submitUserRating({
+      targetType: 'manga',
+      targetId: activeManga.id,
+      mangaId: activeManga.id,
+      score,
+      mangaTitle: activeManga.title,
+    });
+  };
+
+  const handleRateVolume = (volumeNumber: number, volumeId: string, score: 1 | 2 | 3 | 4 | 5) => {
+    if (!activeManga) return;
+    void submitUserRating({
+      targetType: 'volume',
+      targetId: volumeId,
+      mangaId: activeManga.id,
+      volumeNumber,
+      score,
+      mangaTitle: activeManga.title,
+    });
+  };
+
+  const handleRateChapter = (chapterId: string, score: 1 | 2 | 3 | 4 | 5) => {
+    if (!activeManga) return;
+    void submitUserRating({
+      targetType: 'chapter',
+      targetId: chapterId,
+      mangaId: activeManga.id,
+      chapterId,
+      score,
+      mangaTitle: activeManga.title,
+    });
+  };
 
   const handleDetailCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -339,8 +404,14 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                       <span className="rounded-md bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[10px] font-bold text-amber-300">
                         {isMangaComingSoon(activeManga) ? 'COMING SOON' : activeManga.status}
                       </span>
-                      <span className="text-xs text-slate-300 font-mono">
-                        ★ {(activeManga.rating || 0).toFixed(1)} ({(activeManga.views || 0).toLocaleString()} reads)
+                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-300 font-mono tabular-nums">
+                        <RatingAverageDisplay
+                          rating={mangaRatingStats.averageRating}
+                          ratingCount={mangaRatingStats.ratingCount}
+                          size="xs"
+                          showCount
+                        />
+                        <span>• {(activeManga.views || 0).toLocaleString()} reads</span>
                       </span>
                     </div>
                     <h2 className="text-xl sm:text-2xl font-black text-white truncate drop-shadow">
@@ -526,6 +597,124 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                   </p>
                 </div>
 
+                {/* Series Overall Average Rating & Interactive 1–5 Star Rating Bar */}
+                <div
+                  id="manga-series-rating-card"
+                  className="rounded-2xl border border-slate-800 bg-slate-950/75 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-2 min-w-[78px]">
+                      <div className="flex items-center gap-1 font-mono tabular-nums text-lg font-black text-amber-400">
+                        <Star
+                          className={`w-4 h-4 ${
+                            mangaRatingStats.ratingCount > 0
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'text-slate-500'
+                          }`}
+                        />
+                        <span>{mangaRatingStats.averageRating.toFixed(1)}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono tabular-nums">
+                        {mangaRatingStats.ratingCount > 0
+                          ? `${mangaRatingStats.ratingCount} ${
+                              mangaRatingStats.ratingCount === 1 ? 'rating' : 'ratings'
+                            }`
+                          : 'No ratings'}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                        Series Average Rating
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Aggregated across series, tankōbon volumes, and chapter ratings (1–5 stars).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:items-end gap-1">
+                    <StarRatingInput
+                      idPrefix={`detail-manga-rate-${activeManga.id}`}
+                      value={mangaRatingStats.userScore}
+                      averageRating={mangaRatingStats.averageRating}
+                      ratingCount={mangaRatingStats.ratingCount}
+                      onRate={handleRateMangaSeries}
+                      size="md"
+                      showAverageSummary={false}
+                      showStatusLabel
+                    />
+                  </div>
+                </div>
+
+                {/* Volumes & Tankōbon Ratings (1–5 Stars) */}
+                <div id="manga-volumes-rating-section" className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-amber-400" />
+                      <span>Volumes ({mangaVolumes.length})</span>
+                    </h4>
+                    <span className="text-[11px] text-slate-400">
+                      Rate each volume 1–5 stars
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {mangaVolumes.map((vol) => {
+                      const volStats = getVolumeRatingStats(
+                        activeManga.id,
+                        vol.number,
+                        vol.chapterIds
+                      );
+                      return (
+                        <div
+                          key={`${modalId}-volume-${vol.id}`}
+                          id={`volume-rating-card-${vol.id}`}
+                          className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3.5 flex items-center gap-3.5 hover:border-slate-700 transition"
+                        >
+                          <div className="h-16 w-12 shrink-0 rounded-lg overflow-hidden border border-slate-800 bg-slate-900">
+                            <MangaCoverImage
+                              src={vol.coverImage || activeManga.coverImage}
+                              alt={`${activeManga.title} ${vol.title}`}
+                              title={vol.title}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <h5 className="text-xs sm:text-sm font-bold text-white truncate">
+                                  {vol.title}
+                                </h5>
+                                <p className="text-[11px] text-slate-400 truncate">
+                                  {vol.chapterRangeLabel}
+                                </p>
+                              </div>
+                              <RatingAverageDisplay
+                                rating={volStats.averageRating}
+                                ratingCount={volStats.ratingCount}
+                                size="sm"
+                                showCount
+                              />
+                            </div>
+
+                            <StarRatingInput
+                              idPrefix={`detail-vol-rate-${vol.id}`}
+                              value={volStats.userScore}
+                              averageRating={volStats.averageRating}
+                              ratingCount={volStats.ratingCount}
+                              onRate={(score) => handleRateVolume(vol.number, vol.id, score)}
+                              size="sm"
+                              showAverageSummary={false}
+                              showStatusLabel
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Chapters List */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -552,24 +741,78 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                   </div>
 
                   {activeManga.chapters.length === 0 ? (
-                    <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/20 via-slate-950 to-slate-950 p-6 text-center space-y-3">
-                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                        <Clock className="w-6 h-6" />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-center gap-2">
-                          <span className="inline-block rounded-full bg-amber-500 text-black px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider">
-                            COMING SOON
-                          </span>
+                    <div className="space-y-3">
+                      {(() => {
+                        const previewChId = buildPreviewChapterId(activeManga.id, 1);
+                        const previewChStats = getChapterRatingStats(previewChId);
+                        return (
+                          <div
+                            id={`chapter-preview-rating-row-${previewChId}`}
+                            className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-mono font-bold text-amber-400">
+                                  Ch. 1
+                                </span>
+                                <h5 className="text-sm font-semibold text-white">
+                                  Episode 1 · Serialization Preview
+                                </h5>
+                                <RatingAverageDisplay
+                                  rating={previewChStats.averageRating}
+                                  ratingCount={previewChStats.ratingCount}
+                                  size="xs"
+                                  showCount
+                                />
+                              </div>
+                              <p className="text-[11px] text-slate-400">
+                                Rate Chapter 1 preview on a 1–5 star scale or open cover preview.
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                              <StarRatingInput
+                                idPrefix={`detail-ch-preview-${previewChId}`}
+                                value={previewChStats.userScore}
+                                averageRating={previewChStats.averageRating}
+                                ratingCount={previewChStats.ratingCount}
+                                onRate={(score) => handleRateChapter(previewChId, score)}
+                                size="xs"
+                                showAverageSummary={false}
+                                showStatusLabel
+                              />
+                              <button
+                                type="button"
+                                onClick={() => onStartReading(previewChId)}
+                                className="flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 border border-slate-700 transition"
+                              >
+                                <span>Preview</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/20 via-slate-950 to-slate-950 p-6 text-center space-y-3">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                          <Clock className="w-6 h-6" />
                         </div>
-                        <h5 className="text-base font-bold text-white">No Panels Uploaded Yet</h5>
-                        <p className="text-xs text-slate-300 max-w-md mx-auto leading-relaxed">
-                          The mangaka is currently drawing and producing the official story panels for this serialization. Bookmark or add to your library to be alerted as soon as Chapter 1 drops!
-                        </p>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="inline-block rounded-full bg-amber-500 text-black px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                              COMING SOON
+                            </span>
+                          </div>
+                          <h5 className="text-base font-bold text-white">No Panels Uploaded Yet</h5>
+                          <p className="text-xs text-slate-300 max-w-md mx-auto leading-relaxed">
+                            The mangaka is currently drawing and producing the official story panels for this serialization. Bookmark or add to your library to be alerted as soon as Chapter 1 drops!
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="divide-y divide-slate-800/80 rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden max-h-72 overflow-y-auto">
+                    <div className="divide-y divide-slate-800/80 rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden max-h-80 overflow-y-auto">
                     {activeManga.chapters.map((ch, idx) => {
                       const isEarlyAccessLocked = ch.isEarlyAccess && !hasEarlyAccess;
                       const isVipLocked =
@@ -577,16 +820,22 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                         ch.accessType === 'premium' &&
                         !isVipUser &&
                         !userSubscription.unlockedChapters.includes(ch.id);
+                      const chStats = getChapterRatingStats(ch.id);
+                      const resolvedVolNum =
+                        ch.volumeNumber || Math.max(1, Math.ceil((ch.number || 1) / 5));
 
                       return (
                         <div
                           key={`${modalId}-ch-${ch.id}-${idx}`}
-                          className="p-3.5 flex items-center justify-between hover:bg-slate-900/80 transition"
+                          className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-900/80 transition"
                         >
-                          <div className="min-w-0 pr-3">
+                          <div className="min-w-0 pr-2 space-y-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-mono font-bold text-amber-400">
+                              <span className="text-xs font-mono font-bold text-amber-400 tabular-nums">
                                 Ch. {ch.number}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-500 tabular-nums">
+                                Vol. {resolvedVolNum}
                               </span>
                               <h5 className="text-sm font-semibold text-white truncate">{ch.title}</h5>
                               {ch.isEarlyAccess && (
@@ -596,16 +845,35 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
+                            <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-400 tabular-nums">
+                              <RatingAverageDisplay
+                                rating={chStats.averageRating}
+                                ratingCount={chStats.ratingCount}
+                                size="xs"
+                                showCount
+                              />
+                              <span>•</span>
                               <span>{ch.releaseDate}</span>
                               <span>•</span>
                               <span>{ch.pageCount} Pages</span>
                               <span>•</span>
                               <span>{ch.likesCount.toLocaleString()} Likes</span>
                             </div>
+                            <div className="pt-0.5">
+                              <StarRatingInput
+                                idPrefix={`detail-ch-rate-${ch.id}`}
+                                value={chStats.userScore}
+                                averageRating={chStats.averageRating}
+                                ratingCount={chStats.ratingCount}
+                                onRate={(score) => handleRateChapter(ch.id, score)}
+                                size="xs"
+                                showAverageSummary={false}
+                                showStatusLabel
+                              />
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                             {ch.isEarlyAccess ? (
                               isEarlyAccessLocked ? (
                                 <button

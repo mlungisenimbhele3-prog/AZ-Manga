@@ -106,13 +106,13 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
             className="relative z-10 flex flex-col items-center text-center px-4"
           >
             <div className="relative mb-5">
-              <div className="absolute -inset-4 rounded-full bg-gradient-to-tr from-amber-500/25 via-rose-500/15 to-cyan-500/25 blur-2xl pointer-events-none" />
+              <div className="absolute -inset-4 rounded-[2.5rem] bg-gradient-to-tr from-amber-500/25 via-fuchsia-500/20 to-cyan-500/25 blur-2xl pointer-events-none" />
 
-              <div className="relative w-44 h-44 sm:w-56 sm:h-56 md:w-60 md:h-60 rounded-full overflow-hidden bg-black shadow-2xl shadow-black">
+              <div className="relative w-44 h-44 sm:w-56 sm:h-56 md:w-60 md:h-60 rounded-[2.25rem] overflow-hidden bg-[#0f0424] shadow-2xl shadow-black ring-1 ring-white/10">
                 <img
                   src={APP_LOGO_SRC}
                   alt="AZ OVERVERSE Master Logo"
-                  className="w-full h-full object-contain rounded-full select-none pointer-events-none"
+                  className="w-full h-full object-cover select-none pointer-events-none"
                   loading="eager"
                   decoding="sync"
                   {...{ fetchpriority: 'high' }}

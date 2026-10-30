@@ -4,4 +4,9 @@
     <string name="title_activity_main">AZ OVERVERSE</string>
     <string name="package_name">com.azoververse.app</string>
     <string name="custom_url_scheme">com.azoververse.app</string>
+    <string name="default_web_client_id">197009931605-p16sjppjk069g41lt740g920k9cb9m8s.apps.googleusercontent.com</string>
+    <string name="oververse_backend_url">https://ais-pre-cy3finrwpictw7cjwxzt7s-401335544603.europe-west2.run.app</string>
+    <string name="admob_app_id">ca-app-pub-7570164094154420~3142297870</string>
+    <string name="admob_banner_id">ca-app-pub-7570164094154420/3068852398</string>
+    <string name="admob_interstitial_id">ca-app-pub-7570164094154420/2379433436</string>
 </resources>

@@ -15,10 +15,8 @@ import {
   deleteDoc,
   writeBatch,
   serverTimestamp,
-  googleProvider,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
+  authenticateWithOververseGoogle,
+  signInToOververseWithToken,
   signOut,
   onAuthStateChanged,
   updateProfile as updateFirebaseProfile,
@@ -347,10 +345,25 @@ if (typeof window !== 'undefined') {
         saveLocalProfile(guestReset);
       }
     }
-    isAuthReady = true;
-    notifyCreatorAuthListeners();
-  });
-}
+      isAuthReady = true;
+      notifyCreatorAuthListeners();
+    });
+
+    // Handle Google ID tokens delivered directly from StudioActivity.kt CredentialManager
+    window.__onOververseNativeGoogleToken = async (idToken: string) => {
+      try {
+        if (!auth.currentUser) {
+          const user = await signInToOververseWithToken(idToken);
+          activeFirebaseUser = user;
+          await hydrateProfileFromFirestore(user);
+          isAuthReady = true;
+          notifyCreatorAuthListeners();
+        }
+      } catch (err) {
+        console.error('[OVERVERSE] Native Google ID token sign-in failed:', err);
+      }
+    };
+  }
 
 export function getCurrentUserProfile(): UserProfile {
   return activeProfile;
@@ -409,15 +422,15 @@ export async function signInWithGoogleCreator(): Promise<{
   error?: string;
 }> {
   try {
-    const credential = await signInWithPopup(auth, googleProvider);
-    activeFirebaseUser = credential.user;
-    const hydrated = await hydrateProfileFromFirestore(credential.user);
+    const fbUser = await authenticateWithOververseGoogle();
+    activeFirebaseUser = fbUser;
+    const hydrated = await hydrateProfileFromFirestore(fbUser);
     isAuthReady = true;
     notifyCreatorAuthListeners();
 
     return {
       success: true,
-      hasCreatorAccount: computeHasCreatorAccount(credential.user, hydrated),
+      hasCreatorAccount: computeHasCreatorAccount(fbUser, hydrated),
       profile: hydrated,
     };
   } catch (err: any) {
@@ -477,8 +490,7 @@ export async function createCreatorAccount(
   try {
     let fbUser = auth.currentUser;
     if (!fbUser) {
-      const credential = await signInWithPopup(auth, googleProvider);
-      fbUser = credential.user;
+      fbUser = await authenticateWithOververseGoogle();
       activeFirebaseUser = fbUser;
     }
 

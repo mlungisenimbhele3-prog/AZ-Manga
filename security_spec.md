@@ -14,6 +14,10 @@
 5. **Temporal & Immortal Field Integrity**:
    - Every `create` enforces `incoming().createdAt == request.time && incoming().updatedAt == request.time`.
    - Every `update` enforces `incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time` plus immutable ownership (`uid`, `authorUid`, `senderId`, `createdBy`).
+6. **Atomic 1–5 Star Rating & Tamper-Proof Aggregate Invariant (`/ratings/{ratingId}` & `/rating_summaries/{summaryId}`)**:
+   - Each user can hold at most one rating per target via deterministic ID `ratingId == summaryId + '__' + request.auth.uid`, with `score in [1, 2, 3, 4, 5]`.
+   - `/ratings/{ratingId}` is readable only by its owner (`uid == request.auth.uid`) or `isAdmin()`, preventing cross-user behavioral scraping.
+   - `/rating_summaries/{summaryId}` mutations are atomically bound via `existsAfter` / `getAfter` to `/ratings/$(summaryId + '__' + request.auth.uid)` at `request.time`, ensuring `ratingCount` can only increment by 1 on a user's first rating and `ratingSum` must match the exact delta `newScore - oldScore`.
 
 ---
 
@@ -29,8 +33,9 @@
 8. **Unbounded Genre Array (`UPDATE /users/u1`)**: `{ primaryGenres: ["a","b","c","d","e","f","g","h"], updatedAt: SERVER_TIME }` -> Rejected by `primaryGenres.size() <= 6`.
 9. **Client Timestamp Forgery (`CREATE /users/u1`)**: `{ uid: "u1", displayName: "Past", isCreator: false, createdAt: Timestamp(2020,1,1), updatedAt: Timestamp(2020,1,1) }` -> Rejected by `incoming().createdAt == request.time`.
 10. **Immutable `createdAt` Tampering (`UPDATE /users/u1`)**: Modifying `createdAt` during profile update -> Rejected by `affectedKeys().hasOnly(...)` and `incoming().createdAt == existing().createdAt`.
-11. **Non-Creator Publishing Manga (`CREATE /mangas/m1` where `/users/u1.isCreator == false`)**: Reader account attempting to publish directly to `/mangas/m1` -> Rejected by relational Creator check `get(.../users/$(request.auth.uid)).data.isCreator == true`.
-12. **Unauthorized Direct Message Scraping (`LIST /chat_messages` without sender/recipient filter)**: Authenticated user `u3` listing private DMs between `u1` and `u2` -> Rejected by Query Enforcer (`resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid || resource.data.groupId is string`).
+11. **Out-of-Bounds Star Rating (`CREATE /ratings/manga_nkosi__u1` with `score: 100` or `score: 0`)**: Rejected by `data.score is int && data.score in [1, 2, 3, 4, 5]`.
+12. **Aggregate Rating Inflation (`UPDATE /rating_summaries/manga_nkosi` with `ratingCount: 9999` without atomic `/ratings` write)**: Rejected by `existsAfter` + `getAfter(...).data.updatedAt == request.time` and exact delta arithmetic check.
+13. **Unauthorized Direct Message / User Rating Scraping (`LIST /chat_messages` or `LIST /ratings` without owner filter)**: Rejected by Query Enforcer (`existing().uid == request.auth.uid`).
 
 ---
 

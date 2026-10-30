@@ -7,6 +7,8 @@ import { GenreFilterBar, getGenreDefinition } from '../manga/GenreFilterBar';
 import { MangaCoverImage } from '../common/MangaCoverImage';
 import { SouthAfricaFlameLogo } from '../common/SouthAfricaFlameLogo';
 import { RecommendationsTray } from '../recommendations/RecommendationsTray';
+import { RatingAverageDisplay } from '../common/StarRating';
+import { buildPreviewChapterId } from '../../services/ratingService';
 import { UserTasteProfile } from '../../services/recommendationEngine';
 import {
   Search,
@@ -668,9 +670,13 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
                 <p className="text-[11px] text-slate-300 font-medium">
                   By {spotlightManga.author} • {spotlightManga.chapters.length} Chapters
                 </p>
-                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-amber-400 font-bold">
-                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                  <span>{(spotlightManga.rating || 0).toFixed(1)}</span>
+                <div className="mt-1 flex items-center gap-1.5 text-[11px] tabular-nums">
+                  <RatingAverageDisplay
+                    rating={spotlightManga.rating || 0}
+                    ratingCount={spotlightManga.ratingCount || 0}
+                    size="xs"
+                    showCount
+                  />
                   <span className="text-slate-400 font-normal">•</span>
                   <span className="text-slate-300 font-normal">{spotlightManga.genres[0]}</span>
                 </div>
@@ -691,7 +697,12 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
             <div className="space-y-2 pt-1">
               <button
                 id="desktop-featured-read-btn"
-                onClick={() => onStartReading(spotlightManga, spotlightManga.chapters[0].id)}
+                onClick={() =>
+                  onStartReading(
+                    spotlightManga,
+                    spotlightManga.chapters[0]?.id || buildPreviewChapterId(spotlightManga.id, 1)
+                  )
+                }
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black py-2.5 px-4 text-xs font-black transition shadow-lg shadow-amber-500/20 active:scale-98"
               >
                 <Play className="w-4 h-4 fill-black" />

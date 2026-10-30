@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, X, ExternalLink, ShieldCheck, ArrowRight, Smartphone } from 'lucide-react';
-import { ADMOB_TEST_CONFIG } from '../../utils/admobConfig';
+import { Capacitor } from '@capacitor/core';
+import { Sparkles, ShieldCheck, ArrowRight } from 'lucide-react';
+import { ADMOB_CONFIG } from '../../utils/admobConfig';
+import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
+import { initializeAdMobOnce } from './AdMobBanner';
 
 interface AppOpenAdModalProps {
   isOpen: boolean;
@@ -12,7 +15,7 @@ interface AppOpenAdModalProps {
 export const AppOpenAdModal: React.FC<AppOpenAdModalProps> = ({
   isOpen,
   onClose,
-  adUnitId = ADMOB_TEST_CONFIG.APP_OPEN_ID,
+  adUnitId = ADMOB_CONFIG.INTERSTITIAL_ID,
   onUpgradeClick,
 }) => {
   const [countdown, setCountdown] = useState(5);
@@ -25,15 +28,19 @@ export const AppOpenAdModal: React.FC<AppOpenAdModalProps> = ({
       return;
     }
 
-    // Try preparing Native Capacitor AdMob App Open Ad if running on device
-    import('@capacitor-community/admob')
-      .then(({ AdMob }) => {
-        AdMob.prepareInterstitial({
-          adId: adUnitId,
-          isTesting: true,
-        }).catch(() => {});
-      })
-      .catch(() => {});
+    if (Capacitor.isNativePlatform()) {
+      initializeAdMobOnce().then(() => {
+        import('@capacitor-community/admob')
+          .then(async ({ AdMob }) => {
+            await AdMob.prepareInterstitial({
+              adId: adUnitId,
+              isTesting: false,
+            });
+            await AdMob.showInterstitial();
+          })
+          .catch(() => {});
+      });
+    }
 
     setCountdown(5);
     setCanDismiss(false);
@@ -66,11 +73,13 @@ export const AppOpenAdModal: React.FC<AppOpenAdModalProps> = ({
         {/* Top Header */}
         <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-5 py-3.5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
-              <Smartphone className="w-4 h-4" />
-            </div>
+            <img
+              src={APP_LOGO_SRC}
+              alt="AZ OVERVERSE"
+              className="h-8 w-8 rounded-lg object-cover shrink-0 border border-amber-500/30"
+            />
             <div>
-              <span className="text-xs font-bold text-white block">AdMob App Open Ad (Demo)</span>
+              <span className="text-xs font-bold text-white block">Google AdMob Interstitial</span>
               <span className="text-[9px] font-mono text-amber-400/90 block">
                 Unit ID: <code className="bg-black/60 px-1 py-0.2 rounded">{adUnitId}</code>
               </span>
@@ -100,7 +109,7 @@ export const AppOpenAdModal: React.FC<AppOpenAdModalProps> = ({
           <div className="relative aspect-video rounded-2xl overflow-hidden border border-slate-800 bg-gradient-to-br from-amber-950/40 via-slate-950 to-purple-950/40 p-5 flex flex-col justify-between shadow-inner">
             <div className="flex items-center justify-between">
               <span className="rounded-md bg-amber-500 text-black px-2 py-0.5 text-[10px] font-black uppercase">
-                Google AdMob Test
+                Google AdMob
               </span>
               <span className="text-[10px] font-mono text-slate-400">
                 70% Rev-Share Active

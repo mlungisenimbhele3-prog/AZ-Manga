@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { AdData } from '../../types';
-import { Sparkles, X, Volume2, VolumeX, ShieldCheck, ArrowRight } from 'lucide-react';
-import { ADMOB_TEST_CONFIG } from '../../utils/admobConfig';
+import { Sparkles, X, Volume2, VolumeX, ArrowRight } from 'lucide-react';
+import { ADMOB_CONFIG } from '../../utils/admobConfig';
+import { initializeAdMobOnce } from './AdMobBanner';
 
 interface InterstitialAdModalProps {
   ad: AdData;
@@ -18,7 +20,7 @@ export const InterstitialAdModal: React.FC<InterstitialAdModalProps> = ({
   onClose,
   onUpgradeClick,
   nextChapterTitle,
-  adUnitId = ADMOB_TEST_CONFIG.REWARDED_INTERSTITIAL_ID,
+  adUnitId = ADMOB_CONFIG.INTERSTITIAL_ID,
 }) => {
   const [secondsLeft, setSecondsLeft] = useState(5);
   const [canSkip, setCanSkip] = useState(false);
@@ -31,15 +33,20 @@ export const InterstitialAdModal: React.FC<InterstitialAdModalProps> = ({
       return;
     }
 
-    // Try preparing Native Capacitor AdMob Interstitial if running natively
-    import('@capacitor-community/admob')
-      .then(({ AdMob }) => {
-        AdMob.prepareInterstitial({
-          adId: adUnitId,
-          isTesting: true,
-        }).catch(() => {});
-      })
-      .catch(() => {});
+    // Load & display Native Capacitor AdMob Interstitial when running on Android/iOS
+    if (Capacitor.isNativePlatform()) {
+      initializeAdMobOnce().then(() => {
+        import('@capacitor-community/admob')
+          .then(async ({ AdMob }) => {
+            await AdMob.prepareInterstitial({
+              adId: adUnitId,
+              isTesting: false,
+            });
+            await AdMob.showInterstitial();
+          })
+          .catch(() => {});
+      });
+    }
 
     setSecondsLeft(5);
     setCanSkip(false);
@@ -56,7 +63,7 @@ export const InterstitialAdModal: React.FC<InterstitialAdModalProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isOpen]);
+  }, [isOpen, adUnitId]);
 
   if (!isOpen) return null;
 
@@ -78,7 +85,7 @@ export const InterstitialAdModal: React.FC<InterstitialAdModalProps> = ({
                 AZ OVERVERSE Reader Sponsor
               </span>
               <span className="text-[9px] font-mono text-amber-400/90 block">
-                Rewarded Interstitial: <code className="bg-black/60 px-1 py-0.2 rounded">{adUnitId}</code>
+                AdMob Interstitial: <code className="bg-black/60 px-1 py-0.2 rounded">{adUnitId}</code>
               </span>
             </div>
             <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">

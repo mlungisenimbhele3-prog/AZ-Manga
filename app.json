@@ -10,20 +10,16 @@
       "package": "com.azoververse.app",
       "versionCode": 102,
       "config": {
-        "googleMobileAdsAppId": "ca-app-pub-3940256099942544~3347511713"
+        "googleMobileAdsAppId": "ca-app-pub-7570164094154420~3142297870"
       }
     }
   },
   "react-native-google-mobile-ads": {
-    "android_app_id": "ca-app-pub-3940256099942544~3347511713"
+    "android_app_id": "ca-app-pub-7570164094154420~3142297870"
   },
   "admob": {
-    "appId": "ca-app-pub-3940256099942544~3347511713",
-    "bannerAdUnitId": "ca-app-pub-3940256099942544/6300978111",
-    "testBannerId": "ca-app-pub-3940256099942544/6300978111",
-    "appOpenId": "ca-app-pub-3940256099942544/9257395921",
-    "rewardedInterstitialId": "ca-app-pub-3940256099942544/5354046379",
-    "rewardedAdsId": "ca-app-pub-3940256099942544/5224354917",
-    "rewardedId": "ca-app-pub-3940256099942544/5224354917"
+    "appId": "ca-app-pub-7570164094154420~3142297870",
+    "bannerAdUnitId": "ca-app-pub-7570164094154420/3068852398",
+    "interstitialAdUnitId": "ca-app-pub-7570164094154420/2379433436"
   }
 }

@@ -187,7 +187,7 @@ const NavbarComponent: React.FC<NavbarProps> = ({
                 width={38}
                 height={38}
                 {...{ fetchpriority: 'high' }}
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black shadow-lg shadow-amber-500/25 object-contain"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0f0424] shadow-lg shadow-amber-500/25 object-cover"
               />
             </div>
 

@@ -20,6 +20,7 @@ export interface Chapter {
   id: string;
   mangaId: string;
   number: number;
+  volumeNumber?: number;
   title: string;
   releaseDate: string;
   pageCount: number;
@@ -27,11 +28,63 @@ export interface Chapter {
   pages: ChapterPage[];
   likesCount: number;
   commentsCount: number;
+  rating?: number;
+  ratingCount?: number;
   isUnlockedForFreeSession?: boolean;
   isEarlyAccess?: boolean;
   earlyAccessDaysLeft?: number;
   earlyAccessReleaseDate?: string;
   isExclusiveBonus?: boolean;
+}
+
+export interface MangaVolume {
+  id: string;
+  mangaId: string;
+  number: number;
+  title: string;
+  coverImage?: string;
+  chapterIds: string[];
+  chapterRangeLabel: string;
+  releaseStatus: 'RELEASED' | 'SERIALIZING' | 'PREVIEW';
+  rating: number;
+  ratingCount: number;
+}
+
+export type RatingTargetType = 'manga' | 'volume' | 'chapter';
+
+export interface UserRatingRecord {
+  id: string;
+  summaryId: string;
+  uid: string;
+  targetType: RatingTargetType;
+  targetId: string;
+  mangaId: string;
+  volumeNumber?: number;
+  chapterId?: string;
+  score: 1 | 2 | 3 | 4 | 5;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RatingSummaryRecord {
+  id: string;
+  targetType: RatingTargetType;
+  targetId: string;
+  mangaId: string;
+  volumeNumber?: number;
+  chapterId?: string;
+  ratingSum: number;
+  ratingCount: number;
+  averageRating: number;
+  updatedAt: string;
+}
+
+export interface ComputedRatingStats {
+  summaryId: string;
+  averageRating: number;
+  ratingCount: number;
+  ratingSum: number;
+  userScore: number | null;
 }
 
 export interface MangaAward {
@@ -106,10 +159,12 @@ export interface Manga {
   status: 'ONGOING' | 'COMPLETED';
   synopsis: string;
   rating: number;
+  ratingCount?: number;
   views: number;
   bookmarksCount: number;
   monetizationModel: MonetizationModel;
   chapters: Chapter[];
+  volumes?: MangaVolume[];
   featured?: boolean;
   isOriginal?: boolean; // AZ Originals vs Backdrop
   isBackdrop?: boolean;

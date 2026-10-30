@@ -187,7 +187,7 @@ const LazyMangaPageComponent: React.FC<LazyMangaPageProps> = ({
           <AdMobBanner
             key={`ad-${page.id || page.pageNumber || index}-${index}`}
             ad={currentRandomAd}
-            bannerId="ca-app-pub-3940256099942544/6300978111"
+            bannerId="ca-app-pub-7570164094154420/3068852398"
             onUpgradeClick={onUpgradeClick}
           />
         </div>

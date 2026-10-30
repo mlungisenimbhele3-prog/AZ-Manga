@@ -62,7 +62,7 @@ export default defineConfig(() => {
           'pwa-512x512.png',
           'pwa-maskable-192x192.png',
           'pwa-maskable-512x512.png',
-          'assets/aistudio/az_oververse_black_silver_transparent_29ae4c4c.png',
+          'assets/aistudio/IMG-20261030-WA4361_fe49230b.jpg',
           'assets/aistudio/876507702_1790968748807516_1967466416315700542_n_aea98a38.webp',
         ],
         manifest: {
@@ -143,7 +143,7 @@ export default defineConfig(() => {
           type: 'module',
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2,json}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,woff,woff2,json}'],
           globIgnores: ['**/*.aab', '**/*.apk', '**/*.keystore', '**/AZ-OVERVERSE-signed.aab'],
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           cleanupOutdatedCaches: true,

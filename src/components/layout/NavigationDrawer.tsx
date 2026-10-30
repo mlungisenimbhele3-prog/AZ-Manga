@@ -185,7 +185,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               <img
                 src={APP_LOGO_SRC}
                 alt="AZ OVERVERSE Logo"
-                className="w-9 h-9 rounded-full bg-black shadow-lg shadow-amber-500/25 object-contain"
+                className="w-9 h-9 rounded-xl bg-[#0f0424] shadow-lg shadow-amber-500/25 object-cover"
               />
             </div>
             <div>

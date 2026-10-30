@@ -379,33 +379,34 @@ export const ProductivityCommandPalette: React.FC<ProductivityCommandPaletteProp
       },
     },
     {
-      id: 'admob-app-open-demo',
-      title: 'AdMob App Open Test Ad (ca-app-pub-3940256099942544/9257395921)',
+      id: 'admob-app-id-info',
+      title: 'Copy AdMob App ID (ca-app-pub-7570164094154420~3142297870)',
       category: 'Monetization (AdMob)',
       icon: <Sparkles className="w-4 h-4 text-amber-400" />,
       action: () => {
+        navigator.clipboard?.writeText('ca-app-pub-7570164094154420~3142297870');
         onClose();
-        onOpenAppOpenAd?.();
       },
     },
     {
-      id: 'admob-rewarded-interstitial-info',
-      title: 'AdMob Rewarded Interstitial Test ID (ca-app-pub-3940256099942544/5354046379)',
+      id: 'admob-banner-id-info',
+      title: 'Copy AdMob Banner ID (ca-app-pub-7570164094154420/3068852398)',
       category: 'Monetization (AdMob)',
       icon: <ShieldCheck className="w-4 h-4 text-cyan-400" />,
       action: () => {
+        navigator.clipboard?.writeText('ca-app-pub-7570164094154420/3068852398');
         onClose();
-        alert('AdMob Rewarded Interstitial Test Unit ID: ca-app-pub-3940256099942544/5354046379\n\nActive for chapter intermissions and transition ad breaks.');
       },
     },
     {
-      id: 'admob-rewarded-ads-info',
-      title: 'AdMob Rewarded Ads Test ID (ca-app-pub-3940256099942544/5224354917)',
+      id: 'admob-interstitial-id-info',
+      title: 'Preview / Copy AdMob Interstitial (ca-app-pub-7570164094154420/2379433436)',
       category: 'Monetization (AdMob)',
       icon: <Coins className="w-4 h-4 text-emerald-400" />,
       action: () => {
+        navigator.clipboard?.writeText('ca-app-pub-7570164094154420/2379433436');
         onClose();
-        alert('AdMob Rewarded Ads Test Unit ID: ca-app-pub-3940256099942544/5224354917\n\nActive for daily coin claims and VIP chapter unlocks.');
+        onOpenAppOpenAd?.();
       },
     },
   ];

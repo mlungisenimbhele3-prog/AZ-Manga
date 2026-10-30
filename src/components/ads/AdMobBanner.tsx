@@ -2,14 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { AdData } from '../../types';
 import { Sparkles } from 'lucide-react';
-import { ADMOB_TEST_CONFIG } from '../../utils/admobConfig';
+import { ADMOB_CONFIG } from '../../utils/admobConfig';
 
-export const TEST_ADMOB_APP_ID = ADMOB_TEST_CONFIG.APP_ID;
-export const TEST_ADMOB_BANNER_ID = ADMOB_TEST_CONFIG.BANNER_ID;
-export const TEST_ADMOB_APP_OPEN_ID = ADMOB_TEST_CONFIG.APP_OPEN_ID;
-export const TEST_ADMOB_REWARDED_INTERSTITIAL_ID = ADMOB_TEST_CONFIG.REWARDED_INTERSTITIAL_ID;
-export const TEST_ADMOB_REWARDED_ADS_ID = ADMOB_TEST_CONFIG.REWARDED_ADS_ID;
-export const TEST_ADMOB_INTERSTITIAL_ID = ADMOB_TEST_CONFIG.INTERSTITIAL_ID;
+export const ADMOB_APP_ID = ADMOB_CONFIG.APP_ID;
+export const ADMOB_BANNER_ID = ADMOB_CONFIG.BANNER_ID;
+export const ADMOB_INTERSTITIAL_ID = ADMOB_CONFIG.INTERSTITIAL_ID;
+
+// Backwards-compatible aliases
+export const TEST_ADMOB_APP_ID = ADMOB_CONFIG.APP_ID;
+export const TEST_ADMOB_BANNER_ID = ADMOB_CONFIG.BANNER_ID;
+export const TEST_ADMOB_APP_OPEN_ID = ADMOB_CONFIG.APP_OPEN_ID;
+export const TEST_ADMOB_REWARDED_INTERSTITIAL_ID = ADMOB_CONFIG.REWARDED_INTERSTITIAL_ID;
+export const TEST_ADMOB_REWARDED_ADS_ID = ADMOB_CONFIG.REWARDED_ADS_ID;
+export const TEST_ADMOB_INTERSTITIAL_ID = ADMOB_CONFIG.INTERSTITIAL_ID;
 
 // Global singleton flag: AdMob is only initialized ONCE on native platforms
 let isAdMobInitialized = false;
@@ -21,11 +26,10 @@ export async function initializeAdMobOnce(): Promise<void> {
   try {
     const { AdMob } = await import('@capacitor-community/admob');
     await AdMob.initialize({
-      testingDevices: ['EMULATOR'],
-      initializeForTesting: true,
+      initializeForTesting: false,
     });
   } catch {
-    // Native plugin unavailable - fallback gracefully to web test banner
+    // Native plugin unavailable - fallback gracefully to web banner
   }
 }
 
@@ -39,7 +43,7 @@ export interface AdMobBannerProps {
 
 export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   ad,
-  bannerId = TEST_ADMOB_BANNER_ID,
+  bannerId = ADMOB_BANNER_ID,
   onUpgradeClick,
   variant = 'inline',
   className = '',
@@ -49,8 +53,6 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
 
   useEffect(() => {
     // Only invoke native Capacitor AdMob overlay on real Android/iOS native runtime.
-    // On Web / PWA, `@capacitor-community/admob` resolves a no-op web stub without rendering UI,
-    // so we must render our visible Google AdMob Test Ad banner directly in the DOM.
     if (!Capacitor.isNativePlatform()) {
       setIsNativeBannerActive(false);
       return;
@@ -64,7 +66,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
             adId: bannerId,
             adSize: BannerAdSize.BANNER,
             position: BannerAdPosition.BOTTOM_CENTER,
-            isTesting: true,
+            isTesting: false,
           })
             .then(() => {
               if (!cancelled) setIsNativeBannerActive(true);
@@ -98,24 +100,24 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       <aside
         id="persistent-bottom-admob-banner"
         role="region"
-        aria-label="Google AdMob Bottom Test Ad"
+        aria-label="Google AdMob Sponsored Banner"
         className={`fixed bottom-0 left-0 right-0 z-[115] h-[50px] bg-slate-950 border-t border-slate-800 px-3 sm:px-5 flex items-center justify-center shadow-2xl select-none ${className}`}
       >
         <div className="w-full max-w-5xl flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold leading-none text-slate-950 shrink-0">
-              Test Ad
+              Ad
             </span>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-white truncate">
                 <span className="truncate">
                   {showAdUnitDetails
-                    ? `AdMob Test Banner · ${bannerId}`
-                    : 'Google AdMob Test Ad · Nice job! This is a 320×50 test banner.'}
+                    ? `Google AdMob Banner · ${bannerId}`
+                    : 'AZ OVERVERSE · Support creators with ad-supported reading or go VIP.'}
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 font-mono tabular-nums truncate hidden sm:block">
-                Unit ID: {bannerId} · Test Mode Active
+                Google AdMob · 70% Creator Revenue Share
               </p>
             </div>
           </div>
@@ -156,22 +158,26 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-950 flex items-center justify-center">
-            <span className="text-[10px] font-bold text-amber-400">Test Ad</span>
+            <span className="text-[10px] font-bold text-amber-400">Ad</span>
           </div>
 
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-              <span className="font-semibold text-amber-300">Google AdMob Test Ad</span>
-              <span aria-hidden="true">·</span>
-              <span className="font-mono tabular-nums truncate">{bannerId}</span>
+              <span className="font-semibold text-amber-300">Google AdMob</span>
+              {showAdUnitDetails && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono tabular-nums truncate">{bannerId}</span>
+                </>
+              )}
             </div>
             <h4 className="text-xs sm:text-sm font-bold text-white truncate mt-0.5">
-              {ad?.title || 'Nice job! This is a Google AdMob test banner.'}
+              {ad?.title || 'AZ OVERVERSE Creator Sponsor'}
             </h4>
             <p className="text-[11px] text-slate-300 truncate">
               {showAdUnitDetails
-                ? `Active AdMob Test Banner Unit: ${bannerId}`
-                : ad?.description || 'Test mode enabled for safe development and verification.'}
+                ? `Banner Unit: ${bannerId}`
+                : ad?.description || '70% of ad revenue supports AZ OVERVERSE mangaka directly.'}
             </p>
           </div>
         </div>

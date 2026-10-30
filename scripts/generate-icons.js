@@ -4,33 +4,33 @@ import path from 'path';
 
 async function generate() {
   const logoPath = path.resolve(
-    'public/assets/aistudio/az_oververse_black_silver_transparent_29ae4c4c.png'
+    'public/assets/aistudio/IMG-20261030-WA4361_fe49230b.jpg'
   );
-  const svgBuffer = fs.readFileSync(logoPath);
+  const logoBuffer = fs.readFileSync(logoPath);
 
   // 192x192
-  await sharp(svgBuffer)
+  await sharp(logoBuffer)
     .resize(192, 192)
     .png()
     .toFile('public/pwa-192x192.png');
   console.log('Created public/pwa-192x192.png');
 
   // 512x512
-  await sharp(svgBuffer)
+  await sharp(logoBuffer)
     .resize(512, 512)
     .png()
     .toFile('public/pwa-512x512.png');
   console.log('Created public/pwa-512x512.png');
 
   // Apple touch icon (180x180)
-  await sharp(svgBuffer)
+  await sharp(logoBuffer)
     .resize(180, 180)
     .png()
     .toFile('public/apple-touch-icon.png');
   console.log('Created public/apple-touch-icon.png');
 
   // Favicon (64x64)
-  await sharp(svgBuffer)
+  await sharp(logoBuffer)
     .resize(64, 64)
     .png()
     .toFile('public/favicon.png');

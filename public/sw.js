@@ -1,5 +1,5 @@
 // OVERVERSE Progressive Web App Service Worker (Fallback / Static Reference)
-const CACHE_NAME = 'oververse-pwa-v9';
+const CACHE_NAME = 'oververse-pwa-v10';
 const IMAGE_CACHE_NAME = 'oververse-manga-images';
 const MAX_IMAGE_CACHE_ENTRIES = 180;
 const STATIC_ASSETS = [
@@ -14,7 +14,7 @@ const STATIC_ASSETS = [
   '/pwa-maskable-512x512.png',
   '/apple-touch-icon.png',
   '/master-logo.png',
-  '/assets/aistudio/az_oververse_black_silver_transparent_29ae4c4c.png',
+  '/assets/aistudio/IMG-20261030-WA4361_fe49230b.jpg',
   '/assets/aistudio/876507702_1790968748807516_1967466416315700542_n_aea98a38.webp'
 ];
 

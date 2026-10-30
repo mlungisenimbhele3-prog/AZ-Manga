@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { AdData, Chapter } from '../../types';
-import { Play, Sparkles, CheckCircle2, Award, X, ShieldAlert } from 'lucide-react';
-import { ADMOB_TEST_CONFIG } from '../../utils/admobConfig';
+import { Play, Sparkles, CheckCircle2, Award, X } from 'lucide-react';
+import { ADMOB_CONFIG } from '../../utils/admobConfig';
+import { initializeAdMobOnce } from './AdMobBanner';
 
 interface RewardedAdModalProps {
   ad: AdData;
@@ -22,7 +24,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   onRewardGranted,
   onUpgradeClick,
   onUnlockComplete,
-  adUnitId = ADMOB_TEST_CONFIG.REWARDED_ADS_ID,
+  adUnitId = ADMOB_CONFIG.INTERSTITIAL_ID,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [countdown, setCountdown] = useState(10);
@@ -38,15 +40,19 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
       return;
     }
 
-    // Prepare Native Capacitor AdMob Rewarded Video if running natively
-    import('@capacitor-community/admob')
-      .then(({ AdMob }) => {
-        AdMob.prepareRewardVideoAd({
-          adId: adUnitId,
-          isTesting: true,
-        }).catch(() => {});
-      })
-      .catch(() => {});
+    // Preload Native Capacitor AdMob Interstitial on Android/iOS
+    if (Capacitor.isNativePlatform()) {
+      initializeAdMobOnce().then(() => {
+        import('@capacitor-community/admob')
+          .then(({ AdMob }) => {
+            AdMob.prepareInterstitial({
+              adId: adUnitId,
+              isTesting: false,
+            }).catch(() => {});
+          })
+          .catch(() => {});
+      });
+    }
   }, [isOpen, adUnitId]);
 
   useEffect(() => {
@@ -68,16 +74,21 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
   }, [isPlaying, completed, chapter.id, onRewardGranted]);
 
   const handleStartAd = async () => {
-    try {
-      const { AdMob } = await import('@capacitor-community/admob');
-      const rewardItem = await AdMob.showRewardVideoAd();
-      if (rewardItem) {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await initializeAdMobOnce();
+        const { AdMob } = await import('@capacitor-community/admob');
+        await AdMob.prepareInterstitial({
+          adId: adUnitId,
+          isTesting: false,
+        }).catch(() => {});
+        await AdMob.showInterstitial();
         setCompleted(true);
         onRewardGranted(chapter.id);
         return;
+      } catch {
+        // Fallback to in-app countdown if native interstitial fails to load
       }
-    } catch {
-      // Running in Web/Preview environment — run interactive AdMob sponsor video countdown
     }
     setIsPlaying(true);
   };
@@ -100,7 +111,7 @@ export const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
             <div>
               <span className="font-bold text-sm block">Watch Ad to Unlock Chapter</span>
               <span className="text-[10px] font-mono text-amber-400/90 block">
-                Google AdMob Rewarded: <code className="bg-black/60 px-1 py-0.5 rounded">{adUnitId}</code>
+                Google AdMob: <code className="bg-black/60 px-1 py-0.5 rounded">{adUnitId}</code>
               </span>
             </div>
           </div>

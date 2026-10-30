@@ -48,7 +48,7 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
       developerAccountName: currentSettings.googlePlay?.developerAccountName || 'AZ Oververse Creator Studio',
     },
     admob: {
-      publisherId: currentSettings.admob?.publisherId || 'pub-3940256099942544',
+      publisherId: currentSettings.admob?.publisherId || 'pub-7570164094154420',
       accountName: currentSettings.admob?.accountName || 'AZ Oververse AdMob Revenue Pool',
     },
     autoPayoutEnabled: currentSettings.autoPayoutEnabled ?? true,
@@ -562,7 +562,7 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
                       }))
                     }
                     className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-white text-xs font-mono focus:border-amber-500 focus:outline-none"
-                    placeholder="pub-3940256099942544"
+                    placeholder="pub-7570164094154420"
                   />
                 </div>
 
