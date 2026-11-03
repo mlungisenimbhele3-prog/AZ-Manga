@@ -1,1 +1,0 @@
-var e=18.25,t={preferredProvider:`google_play`,googlePlay:{merchantId:`GPLAY-MERCHANT-882910`,developerAccountName:`AZ Oververse Creator Studio`},admob:{publisherId:`pub-7570164094154420`,accountName:`AZ Oververse AdMob Revenue Pool`},autoPayoutEnabled:!0,minPayoutThresholdUSD:50},n=[];export{n,e as r,t};

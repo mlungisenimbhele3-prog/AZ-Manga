@@ -81,6 +81,7 @@ export default defineConfig(() => {
           dir: 'ltr',
           categories: ['books', 'entertainment', 'comics'],
           prefer_related_applications: false,
+          ...({ package_name: 'com.azoververse.oververse' } as Record<string, unknown>),
           related_applications: [
             {
               platform: 'play',

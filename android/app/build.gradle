@@ -2,7 +2,7 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 android {
-    namespace = "com.azoververse.oververse"
+    namespace "com.azoververse.oververse"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.azoververse.oververse"
