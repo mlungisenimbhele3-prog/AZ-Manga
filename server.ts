@@ -1,49 +1,158 @@
 import express from "express";
+import fs from "fs";
 import path from "path";
+import zlib from "zlib";
+import cookieParser from "cookie-parser";
+import * as dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import { authRouter } from './src/server/authRoutes.ts';
+
+dotenv.config();
+
+const SUSPICIOUS_PAYLOAD_REGEX = /<script\b|javascript:|UNION\s+SELECT/i;
+const BINARY_SKIP_KEYS = new Set(['fileData', 'imageBase64', 'avatarData']);
+const ALLOWED_COVER_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
+const MAX_DECODED_COVER_BYTES = 8 * 1024 * 1024; // 8 MB decoded binary limit
+
+function hasSuspiciousPayloadPattern(value: unknown, depth = 0): boolean {
+  if (depth > 8 || value === null || value === undefined) return false;
+
+  if (typeof value === 'string') {
+    // Bound inspection slice so huge strings never stall the Node event loop
+    const sample = value.length > 16384 ? value.slice(0, 16384) : value;
+    return SUSPICIOUS_PAYLOAD_REGEX.test(sample);
+  }
+
+  if (Array.isArray(value)) {
+    const limit = Math.min(value.length, 200);
+    for (let i = 0; i < limit; i++) {
+      if (hasSuspiciousPayloadPattern(value[i], depth + 1)) return true;
+    }
+    return false;
+  }
+
+  if (typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (SUSPICIOUS_PAYLOAD_REGEX.test(key)) return true;
+      if (BINARY_SKIP_KEYS.has(key)) continue;
+      if (hasSuspiciousPayloadPattern(entry, depth + 1)) return true;
+    }
+  }
+
+  return false;
+}
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server Stability] Unhandled Promise Rejection:', reason);
+});
 
 async function startServer() {
   const app = express();
+  app.disable('x-powered-by');
   app.set('trust proxy', 1); // Trust first hop (the proxy)
 
   // DEFENSE 1: Hardened HTTP Security Headers
-  app.use((req, res, next) => {
+  app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    // Content-Security-Policy (Allowing PWA Service Worker, Manifest, Supabase, Firebase, Google Play / AdMob, and Fonts)
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; manifest-src 'self'; worker-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebaseio.com https://*.googleapis.com https://*.googlesyndication.com https://*.google.com https://*.ai.studio; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.firebaseio.com https://*.googleapis.com https://*.googlesyndication.com https://*.run.app https://*.ai.studio https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://*.google.com https://*.googlesyndication.com https://*.ai.studio; frame-ancestors 'self' https://*.google.com https://*.run.app https://*.ai.studio;"
+      "default-src 'self'; manifest-src 'self'; worker-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googlesyndication.com https://*.google.com https://*.ai.studio; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.googlesyndication.com https://*.run.app https://*.ai.studio https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://*.google.com https://*.googlesyndication.com https://*.ai.studio; frame-ancestors 'self' https://*.google.com https://*.run.app https://*.ai.studio;"
     );
     next();
   });
 
-  // DEFENSE 3: Body parsing limit (Supports cover uploads) + graceful malformed JSON shield
+  // Lightweight async HTTP Gzip/Brotli compression for API JSON & text responses (>= 1 KB)
+  app.use((req, res, next) => {
+    const acceptEncoding = String(req.headers['accept-encoding'] || '');
+    if (!acceptEncoding || req.method === 'HEAD') {
+      return next();
+    }
+
+    const supportsGzip = /\bgzip\b/i.test(acceptEncoding);
+    const supportsBr = /\bbr\b/i.test(acceptEncoding);
+    if (!supportsGzip && !supportsBr) {
+      return next();
+    }
+
+    const originalJson = res.json.bind(res);
+    res.json = ((body: any) => {
+      if (res.headersSent || res.getHeader('Content-Encoding')) {
+        return originalJson(body);
+      }
+      const serialized = JSON.stringify(body);
+      if (!serialized || Buffer.byteLength(serialized, 'utf8') < 1024) {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.send(serialized);
+      }
+
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Vary', 'Accept-Encoding');
+
+      const rawBuf = Buffer.from(serialized, 'utf8');
+      if (supportsBr) {
+        zlib.brotliCompress(
+          rawBuf,
+          { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } },
+          (err, compressed) => {
+            if (err || res.headersSent) {
+              if (!res.headersSent) res.send(rawBuf);
+              return;
+            }
+            res.setHeader('Content-Encoding', 'br');
+            res.setHeader('Content-Length', String(compressed.length));
+            res.end(compressed);
+          }
+        );
+        return res;
+      }
+
+      zlib.gzip(rawBuf, { level: zlib.constants.Z_BEST_SPEED }, (err, compressed) => {
+        if (err || res.headersSent) {
+          if (!res.headersSent) res.send(rawBuf);
+          return;
+        }
+        res.setHeader('Content-Encoding', 'gzip');
+        res.setHeader('Content-Length', String(compressed.length));
+        res.end(compressed);
+      });
+      return res;
+    }) as typeof res.json;
+
+    next();
+  });
+
+  // Cookie parser for httpOnly refreshToken cookies + JSON body parsing
+  app.use(cookieParser());
   app.use(express.json({ limit: '10mb' }));
   app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err && err.type === 'entity.parse.failed') {
       return res.status(400).json({ error: 'Invalid JSON request payload' });
     }
+    if (err && err.type === 'entity.too.large') {
+      return res.status(413).json({ error: 'Request payload exceeds maximum 10MB limit' });
+    }
     return next(err);
   });
 
-  // Serve public/covers directory statically with caching
+  // Serve public/covers directory statically with strong caching
   const coversStaticPath = path.join(process.cwd(), 'public', 'covers');
   app.use(
     '/covers',
     express.static(coversStaticPath, {
       maxAge: '7d',
       etag: true,
+      immutable: false,
     })
   );
 
   // Rate limiting with IPv6 subnet handling and proxy normalization
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 150, // limit each IP per windowMs
+    max: 200,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => {
@@ -55,13 +164,16 @@ async function startServer() {
   });
   app.use('/api/', limiter);
 
-  // DEFENSE 4: Input Validation Middleware
-  const validateApiPayload = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (req.body && typeof req.body === 'object') {
-      const bodyStr = JSON.stringify(req.body);
-      if (/<script\b|javascript:|UNION\s+SELECT/i.test(bodyStr)) {
-        return res.status(400).json({ error: 'Malicious payload pattern detected by Defense Shield' });
-      }
+  // DEFENSE 4: Zero-Serialization Input Validation Middleware (never blocks event loop on large image uploads)
+  const validateApiPayload = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    if (req.body && typeof req.body === 'object' && hasSuspiciousPayloadPattern(req.body)) {
+      return res
+        .status(400)
+        .json({ error: 'Malicious payload pattern detected by Defense Shield' });
     }
     next();
   };
@@ -77,98 +189,76 @@ async function startServer() {
 
   // Direct download route for signed Google Play Store Android App Bundle (AZ-OVERVERSE-signed.aab)
   const serveSignedAab = async (_req: express.Request, res: express.Response) => {
-    const fs = await import('fs');
-    const aabPath = path.join(process.cwd(), 'AZ-OVERVERSE-signed.aab');
-    if (!fs.existsSync(aabPath)) {
-      return res.status(404).json({ error: 'AZ-OVERVERSE-signed.aab not found on server' });
+    try {
+      const aabPath = path.join(process.cwd(), 'AZ-OVERVERSE-signed.aab');
+      if (!fs.existsSync(aabPath)) {
+        return res.status(404).json({ error: 'AZ-OVERVERSE-signed.aab not found on server' });
+      }
+      const stat = await fs.promises.stat(aabPath);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', 'attachment; filename="AZ-OVERVERSE-signed.aab"');
+      res.setHeader('Content-Length', String(stat.size));
+      res.setHeader('Cache-Control', 'no-store');
+      const stream = fs.createReadStream(aabPath);
+      stream.on('error', (err) => {
+        console.error('Stream error serving AAB:', err);
+        if (!res.headersSent) res.status(500).end();
+      });
+      stream.pipe(res);
+    } catch (err) {
+      console.error('Failed to serve AAB:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to stream Android App Bundle' });
+      }
     }
-    const stat = await fs.promises.stat(aabPath);
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', 'attachment; filename="AZ-OVERVERSE-signed.aab"');
-    res.setHeader('Content-Length', String(stat.size));
-    res.setHeader('Cache-Control', 'no-store');
-    fs.createReadStream(aabPath).pipe(res);
   };
 
   app.get('/AZ-OVERVERSE-signed.aab', serveSignedAab);
   app.get('/api/download-aab', serveSignedAab);
 
-  // Verify Google ID Token from Android CredentialManager (signInToOververseWithToken)
-  const FIREBASE_WEB_CLIENT_ID =
-    process.env.GOOGLE_WEB_CLIENT_ID ||
-    '197009931605-p16sjppjk069g41lt740g920k9cb9m8s.apps.googleusercontent.com';
-
-  app.post('/api/auth/google', async (req, res) => {
-    try {
-      const idToken = typeof req.body?.idToken === 'string' ? req.body.idToken.trim() : '';
-      if (!idToken || idToken.length < 40) {
-        return res.status(400).json({ error: 'Missing or invalid Google ID token' });
-      }
-
-      const verifyRes = await fetch(
-        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
-      );
-      if (!verifyRes.ok) {
-        return res.status(401).json({ error: 'Google ID token verification failed' });
-      }
-
-      const claims = (await verifyRes.json()) as Record<string, unknown>;
-      const aud = String(claims.aud || '');
-      const iss = String(claims.iss || '');
-      if (
-        aud !== FIREBASE_WEB_CLIENT_ID ||
-        (iss !== 'https://accounts.google.com' && iss !== 'accounts.google.com')
-      ) {
-        return res.status(401).json({ error: 'Invalid Google ID token audience or issuer' });
-      }
-
-      return res.json({
-        success: true,
-        verified: true,
-        uid: String(claims.sub || ''),
-        email: String(claims.email || ''),
-        emailVerified: claims.email_verified === true || claims.email_verified === 'true',
-        name: String(claims.name || ''),
-        picture: String(claims.picture || ''),
-      });
-    } catch (err: any) {
-      console.error('[OVERVERSE Auth] Token verification error:', err);
-      return res.status(500).json({ error: 'Failed to verify Google ID token' });
-    }
-  });
+  // AZ OVERVERSE Custom Production Auth System (PostgreSQL + bcrypt 12 + JWT 15m/7d + Resend + Zod)
+  app.use('/api/auth', authRouter);
 
   // Upload Cover Image endpoint (persists in public/covers and returns real https URL)
   app.post("/api/upload-cover", async (req, res) => {
     try {
-      const { fileData, fileName } = req.body;
-      if (!fileData) {
+      const { fileData, fileName } = req.body || {};
+      if (!fileData || typeof fileData !== 'string') {
         return res.status(400).json({ error: "No image data provided" });
       }
 
-      // Strip potential base64 prefix
+      if (fileData.startsWith('data:') && !/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(fileData)) {
+        return res.status(400).json({ error: "Unsupported image format" });
+      }
+
       const base64Data = fileData.replace(/^data:image\/\w+;base64,/, '');
       const buffer = Buffer.from(base64Data, 'base64');
+      if (buffer.length === 0 || buffer.length > MAX_DECODED_COVER_BYTES) {
+        return res.status(413).json({ error: "Cover image must be under 8MB" });
+      }
 
-      const ext = (fileName && path.extname(fileName)) || '.png';
-      const cleanExt = ext.replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() || '.png';
+      const rawExt = (typeof fileName === 'string' && path.extname(fileName).toLowerCase()) || '.png';
+      const cleanExt = ALLOWED_COVER_EXTENSIONS.has(rawExt) ? rawExt : '.png';
       const safeFileName = `cover_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${cleanExt}`;
       const coversDir = path.join(process.cwd(), 'public', 'covers');
-      
-      const fs = await import('fs');
-      if (!fs.existsSync(coversDir)) {
-        fs.mkdirSync(coversDir, { recursive: true });
-      }
-      
+
+      await fs.promises.mkdir(coversDir, { recursive: true });
+
       const filePath = path.join(coversDir, safeFileName);
       await fs.promises.writeFile(filePath, buffer);
 
-      // Return a real absolute HTTPS URL
       const host = req.get('host') || 'localhost:3000';
       const forwardedProto = req.headers['x-forwarded-proto'];
-      const protocol = (typeof forwardedProto === 'string' ? forwardedProto.split(',')[0].trim() : req.protocol) || 'https';
-      
+      const protocol =
+        (typeof forwardedProto === 'string' ? forwardedProto.split(',')[0].trim() : req.protocol) ||
+        'https';
+
       let appUrl = (process.env.APP_URL || `${protocol}://${host}`).replace(/\/$/, '');
-      if (appUrl.startsWith('http://') && !appUrl.includes('localhost') && !appUrl.includes('127.0.0.1')) {
+      if (
+        appUrl.startsWith('http://') &&
+        !appUrl.includes('localhost') &&
+        !appUrl.includes('127.0.0.1')
+      ) {
         appUrl = appUrl.replace(/^http:\/\//, 'https://');
       } else if (!appUrl.startsWith('http://') && !appUrl.startsWith('https://')) {
         appUrl = `https://${appUrl}`;
@@ -220,9 +310,24 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  // Global Express error boundary so uncaught route errors never hang connections
+  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('[Server Error Boundary]:', err);
+    if (!res.headersSent) {
+      res.status(err?.status || 500).json({
+        error: 'Internal server error',
+      });
+    }
+  });
+
+  const httpServer = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  // Tune HTTP keep-alive above reverse-proxy idle timeout (60s) to prevent reset races
+  httpServer.keepAliveTimeout = 65000;
+  httpServer.headersTimeout = 66000;
 }
 
 startServer();
+

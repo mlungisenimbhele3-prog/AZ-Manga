@@ -49,7 +49,7 @@
     <meta name="twitter:image" content="/assets/aistudio/IMG-20261030-WA4361_fe49230b.jpg" />
 
     <!-- Mobile & PWA Theme -->
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#0a0d14" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -63,9 +63,25 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png?v=8" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=8" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Bebas+Neue&family=Comic+Neue:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Bebas+Neue&family=Comic+Neue:ital,wght@0,400;0,700;1,400&display=swap"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Bebas+Neue&family=Comic+Neue:ital,wght@0,400;0,700;1,400&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Bebas+Neue&family=Comic+Neue:ital,wght@0,400;0,700;1,400&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
 
     <!-- Structured Data (JSON-LD) -->
     <script type="application/ld+json">
@@ -121,7 +137,7 @@
     }
     </script>
   </head>
-  <body class="bg-[#0f172a] text-slate-100 antialiased selection:bg-amber-500 selection:text-black">
+  <body class="bg-[#0a0d14] text-slate-100 antialiased selection:bg-amber-500 selection:text-black">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

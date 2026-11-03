@@ -42,9 +42,9 @@ const NOOP = () => {};
 const ReaderPageComponent: React.FC<ReaderPageProps> = (props) => {
   return (
     <div id="reader-hub-page" className="w-full animate-fadeIn">
-      {/* ResponsiveLayout delegates between MobileHome and DesktopHome at 800px */}
+      {/* ResponsiveLayout lazily instantiates ONLY MobileHome or DesktopHome at 800px */}
       <ResponsiveLayout
-        mobileView={
+        renderMobile={() => (
           <MobileHome
             mangaList={props.mangaList}
             filteredManga={props.filteredManga}
@@ -69,8 +69,8 @@ const ReaderPageComponent: React.FC<ReaderPageProps> = (props) => {
             userTasteProfile={props.userTasteProfile}
             onNavigateToCanvas={props.onNavigateToCanvas}
           />
-        }
-        desktopView={
+        )}
+        renderDesktop={() => (
           <DesktopHome
             mangaList={props.mangaList}
             filteredManga={props.filteredManga}
@@ -102,10 +102,11 @@ const ReaderPageComponent: React.FC<ReaderPageProps> = (props) => {
             userTasteProfile={props.userTasteProfile}
             isAdmin={props.isAdmin}
           />
-        }
+        )}
       />
     </div>
   );
 };
 
 export const ReaderPage = React.memo(ReaderPageComponent);
+

@@ -1,11 +1,12 @@
-import React, { useMemo } from 'react';
-import { motion } from 'motion/react';
+import React, { useCallback, useMemo } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import { Manga } from '../../types';
 import { MangaCard } from '../manga/MangaCard';
 import { MangaGrid } from '../manga/MangaGrid';
 import { GenreFilterBar, getGenreDefinition } from '../manga/GenreFilterBar';
 import { RecommendationsTray } from '../recommendations/RecommendationsTray';
 import { UserTasteProfile } from '../../services/recommendationEngine';
+import { isLowEndOrReducedMotion } from '../../utils/devicePerformance';
 import {
   Search,
   X,
@@ -61,7 +62,25 @@ const MobileHomeComponent: React.FC<MobileHomeProps> = ({
   userTasteProfile,
   onNavigateToCanvas,
 }) => {
+  const osReducedMotion = useReducedMotion();
+  const skipMotionOverhead = Boolean(osReducedMotion) || isLowEndOrReducedMotion();
+  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
   const isDefaultView = selectedFilter === 'all' && !searchQuery;
+
+  const handleCardToggleFavorite = useCallback(
+    (_e: React.MouseEvent, id: string) => {
+      onToggleFavorite(id);
+    },
+    [onToggleFavorite]
+  );
+
+  const handleCardOpenAiReport = useCallback(
+    (_e: React.MouseEvent, m: Manga) => {
+      onOpenAiReport?.(m);
+    },
+    [onOpenAiReport]
+  );
+
   const { originalSeries, canvasSeries } = useMemo(() => {
     const originals: Manga[] = [];
     const canvas: Manga[] = [];
@@ -204,6 +223,21 @@ const MobileHomeComponent: React.FC<MobileHomeProps> = ({
                   <span>Publish First Original</span>
                 </button>
               </div>
+            ) : skipMotionOverhead ? (
+              <div className="flex items-stretch gap-3 overflow-x-auto pb-2 scrollbar-none overscroll-x-contain smooth-scroll-container">
+                {originalSeries.map((manga, idx) => (
+                  <div key={`mobile-orig-${manga.id}-${idx}`} className="w-40 shrink-0">
+                    <MangaCard
+                      manga={manga}
+                      priority={idx < 2}
+                      isFavorite={favoriteSet.has(manga.id)}
+                      onToggleFavorite={handleCardToggleFavorite}
+                      onSelect={onSelectDetailManga}
+                      onOpenAiReport={handleCardOpenAiReport}
+                    />
+                  </div>
+                ))}
+              </div>
             ) : (
               <motion.div
                 key={`mobile-orig-track-${selectedFilter}-${searchQuery}`}
@@ -213,7 +247,7 @@ const MobileHomeComponent: React.FC<MobileHomeProps> = ({
                   hidden: { opacity: 0 },
                   visible: {
                     opacity: 1,
-                    transition: { staggerChildren: 0.05, delayChildren: 0.02 },
+                    transition: { staggerChildren: 0.04, delayChildren: 0.01 },
                   },
                 }}
                 className="flex items-stretch gap-3 overflow-x-auto pb-2 scrollbar-none overscroll-x-contain smooth-scroll-container"
@@ -222,22 +256,23 @@ const MobileHomeComponent: React.FC<MobileHomeProps> = ({
                   <motion.div
                     key={`mobile-orig-${manga.id}-${idx}`}
                     variants={{
-                      hidden: { opacity: 0, y: 16, scale: 0.96 },
+                      hidden: { opacity: 0, y: 12, scale: 0.98 },
                       visible: {
                         opacity: 1,
                         y: 0,
                         scale: 1,
-                        transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+                        transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
                       },
                     }}
                     className="w-40 shrink-0"
                   >
                     <MangaCard
                       manga={manga}
-                      isFavorite={favoriteIds.includes(manga.id)}
-                      onToggleFavorite={(_e, id) => onToggleFavorite(id)}
+                      priority={idx < 2}
+                      isFavorite={favoriteSet.has(manga.id)}
+                      onToggleFavorite={handleCardToggleFavorite}
                       onSelect={onSelectDetailManga}
-                      onOpenAiReport={(_e, m) => onOpenAiReport?.(m)}
+                      onOpenAiReport={handleCardOpenAiReport}
                     />
                   </motion.div>
                 ))}

@@ -1,4 +1,13 @@
-import React, { useState, useMemo, useCallback, useDeferredValue, useRef, Suspense, lazy } from 'react';
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useDeferredValue,
+  useRef,
+  Suspense,
+  lazy,
+  startTransition,
+} from 'react';
 import {
   Manga,
   Chapter,
@@ -34,6 +43,10 @@ import {
   getCreatorAuthState,
   subscribeToCreatorAuth,
   signOutCreatorAccount,
+  saveCreatorFormDraft,
+  getCreatorFormDraft,
+  DEFAULT_CREATOR_PEN_NAME,
+  DEFAULT_CREATOR_STUDIO_NAME,
 } from './services/userProfile';
 import { syncOfflineProgressWithServer } from './services/offlineCache';
 import { ResumeReadingBanner, LastReadProgress } from './components/common/ResumeReadingBanner';
@@ -45,6 +58,8 @@ import {
   applyPerformanceClasses,
   subscribeToPerformanceTier,
   isLowEndOrReducedMotion,
+  scheduleIdleTask,
+  prewarmHighEndAppChunks,
   DeviceTier,
 } from './utils/devicePerformance';
 import { safeStorage } from './utils/safeStorage';
@@ -76,6 +91,7 @@ import {
   enrichMangaListWithRatings,
   useRatingRevision,
 } from './services/ratingService';
+import { sanitizePlainCommentText } from './services/chapterCommentService';
 import { initWebViewer } from './utils/webViewerConfig';
 import {
   Sparkles,
@@ -126,6 +142,12 @@ const ChatsPage = lazy(() =>
 const WalletPage = lazy(() =>
   import('./components/wallet/WalletPage').then((m) => ({ default: m.WalletPage }))
 );
+const RegisterPage = lazy(() => import('./app/(auth)/register/page'));
+const LoginPage = lazy(() => import('./app/(auth)/login/page'));
+const VerifyEmailPage = lazy(() => import('./app/(auth)/verify/page'));
+const ForgotPasswordPage = lazy(() => import('./app/(auth)/forgot/page'));
+const ResetPasswordPage = lazy(() => import('./app/(auth)/reset/page'));
+const CreatorDashboardPage = lazy(() => import('./app/(auth)/dashboard/page'));
 
 // Lazy-loaded Modals (mounted on demand only when opened)
 const MangaDetailModal = lazy(() =>
@@ -228,34 +250,36 @@ const RouteLoadingFallback: React.FC = () => (
   </div>
 );
 
-// Clear legacy manga cache keys as strictly instructed by User
-try {
-  localStorage.removeItem('mangaList');
-  localStorage.removeItem('ka_plus_manga');
-  localStorage.removeItem('ka_africa_manga_list');
-  localStorage.removeItem('ka_pulse_supabase_mangas_cache');
-  localStorage.removeItem('ka_pulse_creator_coin_payouts_zar');
-  localStorage.removeItem('ka_pulse_coin_unlocks');
-  if (localStorage.getItem('az_oververse_app_metrics_reset_v1') !== 'true') {
-    localStorage.removeItem('ka_moty_voted_grand-prix');
-    localStorage.removeItem('ka_moty_voted_manga_id');
-    localStorage.removeItem('ka_all_comments');
-    localStorage.setItem('az_oververse_app_metrics_reset_v1', 'true');
-  }
-  const cachedStr = localStorage.getItem('az_oververse_mangas_cache');
-  if (
-    cachedStr &&
-    (!cachedStr.includes('nkosi-the-tale-of-myths') ||
-      !cachedStr.includes(NKOSI_COVER_SRC) ||
-      !cachedStr.includes('Afro-Fantasy') ||
-      !cachedStr.includes('Kasi-Punk') ||
-      !cachedStr.includes('Ancestral Horror') ||
-      !cachedStr.includes('862516203_2025904894785875') ||
-      !cachedStr.includes('858773050_1090471570458562'))
-  ) {
-    localStorage.removeItem('az_oververse_mangas_cache');
-  }
-} catch (e) {}
+// Defer legacy manga cache cleanup off the synchronous module-parse critical path
+scheduleIdleTask(() => {
+  try {
+    safeStorage.removeItem('mangaList');
+    safeStorage.removeItem('ka_plus_manga');
+    safeStorage.removeItem('ka_africa_manga_list');
+    safeStorage.removeItem('ka_pulse_supabase_mangas_cache');
+    safeStorage.removeItem('ka_pulse_creator_coin_payouts_zar');
+    safeStorage.removeItem('ka_pulse_coin_unlocks');
+    if (safeStorage.getItem('az_oververse_app_metrics_reset_v1') !== 'true') {
+      safeStorage.removeItem('ka_moty_voted_grand-prix');
+      safeStorage.removeItem('ka_moty_voted_manga_id');
+      safeStorage.removeItem('ka_all_comments');
+      safeStorage.setItemDeferred('az_oververse_app_metrics_reset_v1', 'true');
+    }
+    const cachedStr = safeStorage.getItem('az_oververse_mangas_cache');
+    if (
+      cachedStr &&
+      (!cachedStr.includes('nkosi-the-tale-of-myths') ||
+        !cachedStr.includes(NKOSI_COVER_SRC) ||
+        !cachedStr.includes('Afro-Fantasy') ||
+        !cachedStr.includes('Kasi-Punk') ||
+        !cachedStr.includes('Ancestral Horror') ||
+        !cachedStr.includes('862516203_2025904894785875') ||
+        !cachedStr.includes('858773050_1090471570458562'))
+    ) {
+      safeStorage.removeItem('az_oververse_mangas_cache');
+    }
+  } catch {}
+}, 1500);
 
 const DEFAULT_ADMOB_REWARDED_AD: AdData = {
   id: 'admob-rewarded-default',
@@ -288,9 +312,9 @@ export default function App() {
   const ADMIN_EMAILS = ["mlungisenimbhele3@gmail.com"];
   const ADMIN_EMAIL = ADMIN_EMAILS[0];
   const [currentUserEmail, setCurrentUserEmail] = useState<string>(() => {
-    const cached = localStorage.getItem('ka_africa_user_email');
+    const cached = safeStorage.getItem('ka_africa_user_email');
     if (!cached || cached === 'azoververse@gmail.com') {
-      localStorage.setItem('ka_africa_user_email', ADMIN_EMAIL);
+      safeStorage.setItemDeferred('ka_africa_user_email', ADMIN_EMAIL);
       return ADMIN_EMAIL;
     }
     return cached;
@@ -300,9 +324,7 @@ export default function App() {
 
   const handleSwitchUserEmail = useCallback((email: string) => {
     setCurrentUserEmail(email);
-    try {
-      localStorage.setItem('ka_africa_user_email', email);
-    } catch {}
+    safeStorage.setItemDeferred('ka_africa_user_email', email);
   }, []);
 
   const [creatorAuthState, setCreatorAuthState] = useState<CreatorAuthState>(() =>
@@ -312,11 +334,9 @@ export default function App() {
   React.useEffect(() => {
     const unsubscribe = subscribeToCreatorAuth((nextState) => {
       setCreatorAuthState(nextState);
-      if (nextState.firebaseUser?.email) {
-        setCurrentUserEmail(nextState.firebaseUser.email);
-        try {
-          localStorage.setItem('ka_africa_user_email', nextState.firebaseUser.email);
-        } catch {}
+      if (nextState.authUser?.email) {
+        setCurrentUserEmail(nextState.authUser.email);
+        safeStorage.setItemDeferred('ka_africa_user_email', nextState.authUser.email);
       }
     });
     return unsubscribe;
@@ -327,9 +347,20 @@ export default function App() {
 
   const [syncToastMessage, setSyncToastMessage] = useState<string | null>(null);
 
-  // AZ OVERVERSE Splash Screen (shows on initial launch, dismissible)
+  // AZ OVERVERSE Splash Screen (shows on initial launch, auto-skipped on direct auth/verify/reset routes)
   const [showSplash, setShowSplash] = useState<boolean>(() => {
     try {
+      const initialPath = window.location.pathname.replace(/^\//, '').toLowerCase();
+      if (
+        initialPath === 'register' ||
+        initialPath === 'login' ||
+        initialPath === 'verify' ||
+        initialPath === 'forgot' ||
+        initialPath === 'reset' ||
+        initialPath === 'dashboard'
+      ) {
+        return false;
+      }
       return !sessionStorage.getItem('az_splash_dismissed');
     } catch {
       return true;
@@ -352,28 +383,25 @@ export default function App() {
       }
     };
     window.addEventListener('online', handleOnline);
-    if (navigator.onLine) {
-      syncOfflineProgressWithServer().then((count) => {
-        if (count > 0) {
-          setSyncToastMessage(`Automatically synced ${count} offline chapter reads & progress with server.`);
-          setTimeout(() => setSyncToastMessage(null), 6000);
-        }
-      });
-    }
+    const cancelIdleSync = scheduleIdleTask(() => {
+      if (navigator.onLine) {
+        syncOfflineProgressWithServer().then((count) => {
+          if (count > 0) {
+            setSyncToastMessage(`Automatically synced ${count} offline chapter reads & progress with server.`);
+            setTimeout(() => setSyncToastMessage(null), 6000);
+          }
+        });
+      }
+    }, 1800);
     return () => {
+      cancelIdleSync();
       window.removeEventListener('online', handleOnline);
     };
   }, []);
 
   // User subscription state (Starts as Free so user can test ads, with 1-click switcher to VIP)
-  const [userSubscription, setUserSubscription] = useState<UserSubscription>(() => {
-    try {
-      const saved = localStorage.getItem('ka_africa_user_subscription');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    return {
+  const [userSubscription, setUserSubscription] = useState<UserSubscription>(() =>
+    safeStorage.getJSON<UserSubscription>('ka_africa_user_subscription', {
       tier: 'free',
       planName: 'Free Reader (Ad-Supported)',
       price: 'R0.00',
@@ -382,80 +410,79 @@ export default function App() {
       autoRenew: false,
       perks: ['Standard reading', 'Ad-supported', 'Rewarded ad chapter unlocks'],
       unlockedChapters: [],
-    };
-  });
+    })
+  );
 
-  // User personal favorites collection with localStorage persistence
+  // User personal favorites collection with safeStorage read-through memory cache
   const [favoriteIds, setFavoriteIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('ka_africa_favorites');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.error('Failed to parse favorites from localStorage', e);
-    }
-    // Default initial favorites so user immediately sees populated collection
+    const parsed = safeStorage.getJSON<string[] | null>('ka_africa_favorites', null);
+    if (Array.isArray(parsed)) return parsed;
     return ['manga-1', 'manga-3'];
   });
 
   const mangaListRef = useRef<Manga[]>(mangaList);
   mangaListRef.current = mangaList;
 
-  // Supabase Core Relational Data Initialization (Mangas, Chapters, User Libraries)
+  // Supabase Core Relational Data Initialization (deferred off first paint via scheduleIdleTask)
   React.useEffect(() => {
     let isMounted = true;
-    // 1. Fetch core mangas & chapters from Supabase (skip state update if identical to initial list)
-    fetchMangasFromSupabase().then((supaMangas) => {
-      if (!isMounted || !supaMangas || supaMangas.length === 0) return;
-      setMangaList((prev) => {
-        if (
-          prev.length === supaMangas.length &&
-          prev.every(
-            (m, i) =>
-              m.id === supaMangas[i]?.id &&
-              m.coverImage === supaMangas[i]?.coverImage &&
-              m.rating === supaMangas[i]?.rating &&
-              m.views === supaMangas[i]?.views &&
-              m.genres.join('|') === (supaMangas[i]?.genres || []).join('|') &&
-              m.chapters.length === supaMangas[i]?.chapters.length
-          )
-        ) {
-          return prev;
-        }
-        return supaMangas;
-      });
-    });
 
-    // 2. Fetch User Library from Supabase
-    fetchUserLibraryFromSupabase(currentUserEmail).then((libraryRecords) => {
-      if (!isMounted || !libraryRecords || libraryRecords.length === 0) return;
-      const favIds = libraryRecords.filter((r) => r.isFavorite).map((r) => r.mangaId);
-      if (favIds.length > 0) {
-        setFavoriteIds((prev) => {
-          if (prev.length === favIds.length && prev.every((id, i) => id === favIds[i])) {
-            return prev;
-          }
-          return favIds;
+    const cancelBootFetch = scheduleIdleTask(() => {
+      if (!isMounted) return;
+
+      // 1. Fetch core mangas & chapters from Supabase (skip state update if identical to initial list)
+      fetchMangasFromSupabase().then((supaMangas) => {
+        if (!isMounted || !supaMangas || supaMangas.length === 0) return;
+        startTransition(() => {
+          setMangaList((prev) => {
+            if (
+              prev.length === supaMangas.length &&
+              prev.every(
+                (m, i) =>
+                  m.id === supaMangas[i]?.id &&
+                  m.coverImage === supaMangas[i]?.coverImage &&
+                  m.rating === supaMangas[i]?.rating &&
+                  m.views === supaMangas[i]?.views &&
+                  m.genres.join('|') === (supaMangas[i]?.genres || []).join('|') &&
+                  m.chapters.length === supaMangas[i]?.chapters.length
+              )
+            ) {
+              return prev;
+            }
+            return supaMangas;
+          });
         });
-      }
-    });
+      });
 
-    // 3. Initialize Firebase Cloud Messaging (FCM) during browser idle time
-    const startFcm = () => {
+      // 2. Fetch User Library from Supabase
+      fetchUserLibraryFromSupabase(currentUserEmail).then((libraryRecords) => {
+        if (!isMounted || !libraryRecords || libraryRecords.length === 0) return;
+        const favIds = libraryRecords.filter((r) => r.isFavorite).map((r) => r.mangaId);
+        if (favIds.length > 0) {
+          startTransition(() => {
+            setFavoriteIds((prev) => {
+              if (prev.length === favIds.length && prev.every((id, i) => id === favIds[i])) {
+                return prev;
+              }
+              return favIds;
+            });
+          });
+        }
+      });
+    }, 500);
+
+    // 3. Initialize Firebase Cloud Messaging (FCM) during later idle time
+    const cancelFcmIdle = scheduleIdleTask(() => {
+      if (!isMounted) return;
       initFcmMessaging().catch((err) => {
         console.warn('[FCM] Push Notification Service Worker notice:', err);
       });
-    };
-    if ('requestIdleCallback' in window) {
-      (window as any).requestIdleCallback(startFcm, { timeout: 2500 });
-    } else {
-      setTimeout(startFcm, 600);
-    }
+    }, 2500);
 
     return () => {
       isMounted = false;
+      cancelBootFetch();
+      cancelFcmIdle();
     };
   }, [currentUserEmail]);
 
@@ -464,11 +491,7 @@ export default function App() {
       setFavoriteIds((prev) => {
         const isFav = !prev.includes(mangaId);
         const next = isFav ? [...prev, mangaId] : prev.filter((id) => id !== mangaId);
-        try {
-          localStorage.setItem('ka_africa_favorites', JSON.stringify(next));
-        } catch (e) {
-          console.error('Failed to save favorites to localStorage', e);
-        }
+        safeStorage.setJSONDeferred('ka_africa_favorites', next);
 
         const currentCatalog = mangaListRef.current;
 
@@ -500,19 +523,16 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const handleSelectFilter = useCallback((nextFilter: string) => {
+    startTransition(() => {
+      setSelectedFilter(nextFilter);
+    });
+  }, []);
   const [language, setLanguage] = useState<'en' | 'zu' | 'af'>('en');
   const [isOledMode, setIsOledMode] = useState(false);
-  const [allComments, setAllComments] = useState<Comment[]>(() => {
-    try {
-      const stored = localStorage.getItem('ka_all_comments');
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_COMMENTS;
-  });
+  const [allComments, setAllComments] = useState<Comment[]>(() =>
+    safeStorage.getJSON<Comment[]>('ka_all_comments', INITIAL_COMMENTS)
+  );
   const [selectedDetailManga, setSelectedDetailManga] = useState<Manga | null>(null);
   const [dataSaverMode, setDataSaverMode] = useState(false);
 
@@ -520,38 +540,61 @@ export default function App() {
   const [activeReaderManga, setActiveReaderManga] = useState<Manga | null>(null);
   const [activeReaderChapterId, setActiveReaderChapterId] = useState<string>('');
 
-  // Tab & Route Navigation state ([ Readers | Creators | Chats | Wallet | Privacy | Terms | Awards | Backdrop | Settings ])
-  const [activeTab, setActiveTab] = useState<'readers' | 'creators' | 'chats' | 'wallet' | 'privacy' | 'terms' | 'awards' | 'backdrop' | 'canvas' | 'settings'>(() => {
-    const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+  // Tab & Route Navigation state
+  type AppRouteTab =
+    | 'readers'
+    | 'creators'
+    | 'chats'
+    | 'wallet'
+    | 'privacy'
+    | 'terms'
+    | 'awards'
+    | 'backdrop'
+    | 'canvas'
+    | 'settings'
+    | 'register'
+    | 'login'
+    | 'verify'
+    | 'forgot'
+    | 'reset'
+    | 'dashboard';
+
+  const VALID_ROUTE_TABS = new Set<string>([
+    'privacy',
+    'terms',
+    'creators',
+    'chats',
+    'wallet',
+    'awards',
+    'backdrop',
+    'canvas',
+    'settings',
+    'register',
+    'login',
+    'verify',
+    'forgot',
+    'reset',
+    'dashboard',
+  ]);
+
+  const [activeTab, setActiveTab] = useState<AppRouteTab>(() => {
+    const hash = window.location.hash.replace(/^#\/?/, '').split('?')[0].toLowerCase();
     const path = window.location.pathname.replace(/^\//, '').toLowerCase();
     const candidate = hash || path;
-    if (candidate === 'privacy' || candidate === 'terms' || candidate === 'creators' || candidate === 'chats' || candidate === 'wallet' || candidate === 'awards' || candidate === 'backdrop' || candidate === 'canvas' || candidate === 'settings') {
-      return (candidate === 'canvas' ? 'backdrop' : candidate) as any;
+    if (VALID_ROUTE_TABS.has(candidate)) {
+      return (candidate === 'canvas' ? 'backdrop' : candidate) as AppRouteTab;
     }
     return 'readers';
   });
   // Creator Studio access is strictly derived from authenticated Creator Account state
 
   const handleTabChange = useCallback(
-    (
-      tab:
-        | 'readers'
-        | 'creators'
-        | 'chats'
-        | 'wallet'
-        | 'privacy'
-        | 'terms'
-        | 'awards'
-        | 'backdrop'
-        | 'canvas'
-        | 'settings'
-    ) => {
-      let targetTab: any = tab === 'canvas' ? 'backdrop' : tab;
+    (tab: AppRouteTab) => {
+      let targetTab: AppRouteTab = tab === 'canvas' ? 'backdrop' : tab;
       // Security RBAC: Wallet page is only available and visible to the admin
       if (targetTab === 'wallet' && !isAdmin) {
         targetTab = 'readers';
       }
-      setActiveTab(targetTab);
 
       try {
         const newPath = targetTab === 'readers' ? '/' : `/${targetTab}`;
@@ -562,24 +605,65 @@ export default function App() {
 
       setActiveReaderManga(null);
       setSelectedDetailManga(null);
+      startTransition(() => {
+        setActiveTab(targetTab);
+      });
     },
     [isAdmin]
   );
 
+  const handleNavigateAuthRoute = useCallback(
+    (
+      route: 'register' | 'login' | 'verify' | 'forgot' | 'reset' | 'dashboard',
+      querySearch?: string
+    ) => {
+      try {
+        const suffix = querySearch
+          ? querySearch.startsWith('?')
+            ? querySearch
+            : `?${querySearch}`
+          : '';
+        window.history.pushState(null, '', `/${route}${suffix}`);
+      } catch {
+        window.location.hash = route;
+      }
+      setActiveReaderManga(null);
+      setSelectedDetailManga(null);
+      startTransition(() => {
+        setActiveTab(route);
+      });
+    },
+    []
+  );
+
+  // Ensure Creator Account form defaults (Pen Name: Mlungiseni, Studio: Mlungiseni NM Studio) are initialized in idle time
+  const creatorDraftInitRef = useRef(false);
+  React.useEffect(() => {
+    if (creatorDraftInitRef.current) return;
+    creatorDraftInitRef.current = true;
+    return scheduleIdleTask(() => {
+      const draft = getCreatorFormDraft();
+      saveCreatorFormDraft({
+        penName: draft.penName || DEFAULT_CREATOR_PEN_NAME,
+        studioName: draft.studioName || DEFAULT_CREATOR_STUDIO_NAME,
+      });
+    }, 1600);
+  }, []);
+
   // Synchronize route changes on popstate and hashchange events
   React.useEffect(() => {
     const handleUrlSync = () => {
-      const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+      const hash = window.location.hash.replace(/^#\/?/, '').split('?')[0].toLowerCase();
       const path = window.location.pathname.replace(/^\//, '').toLowerCase();
       const candidate = hash || path;
-      let matched = (candidate === 'privacy' || candidate === 'terms' || candidate === 'creators' || candidate === 'chats' || candidate === 'wallet' || candidate === 'awards' || candidate === 'backdrop' || candidate === 'canvas' || candidate === 'settings')
-        ? (candidate === 'canvas' ? 'backdrop' : candidate)
+      let matched: AppRouteTab = VALID_ROUTE_TABS.has(candidate)
+        ? ((candidate === 'canvas' ? 'backdrop' : candidate) as AppRouteTab)
         : 'readers';
       // Gated: Wallet is only accessible to Admin
       if (matched === 'wallet' && !isAdmin) {
         matched = 'readers';
       }
-      setActiveTab(matched as any);
+      setActiveTab(matched);
     };
 
     window.addEventListener('popstate', handleUrlSync);
@@ -680,9 +764,10 @@ export default function App() {
     return saved;
   });
 
-  // Apply device performance classes immediately on mount or tier change, and subscribe to live network/battery shifts
+  // Apply device performance classes immediately on mount or tier change, prewarm chunks on High/Ultra, and subscribe to live network/battery shifts
   React.useEffect(() => {
     applyPerformanceClasses(performanceTier);
+    prewarmHighEndAppChunks(performanceTier);
   }, [performanceTier]);
 
   React.useEffect(() => {
@@ -825,11 +910,7 @@ export default function App() {
         invoices: updatedInvoices,
       };
 
-      try {
-        localStorage.setItem('ka_africa_user_subscription', JSON.stringify(nextSub));
-      } catch (e) {
-        console.error(e);
-      }
+      safeStorage.setJSONDeferred('ka_africa_user_subscription', nextSub);
       return nextSub;
     });
   };
@@ -854,12 +935,16 @@ export default function App() {
         setUserTasteProfile({ ...updatedTaste });
       }
 
-      // If manga has no panels / is coming soon, inform user and open detail modal safely
+      // Allow explicit Chapter 1 Preview launches from MangaDetailModal to open ReaderView's 3-page preview
+      const previewChapterId = buildPreviewChapterId(manga.id, 1);
+      const isPreviewChapterRequest = Boolean(chapterId && chapterId === previewChapterId);
+
+      // If manga has no panels / is coming soon and wasn't explicitly launched via Preview, open detail modal safely
       const hasPanels =
         manga.chapters &&
         manga.chapters.length > 0 &&
         manga.chapters.some((c) => c.pages && c.pages.length > 0);
-      if (!hasPanels) {
+      if (!hasPanels && !isPreviewChapterRequest) {
         setSelectedDetailManga(manga);
         setSyncToastMessage(`"${manga.title}" panels are in production! Coming soon.`);
         setTimeout(() => setSyncToastMessage(null), 4000);
@@ -868,7 +953,7 @@ export default function App() {
 
       setSelectedDetailManga(null);
       setActiveReaderManga(manga);
-      setActiveReaderChapterId(targetChapterId);
+      setActiveReaderChapterId(targetChapterId || previewChapterId);
 
       // Track read stats
       setCreatorStats((prev) => ({
@@ -938,11 +1023,7 @@ export default function App() {
         ...prev,
         unlockedChapters: updatedUnlocked,
       };
-      try {
-        localStorage.setItem('ka_africa_user_subscription', JSON.stringify(nextSub));
-      } catch (e) {
-        console.error(e);
-      }
+      safeStorage.setJSONDeferred('ka_africa_user_subscription', nextSub);
       return nextSub;
     });
 
@@ -1146,31 +1227,58 @@ export default function App() {
     });
   };
 
-  const handleAddComment = (text: string, chapterNumber?: number) => {
+  const handleAddComment = (text: string, chapterNumber?: number, parentComment?: Comment) => {
     if (!selectedDetailManga) return;
-    // Defense 2: Neutralize malicious tags or XSS payloads
-    const cleanText = sanitizeInput(text, 'User Comment');
-    if (!cleanText.trim()) return;
+    // Defense 2: Neutralize malicious tags or XSS payloads without mangling apostrophes
+    const cleanText = sanitizePlainCommentText(text, 500);
+    if (!cleanText) return;
 
-    const authorName = localStorage.getItem('ka_reader_username') || (isAdmin ? 'Mlungiseni Mbhele (Producer)' : 'Reader');
+    const authorName =
+      safeStorage.getItem('ka_reader_username') ||
+      (isAdmin ? 'Mlungiseni Mbhele (Producer)' : 'Reader');
+    const cleanAuthor = sanitizePlainCommentText(authorName, 80) || 'Reader';
+
+    let depth = 0;
+    let parentId: string | null = null;
+    let rootId: string | null = null;
+    let replyToUserName: string | undefined = undefined;
+
+    if (parentComment) {
+      const parentDepth = Math.max(0, Math.min(4, Math.floor(parentComment.depth || 0)));
+      replyToUserName = parentComment.userName;
+      if (parentDepth >= 4 && parentComment.parentId) {
+        depth = 4;
+        parentId = parentComment.parentId;
+        rootId = parentComment.rootId || parentComment.parentId;
+      } else if (parentDepth === 0) {
+        depth = 1;
+        parentId = parentComment.id;
+        rootId = parentComment.id;
+      } else {
+        depth = parentDepth + 1;
+        parentId = parentComment.id;
+        rootId = parentComment.rootId || parentComment.id;
+      }
+    }
+
     const newComment: Comment = {
-      id: `comm-${Date.now()}`,
+      id: `comm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       mangaId: selectedDetailManga.id,
       userId: `user-${Date.now()}`,
-      userName: sanitizeInput(authorName, 'User Name'),
+      userName: cleanAuthor,
       text: cleanText,
       timestamp: new Date().toISOString(),
-      chapterNumber,
+      chapterNumber: chapterNumber ?? parentComment?.chapterNumber,
+      parentId,
+      rootId,
+      depth,
+      replyToUserName,
       userBadge: isVipUser ? 'VIP Reader' : 'Reader',
       likes: 0,
     };
     setAllComments((prev) => {
       const next = [newComment, ...prev];
-      try {
-        localStorage.setItem('ka_all_comments', JSON.stringify(next));
-      } catch (e) {
-        console.error(e);
-      }
+      safeStorage.setJSONDeferred('ka_all_comments', next);
       return next;
     });
   };
@@ -1178,11 +1286,7 @@ export default function App() {
   const handleLikeComment = (commentId: string) => {
     setAllComments((prev) => {
       const next = prev.map((c) => (c.id === commentId ? { ...c, likes: (c.likes || 0) + 1 } : c));
-      try {
-        localStorage.setItem('ka_all_comments', JSON.stringify(next));
-      } catch (e) {
-        console.error(e);
-      }
+      safeStorage.setJSONDeferred('ka_all_comments', next);
       return next;
     });
   };
@@ -1289,12 +1393,14 @@ export default function App() {
 
   const handleRunCatalogAiScan = useCallback(() => {
     setIsScanningCatalogAi(true);
-    setTimeout(() => {
+    scheduleIdleTask(() => {
       const { updatedList, newlyBannedCount, aiLabeledCount } = scanMangaList(
         mangaListRef.current,
         true
       );
-      setMangaList(updatedList);
+      startTransition(() => {
+        setMangaList(updatedList);
+      });
       setIsScanningCatalogAi(false);
       setAiScanToastMessage(
         `🤖 Deep Neural AI Scan Completed: Analyzed catalog. ${aiLabeledCount} titles labeled with AI stickers, ${newlyBannedCount} quarantined under auto-ban policy.`
@@ -1320,7 +1426,9 @@ export default function App() {
   const handleOpenStoreModal = useCallback(() => setIsStoreModalOpen(true), []);
   const handleOpenTasteProfileModal = useCallback(() => setIsRecommendationModalOpen(true), []);
   const handleClearSearch = useCallback(() => {
-    setSelectedFilter('all');
+    startTransition(() => {
+      setSelectedFilter('all');
+    });
     setSearchQuery('');
   }, []);
   const handleNavigateToAwards = useCallback(() => handleTabChange('awards'), [handleTabChange]);
@@ -1497,7 +1605,7 @@ export default function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         selectedFilter={selectedFilter}
-        onSelectFilter={setSelectedFilter}
+        onSelectFilter={handleSelectFilter}
         favoritesCount={favoriteIds.length}
         dataSaverMode={dataSaverMode}
         onToggleDataSaver={handleToggleDataSaver}
@@ -1635,6 +1743,62 @@ export default function App() {
             }}
             className="w-full gpu-layer"
           >
+            {/* Route: /register */}
+            {activeTab === 'register' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <RegisterPage
+                  onNavigateAuthRoute={handleNavigateAuthRoute}
+                  onBackToHome={() => handleTabChange('readers')}
+                />
+              </Suspense>
+            )}
+            {/* Route: /login */}
+            {activeTab === 'login' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <LoginPage
+                  onNavigateAuthRoute={handleNavigateAuthRoute}
+                  onBackToHome={() => handleTabChange('readers')}
+                />
+              </Suspense>
+            )}
+            {/* Route: /verify?token=xxx */}
+            {activeTab === 'verify' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <VerifyEmailPage
+                  onNavigateAuthRoute={handleNavigateAuthRoute}
+                  onBackToHome={() => handleTabChange('readers')}
+                />
+              </Suspense>
+            )}
+            {/* Route: /forgot */}
+            {activeTab === 'forgot' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <ForgotPasswordPage
+                  onNavigateAuthRoute={handleNavigateAuthRoute}
+                  onBackToHome={() => handleTabChange('readers')}
+                />
+              </Suspense>
+            )}
+            {/* Route: /reset?token=xxx */}
+            {activeTab === 'reset' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <ResetPasswordPage
+                  onNavigateAuthRoute={handleNavigateAuthRoute}
+                  onBackToHome={() => handleTabChange('readers')}
+                />
+              </Suspense>
+            )}
+            {/* Route: /dashboard (Protected JWT Creator & Reader Dashboard) */}
+            {activeTab === 'dashboard' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <CreatorDashboardPage
+                  onNavigateAuthRoute={handleNavigateAuthRoute}
+                  onOpenPublishingStudio={() => handleTabChange('creators')}
+                  onOpenUploadModal={() => handleOpenPublishStudio()}
+                  onBackToCatalog={() => handleTabChange('readers')}
+                />
+              </Suspense>
+            )}
             {/* Route: /privacy */}
             {activeTab === 'privacy' && (
               <Suspense fallback={<RouteLoadingFallback />}>
@@ -1694,7 +1858,7 @@ export default function App() {
                   onStartReading={handleStartReading}
                   onSelectDetailManga={handleSelectDetailManga}
                   selectedFilter={selectedFilter}
-                  onSelectFilter={setSelectedFilter}
+                  onSelectFilter={handleSelectFilter}
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
                   onClearSearch={handleClearSearch}
@@ -1757,6 +1921,7 @@ export default function App() {
                     <CreatorAccountGate
                       authState={creatorAuthState}
                       onBackToReader={() => handleTabChange('readers')}
+                      onNavigateAuthRoute={handleNavigateAuthRoute}
                     />
                   ) : (
                     <>
@@ -1783,12 +1948,20 @@ export default function App() {
                               </span>
                             </div>
                             <p className="text-xs text-slate-400 truncate mt-0.5">
-                              Creator Account · {creatorAuthState.profile.email}
+                              Creator Account · {creatorAuthState.profile.phone || creatorAuthState.profile.email}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleTabChange('dashboard')}
+                            className="min-h-[44px] inline-flex items-center gap-2 rounded-xl border border-[#00DC64]/40 bg-[#00DC64]/10 hover:bg-[#00DC64]/20 text-[#00DC64] font-bold text-xs px-4 py-2 transition"
+                          >
+                            <span>Creator Dashboard</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => handleOpenPublishStudio()}

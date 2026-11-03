@@ -252,6 +252,10 @@ export default defineConfig(() => {
     build: {
       target: 'es2020',
       cssCodeSplit: true,
+      cssMinify: true,
+      modulePreload: {
+        polyfill: false,
+      },
       chunkSizeWarningLimit: 900,
       rollupOptions: {
         output: {
@@ -271,6 +275,9 @@ export default defineConfig(() => {
             }
             if (id.includes('@supabase')) {
               return 'vendor-supabase';
+            }
+            if (id.includes('qrcode') || id.includes('zod')) {
+              return 'vendor-auth-utils';
             }
             if (id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler')) {
               return 'vendor-react';

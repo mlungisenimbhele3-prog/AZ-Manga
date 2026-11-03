@@ -10,6 +10,7 @@ import {
   Play,
   Sparkles,
   RefreshCw,
+  MessageSquare,
 } from 'lucide-react';
 import { Chapter, Manga, UserSubscription } from '../../types';
 import {
@@ -20,6 +21,7 @@ import {
   markPageLoadedExternally,
   subscribeToPageLoadState,
   retryPreloadMangaImage,
+  trimInactiveReaderBitmaps,
   DEFAULT_READER_CONFIG,
 } from './ReaderConfig';
 import { AdMobBanner } from '../ads/AdMobBanner';
@@ -37,6 +39,8 @@ import {
   submitUserRating,
   useRatingRevision,
 } from '../../services/ratingService';
+import { useChapterComments } from '../../services/chapterCommentService';
+import { ChapterCommentsPanel } from './ChapterCommentsPanel';
 
 export interface ReaderViewProps {
   manga: Manga;
@@ -238,8 +242,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [showOverlay, setShowOverlay] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isCommentsOpen, setIsCommentsOpen] = useState<boolean>(false);
 
-  // Compositor & scroll measurement refs (zero synchronous layout reads during scroll frames)
+  // Compositor & scroll measurement refs (zero synchronous layout reads or hidden-overlay React re-renders during scroll)
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const touchStartTimeRef = useRef<number>(0);
@@ -249,8 +254,15 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const pageImageRefs = useRef<Record<number, HTMLImageElement | null>>({});
   const pageMidpointsRef = useRef<number[]>([]);
   const maxScrollCachedRef = useRef<number>(0);
+  const scrollProgressRef = useRef<number>(0);
+  const showOverlayRef = useRef<boolean>(false);
+  showOverlayRef.current = showOverlay;
   const scrollRafRef = useRef<number | null>(null);
   const measureRafRef = useRef<number | null>(null);
+  const activeAheadWindow = useMemo(
+    () => Math.max(3, Math.min(6, getProfileConfig().imagePreloadCount)),
+    []
+  );
 
   const currentChapterIndex = useMemo(
     () => (manga?.chapters ? manga.chapters.findIndex((c) => c.id === chapter?.id) : -1),
@@ -277,6 +289,21 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     () => getChapterRatingStats(chapter?.id || `${manga?.id}-ch-1`),
     [chapter?.id, manga?.id, ratingRevision]
   );
+
+  const readerUserBadge = useMemo(() => {
+    if (userSubscription?.tier === 'patron') return 'Patron';
+    if (userSubscription?.tier === 'vip' || userSubscription?.tier === 'early_access') {
+      return 'VIP Reader';
+    }
+    return undefined;
+  }, [userSubscription?.tier]);
+
+  const { totalCount: chapterCommentCount } = useChapterComments({
+    mangaId: manga?.id || 'manga',
+    chapterId: chapter?.id || `${manga?.id || 'manga'}-ch-1`,
+    chapterNumber: chapter?.number || 1,
+    userBadge: readerUserBadge,
+  });
 
   const volumeRatingStats = useMemo(() => {
     const volChIds = (manga?.chapters || [])
@@ -378,12 +405,15 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       if (maxScrollCachedRef.current > 0) {
         const pct = Math.min(
           100,
-          Math.max(0, (container.scrollTop / maxScrollCachedRef.current) * 100)
+          Math.max(0, Math.round((container.scrollTop / maxScrollCachedRef.current) * 100))
         );
+        scrollProgressRef.current = pct;
         if (progressBarFillRef.current) {
           progressBarFillRef.current.style.transform = `scaleX(${pct / 100})`;
         }
-        setScrollProgress((prev) => (Math.abs(prev - pct) >= 1 ? pct : prev));
+        if (showOverlayRef.current) {
+          setScrollProgress((prev) => (prev === pct ? prev : pct));
+        }
       }
     });
   }, [totalPages]);
@@ -408,22 +438,61 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     setCurrentPageIndex((prev) => Math.max(prev - 1, 0));
   }, []);
 
-  // Keyboard navigation for power readers / desktop (LTR)
+  const handleJumpToPage = useCallback(
+    (targetPageIdx: number) => {
+      const clamped = Math.max(0, Math.min(Math.max(0, totalPages - 1), targetPageIdx));
+      setCurrentPageIndex(clamped);
+      setIsCommentsOpen(false);
+      if (readingMode === 'vertical' && pageImageRefs.current[clamped]) {
+        pageImageRefs.current[clamped]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    },
+    [totalPages, readingMode]
+  );
+
+  // Keyboard navigation for power readers / desktop (LTR) — ignores keystrokes inside comment/reply inputs
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isEditableTarget = Boolean(
+        target &&
+          (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.tagName === 'SELECT' ||
+            target.isContentEditable)
+      );
+
       if (e.key === 'Escape') {
+        if (isCommentsOpen) {
+          e.preventDefault();
+          setIsCommentsOpen(false);
+          return;
+        }
+        if (isEditableTarget) {
+          target?.blur();
+          return;
+        }
         onBack();
-      } else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') {
+        return;
+      }
+
+      if (isEditableTarget || isCommentsOpen) {
+        return;
+      }
+
+      if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') {
         if (readingMode === 'horizontal_ltr') goToNextPage();
       } else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') {
         if (readingMode === 'horizontal_ltr') goToPrevPage();
+      } else if (e.key.toLowerCase() === 'c') {
+        setIsCommentsOpen(true);
       } else if (e.key === ' ' || e.key === 'Enter') {
         setShowOverlay((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goToNextPage, goToPrevPage, readingMode, onBack]);
+  }, [goToNextPage, goToPrevPage, readingMode, onBack, isCommentsOpen]);
 
   const handleScreenClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -510,12 +579,18 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           progressBarFillRef.current.style.transform = `scaleX(${ratio})`;
         }
         const pct = Math.round(ratio * 100);
-        setScrollProgress((prev) => (prev === pct ? prev : pct));
+        scrollProgressRef.current = pct;
+        if (showOverlayRef.current) {
+          setScrollProgress((prev) => (prev === pct ? prev : pct));
+        }
       } else {
+        scrollProgressRef.current = 0;
         if (progressBarFillRef.current) {
           progressBarFillRef.current.style.transform = 'scaleX(0)';
         }
-        setScrollProgress((prev) => (prev === 0 ? prev : 0));
+        if (showOverlayRef.current) {
+          setScrollProgress((prev) => (prev === 0 ? prev : 0));
+        }
       }
 
       const bottoms = pageMidpointsRef.current;
@@ -539,6 +614,13 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     });
   }, []);
 
+  // Sync latest scroll percentage immediately whenever user opens the HUD overlay
+  useEffect(() => {
+    if (showOverlay && readingMode === 'vertical') {
+      setScrollProgress(scrollProgressRef.current);
+    }
+  }, [showOverlay, readingMode]);
+
   useEffect(() => {
     return () => {
       if (scrollRafRef.current !== null) {
@@ -547,6 +629,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       if (measureRafRef.current !== null) {
         window.cancelAnimationFrame(measureRafRef.current);
       }
+      trimInactiveReaderBitmaps(false);
     };
   }, []);
 
@@ -577,6 +660,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     maxScrollCachedRef.current = 0;
     setCurrentPageIndex(0);
     setScrollProgress(0);
+    setIsCommentsOpen(false);
     if (verticalContainerRef.current) {
       verticalContainerRef.current.scrollTop = 0;
     }
@@ -621,7 +705,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     if (!manga || !chapter || !hasPages) return;
     const timer = window.setTimeout(() => {
       const cover = manga.coverImage || (manga as any).cover || '';
-      safeStorage.setJSON('ka_pulse_last_read', {
+      safeStorage.setJSONDeferred('ka_pulse_last_read', {
         mangaId: manga.id,
         mangaTitle: manga.title,
         coverImage: cover,
@@ -780,6 +864,19 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           </div>
 
           <button
+            id="reader-open-comments-btn"
+            type="button"
+            onClick={() => setIsCommentsOpen(true)}
+            className="min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition text-slate-100 whitespace-nowrap shrink-0"
+            title="Open Chapter Comments & Replies"
+            aria-label={`Open chapter comments (${chapterCommentCount})`}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="hidden md:inline">Comments</span>
+            <span className="font-mono tabular-nums text-amber-300">{chapterCommentCount}</span>
+          </button>
+
+          <button
             type="button"
             onClick={() =>
               handleToggleReadingMode(readingMode === 'vertical' ? 'horizontal_ltr' : 'vertical')
@@ -819,9 +916,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           className="w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar flex flex-col items-center bg-black m-0 p-0 overscroll-y-contain smooth-scroll-container"
         >
           {pages.map((p, idx) => {
-            // Eagerly keep current page, previous page, and the next 3 preloaded pages active
+            // Scale active decode window dynamically with device tier (3 on Lite/Balanced, 4-6 on High/Ultra)
             const isWithinActiveWindow =
-              idx <= 3 || (idx >= currentPageIndex - 1 && idx <= currentPageIndex + 3);
+              idx <= activeAheadWindow ||
+              (idx >= currentPageIndex - 1 && idx <= currentPageIndex + activeAheadWindow);
             return (
               <React.Fragment key={`row-${p.id || idx}-${idx}`}>
                 <ReaderPageSurface
@@ -843,10 +941,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             );
           })}
 
-          {/* End of Chapter Unlock & Next Chapter Section */}
+          {/* End of Chapter Unlock, Next Chapter & Threaded Reader Discussion Section */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl mx-auto px-4 pt-12 pb-28 text-center bg-black space-y-4"
+            className="w-full max-w-2xl mx-auto px-4 pt-12 pb-32 text-center bg-black space-y-6"
           >
             <div className="rounded-2xl border border-slate-800 bg-slate-950/90 p-6 space-y-5">
               {/* Chapter & Volume 1–5 Star Rating Card */}
@@ -951,6 +1049,20 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Inline Threaded Chapter Comments & Direct Reader Replies */}
+            <ChapterCommentsPanel
+              mangaId={manga.id}
+              mangaTitle={manga.title}
+              chapterId={chapter.id}
+              chapterNumber={chapter.number || 1}
+              chapterTitle={chapter.title}
+              currentPageNumber={currentPageIndex + 1}
+              totalPages={totalPages}
+              userBadge={readerUserBadge}
+              variant="inline"
+              onJumpToPage={handleJumpToPage}
+            />
           </div>
         </div>
       ) : (
@@ -963,9 +1075,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             className="w-full h-full flex flex-row will-change-transform transition-transform duration-200 ease-out"
           >
             {pages.map((p, idx) => {
-              // Mount previous page, current page, and the next 3 preloaded pages in GPU layer
-              // so swiping forward up to 3 pages on slow networks has 0ms decode delay
-              const isMountedSlide = idx >= currentPageIndex - 1 && idx <= currentPageIndex + 3;
+              // Mount previous page, current page, and tier-scaled preloaded pages in GPU layer
+              const isMountedSlide =
+                idx >= currentPageIndex - 1 && idx <= currentPageIndex + activeAheadWindow;
               return (
                 <div
                   key={`ltr-slide-${p.id || idx}-${idx}`}
@@ -1037,16 +1149,30 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 />
               </div>
 
-              {!isTargetUnlocked && onRequestRewardedAd && (
+              <div className="flex flex-wrap items-center justify-center gap-2.5 w-full">
                 <button
                   type="button"
-                  onClick={handleWatchAdUnlockNext}
-                  className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold px-5 py-3 text-sm shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
+                  onClick={() => setIsCommentsOpen(true)}
+                  className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-black/85 hover:bg-slate-900 backdrop-blur-md text-white font-semibold px-4 py-3 text-xs shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
                 >
-                  <Play className="w-4 h-4 fill-black shrink-0" />
-                  <span>Watch ad to unlock next chapter</span>
+                  <MessageSquare className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Chapter Discussion</span>
+                  <span className="font-mono tabular-nums text-amber-300">
+                    ({chapterCommentCount})
+                  </span>
                 </button>
-              )}
+
+                {!isTargetUnlocked && onRequestRewardedAd && (
+                  <button
+                    type="button"
+                    onClick={handleWatchAdUnlockNext}
+                    className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold px-5 py-3 text-sm shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
+                  >
+                    <Play className="w-4 h-4 fill-black shrink-0" />
+                    <span>Watch ad to unlock next chapter</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1133,18 +1259,74 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </button>
           </div>
 
-          <StarRatingInput
-            idPrefix={`reader-bottom-ch-${chapter.id}`}
-            label={`Ch. ${chapter.number}:`}
-            value={chapterRatingStats.userScore}
-            averageRating={chapterRatingStats.averageRating}
-            ratingCount={chapterRatingStats.ratingCount}
-            onRate={handleRateCurrentChapter}
-            size="xs"
-            showAverageSummary
-          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              id="reader-bottom-comments-btn"
+              type="button"
+              onClick={() => setIsCommentsOpen(true)}
+              className="min-h-[40px] px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-100 font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Discussion</span>
+              <span className="font-mono tabular-nums text-amber-300">
+                ({chapterCommentCount})
+              </span>
+            </button>
+
+            <StarRatingInput
+              idPrefix={`reader-bottom-ch-${chapter.id}`}
+              label={`Ch. ${chapter.number}:`}
+              value={chapterRatingStats.userScore}
+              averageRating={chapterRatingStats.averageRating}
+              ratingCount={chapterRatingStats.ratingCount}
+              onRate={handleRateCurrentChapter}
+              size="xs"
+              showAverageSummary
+            />
+          </div>
         </div>
       </div>
+
+      {/* SLIDE-OVER / MOBILE BOTTOM-SHEET CHAPTER COMMENTS & THREADED REPLIES DRAWER */}
+      {isCommentsOpen && (
+        <div
+          id="reader-comments-drawer-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Chapter ${chapter.number} comments and replies`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsCommentsOpen(false);
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-[130] bg-black/75 backdrop-blur-sm flex items-end sm:items-stretch sm:justify-end"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full h-[86vh] sm:h-full sm:max-w-md bg-[#0b0e16] rounded-t-3xl sm:rounded-none border-t sm:border-t-0 sm:border-l border-slate-800 shadow-2xl flex flex-col overflow-hidden"
+          >
+            {/* Mobile Bottom-Sheet Drag Handle Affordance */}
+            <div className="sm:hidden pt-2.5 pb-1 shrink-0 bg-[#0b0e16]">
+              <div className="w-10 h-1.5 bg-slate-700 rounded-full mx-auto" />
+            </div>
+
+            <ChapterCommentsPanel
+              mangaId={manga.id}
+              mangaTitle={manga.title}
+              chapterId={chapter.id}
+              chapterNumber={chapter.number || 1}
+              chapterTitle={chapter.title}
+              currentPageNumber={currentPageIndex + 1}
+              totalPages={totalPages}
+              userBadge={readerUserBadge}
+              variant="drawer"
+              onClose={() => setIsCommentsOpen(false)}
+              onJumpToPage={handleJumpToPage}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

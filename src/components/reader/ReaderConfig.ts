@@ -4,7 +4,11 @@
  * Engineered for seamless reading on slow 2G/3G networks, budget phones, and 120Hz flagships.
  */
 
-import { getNetworkDiagnostics, getProfileConfig } from '../../utils/devicePerformance';
+import {
+  getNetworkDiagnostics,
+  getProfileConfig,
+  subscribeToAppVisibility,
+} from '../../utils/devicePerformance';
 
 export type ReadingMode = 'vertical' | 'horizontal_ltr';
 
@@ -52,6 +56,34 @@ const warmedCacheStorageUrls = new Set<string>();
 
 let preloadQueue: QueuedPreloadTask[] = [];
 let activeWorkerCount = 0;
+let lastPinnedUrls = new Set<string>();
+let visibilityHookAttached = false;
+
+export function trimInactiveReaderBitmaps(keepPinned = true): void {
+  const maxKeep = keepPinned ? lastPinnedUrls.size : 0;
+  for (const url of Array.from(decodedBitmapLRU.keys())) {
+    if (keepPinned && lastPinnedUrls.has(url)) continue;
+    if (decodedBitmapLRU.size <= maxKeep) break;
+    const evicted = decodedBitmapLRU.get(url);
+    decodedBitmapLRU.delete(url);
+    if (evicted) {
+      evicted.src = '';
+    }
+  }
+}
+
+function ensureVisibilityPowerHook(): void {
+  if (visibilityHookAttached || typeof window === 'undefined') return;
+  visibilityHookAttached = true;
+  subscribeToAppVisibility((isVisible) => {
+    if (!isVisible) {
+      // Free non-active GPU/RAM bitmaps when app is backgrounded on mobile devices
+      trimInactiveReaderBitmaps(true);
+    } else if (preloadQueue.length > 0) {
+      pumpPreloadQueue(lastPinnedUrls, false);
+    }
+  });
+}
 
 function notifyPageListeners(url: string, status: PageLoadStatus): void {
   pageStatusMap.set(url, status);
@@ -231,6 +263,9 @@ function getEffectiveConcurrency(dataSaverMode = false): number {
 }
 
 function pumpPreloadQueue(pinnedUrls?: Set<string>, dataSaverMode = false): void {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    return;
+  }
   const maxConcurrency = getEffectiveConcurrency(dataSaverMode);
 
   while (activeWorkerCount < maxConcurrency && preloadQueue.length > 0) {
@@ -387,6 +422,8 @@ export function preloadUpcomingPages(
     nextTasks.push({ url: options.nextChapterFirstPageUrl, priority: 'low' });
   }
 
+  ensureVisibilityPowerHook();
+  lastPinnedUrls = pinnedUrls;
   // Replace stale queued items so the reader's current reading position always takes precedence
   preloadQueue = nextTasks;
   pumpPreloadQueue(pinnedUrls, Boolean(options.dataSaverMode));

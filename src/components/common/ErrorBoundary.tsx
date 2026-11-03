@@ -27,6 +27,24 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[AZ OVERVERSE ErrorBoundary]:', error, errorInfo);
+    const msg = String(error?.message || '');
+    const isChunkLoadError =
+      msg.includes('Failed to fetch dynamically imported module') ||
+      msg.includes('Importing a module script failed') ||
+      error?.name === 'ChunkLoadError';
+
+    if (isChunkLoadError && typeof window !== 'undefined') {
+      try {
+        const reloadGuardKey = 'az_oververse_chunk_recovery_ts';
+        const lastReload = Number(sessionStorage.getItem(reloadGuardKey) || '0');
+        if (Date.now() - lastReload > 15000) {
+          sessionStorage.setItem(reloadGuardKey, String(Date.now()));
+          window.location.reload();
+        }
+      } catch {
+        // Proceed to manual fallback UI
+      }
+    }
   }
 
   private handleReset = () => {

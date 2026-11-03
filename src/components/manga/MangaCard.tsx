@@ -27,15 +27,20 @@ interface MangaCardProps {
   onSelect: (manga: Manga) => void;
   isFavorite?: boolean;
   isActive?: boolean;
+  priority?: boolean;
   onToggleFavorite?: (e: React.MouseEvent, mangaId: string) => void;
   onOpenAiReport?: (e: React.MouseEvent, manga: Manga) => void;
 }
 
+const RECENT_PUBLISHED_CACHE = new WeakMap<Manga, boolean>();
+
 /**
- * Determines whether a manga was published within the last 7 days.
+ * Determines whether a manga was published within the last 7 days (WeakMap-cached per object).
  */
 export const isMangaRecentlyPublished = (manga: Manga): boolean => {
   if (manga.isNew === true) return true;
+  const cached = RECENT_PUBLISHED_CACHE.get(manga);
+  if (cached !== undefined) return cached;
 
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
   const now = Date.now();
@@ -50,18 +55,21 @@ export const isMangaRecentlyPublished = (manga: Manga): boolean => {
     manga.chapters?.[manga.chapters.length - 1]?.releaseDate,
   ];
 
+  let result = false;
   for (const dateVal of candidateDates) {
     if (!dateVal) continue;
     const timestamp = typeof dateVal === 'number' ? dateVal : Date.parse(String(dateVal));
     if (!Number.isNaN(timestamp)) {
       const diff = now - timestamp;
       if (diff >= -86400000 && diff <= SEVEN_DAYS_MS) {
-        return true;
+        result = true;
+        break;
       }
     }
   }
 
-  return false;
+  RECENT_PUBLISHED_CACHE.set(manga, result);
+  return result;
 };
 
 const GENRE_BADGE_CLASSES: Record<string, string> = {
@@ -87,6 +95,7 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
   onSelect,
   isFavorite = false,
   isActive = false,
+  priority = false,
   onToggleFavorite,
   onOpenAiReport,
 }) => {
@@ -95,10 +104,9 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
   const hasBonusContent = Boolean(manga.bonusContent && manga.bonusContent.length > 0);
   const isBanned = Boolean(manga.isBanned);
   const isComingSoon = isMangaComingSoon(manga);
-  const instanceId = React.useId();
   const isAi = Boolean(manga.isAiGenerated);
   const aiScore = manga.aiConfidenceScore || (isBanned ? 94 : isAi ? 88 : 0);
-  const isNew = React.useMemo(() => isMangaRecentlyPublished(manga), [manga]);
+  const isNew = isMangaRecentlyPublished(manga);
 
   const handleCardIntent = useCallback(() => {
     prewarmReaderChunk();
@@ -141,8 +149,9 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
             isBanned ? 'filter grayscale contrast-125 brightness-50' : ''
           }`}
           referrerPolicy="no-referrer"
-          loading="lazy"
+          loading={priority ? 'eager' : 'lazy'}
           decoding="async"
+          fetchPriority={priority ? 'high' : undefined}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
 
@@ -376,7 +385,7 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
         <div className="flex flex-wrap items-center gap-1.5 mt-2">
           {manga.genres.map((genre, idx) => (
             <span
-              key={`${instanceId}-genre-${genre}-${idx}`}
+              key={`${manga.id}-genre-${genre}-${idx}`}
               className={`rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${getGenreBadgeClass(
                 genre
               )}`}
@@ -425,6 +434,7 @@ function areMangaCardPropsEqual(prev: MangaCardProps, next: MangaCardProps): boo
     prev.manga.ratingCount === next.manga.ratingCount &&
     prev.isFavorite === next.isFavorite &&
     prev.isActive === next.isActive &&
+    prev.priority === next.priority &&
     prev.onSelect === next.onSelect &&
     prev.onToggleFavorite === next.onToggleFavorite &&
     prev.onOpenAiReport === next.onOpenAiReport
@@ -432,3 +442,4 @@ function areMangaCardPropsEqual(prev: MangaCardProps, next: MangaCardProps): boo
 }
 
 export const MangaCard = React.memo(MangaCardComponent, areMangaCardPropsEqual);
+

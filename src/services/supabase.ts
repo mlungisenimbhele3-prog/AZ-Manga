@@ -14,12 +14,12 @@ export const isSupabaseLiveConfigured = Boolean(
   !import.meta?.env?.VITE_SUPABASE_URL.includes('kaplus-pulse.supabase.co')
 );
 
-// Initialize Supabase Client (only run background token timers when live credentials are configured)
+// Initialize Supabase Client with Supabase Auth strictly disabled (AZ OVERVERSE uses its own PostgreSQL + JWT Auth)
 export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    persistSession: isSupabaseLiveConfigured,
-    autoRefreshToken: isSupabaseLiveConfigured,
-    detectSessionInUrl: isSupabaseLiveConfigured,
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
   },
 });
 
@@ -433,15 +433,142 @@ export async function publishChapterToSupabase(chapter: Chapter): Promise<boolea
   return true;
 }
 
+export interface CreatorProfileRecord {
+  uid: string;
+  email: string;
+  phone?: string;
+  displayName: string;
+  penName: string;
+  studioName: string;
+  bio: string;
+  primaryGenres: string[];
+  avatarUrl: string;
+  createdAt?: string;
+  updatedAt: string;
+}
+
+const LOCAL_STORAGE_CREATOR_PROFILES_KEY = 'az_oververse_creator_profiles_cache';
+
 /**
- * 7. Get Supabase Status details for UI inspection
+ * 7. Save or update a Creator Studio Profile in Supabase + resilient local cache
+ */
+export async function saveCreatorProfileToSupabase(
+  creator: CreatorProfileRecord
+): Promise<boolean> {
+  const existing = safeStorage.getJSON<Record<string, CreatorProfileRecord>>(
+    LOCAL_STORAGE_CREATOR_PROFILES_KEY,
+    {}
+  );
+  const nowIso = new Date().toISOString();
+  const record: CreatorProfileRecord = {
+    ...creator,
+    createdAt: creator.createdAt || existing[creator.uid]?.createdAt || nowIso,
+    updatedAt: creator.updatedAt || nowIso,
+  };
+  const nextCache: Record<string, CreatorProfileRecord> = {
+    ...existing,
+    [creator.uid]: record,
+  };
+  if (creator.email) {
+    nextCache[creator.email.toLowerCase()] = record;
+  }
+  if (creator.phone) {
+    nextCache[creator.phone] = record;
+  }
+  safeStorage.setJSON(LOCAL_STORAGE_CREATOR_PROFILES_KEY, nextCache);
+
+  if (isSupabaseLiveConfigured) {
+    try {
+      const safeEmailForRow =
+        record.email ||
+        (record.phone ? `${record.phone.replace(/[^0-9]/g, '')}@phone.azoververse.app` : '');
+      const { error } = await supabase.from('creator_profiles').upsert(
+        {
+          uid: record.uid,
+          email: safeEmailForRow,
+          display_name: record.displayName,
+          pen_name: record.penName,
+          studio_name: record.studioName,
+          bio: record.bio,
+          primary_genres: record.primaryGenres,
+          avatar_url: record.avatarUrl,
+          updated_at: record.updatedAt,
+        },
+        { onConflict: 'uid' }
+      );
+      if (error) {
+        console.warn('[Supabase] Creator profile remote upsert notice:', error.message);
+      }
+    } catch (err) {
+      console.warn('[Supabase] Creator profile sync fallback to local cache:', err);
+    }
+  }
+
+  return true;
+}
+
+export async function fetchCreatorProfileFromSupabase(
+  uidOrEmailOrPhone: string
+): Promise<CreatorProfileRecord | null> {
+  const key = (uidOrEmailOrPhone || '').trim();
+  if (!key) return null;
+
+  if (isSupabaseLiveConfigured && !key.startsWith('+')) {
+    try {
+      const column = key.includes('@') ? 'email' : 'uid';
+      const { data, error } = await supabase
+        .from('creator_profiles')
+        .select('*')
+        .eq(column, column === 'email' ? key.toLowerCase() : key)
+        .maybeSingle();
+
+      if (!error && data) {
+        const existing = safeStorage.getJSON<Record<string, CreatorProfileRecord>>(
+          LOCAL_STORAGE_CREATOR_PROFILES_KEY,
+          {}
+        );
+        const mapped: CreatorProfileRecord = {
+          uid: data.uid,
+          email: data.email || '',
+          phone: data.phone || existing[data.uid]?.phone,
+          displayName: data.display_name || data.pen_name,
+          penName: data.pen_name,
+          studioName: data.studio_name,
+          bio: data.bio || '',
+          primaryGenres: Array.isArray(data.primary_genres) ? data.primary_genres : ['Action'],
+          avatarUrl: data.avatar_url || '',
+          createdAt: data.created_at || existing[data.uid]?.createdAt || new Date().toISOString(),
+          updatedAt: data.updated_at || new Date().toISOString(),
+        };
+        safeStorage.setJSON(LOCAL_STORAGE_CREATOR_PROFILES_KEY, {
+          ...existing,
+          [mapped.uid]: mapped,
+          ...(mapped.email ? { [mapped.email.toLowerCase()]: mapped } : {}),
+          ...(mapped.phone ? { [mapped.phone]: mapped } : {}),
+        });
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('[Supabase] Creator profile lookup fallback to local cache:', err);
+    }
+  }
+
+  const cached = safeStorage.getJSON<Record<string, CreatorProfileRecord>>(
+    LOCAL_STORAGE_CREATOR_PROFILES_KEY,
+    {}
+  );
+  return cached[key] || cached[key.toLowerCase()] || null;
+}
+
+/**
+ * 8. Get Supabase Status details for UI inspection
  */
 export function getSupabaseDetails() {
   return {
     isConfigured: isSupabaseLiveConfigured,
     url: SUPABASE_URL,
     hasKey: Boolean(SUPABASE_ANON_KEY),
-    schemaTables: ['mangas', 'chapters', 'user_library'],
+    schemaTables: ['mangas', 'chapters', 'user_library', 'creator_profiles'],
     rlsStatus: 'Row-Level Security Enabled (Defense x4)',
     mode: isSupabaseLiveConfigured ? 'Live Supabase Cloud' : 'Hybrid Local-Resilient Sync',
   };

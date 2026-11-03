@@ -22,12 +22,38 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isVerifiedUser() {
+    function isVerifiedEmailUser() {
       return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isVerifiedPhoneUser() {
+      return isSignedIn() &&
+        'phone_number' in request.auth.token &&
+        request.auth.token.phone_number is string &&
+        request.auth.token.phone_number.size() >= 7 &&
+        request.auth.token.phone_number.size() <= 20;
+    }
+
+    function isPasswordAuthUser() {
+      return isSignedIn() &&
+        'email' in request.auth.token &&
+        request.auth.token.email is string &&
+        request.auth.token.email.size() >= 3 &&
+        request.auth.token.email.size() <= 254 &&
+        'firebase' in request.auth.token &&
+        request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
+    function isVerifiedUser() {
+      return isVerifiedEmailUser() || isVerifiedPhoneUser() || isPasswordAuthUser();
     }
 
     function isValidId(id) {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidShortId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 76 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
     function isValidSummaryId(id) {
@@ -39,7 +65,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isVerifiedUser() && (
+      return isVerifiedEmailUser() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
         request.auth.token.email == "mlungisenimbhele3@gmail.com"
       );
@@ -97,11 +123,13 @@ service cloud.firestore {
     }
 
     function isValidUserPrivateInfo(data, userId) {
-      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt']) &&
-        data.keys().hasOnly(['uid', 'email', 'createdAt', 'updatedAt']) &&
+      return data.keys().hasAll(['uid', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'phone', 'createdAt', 'updatedAt']) &&
+        (('email' in data) || ('phone' in data)) &&
         isValidId(data.uid) &&
         data.uid == userId &&
-        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        (!('email' in data) || (data.email is string && data.email.size() >= 3 && data.email.size() <= 254)) &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 20 && data.phone.matches('^\\+[1-9][0-9]{6,18}$'))) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -368,6 +396,77 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
+    function isValidChapterComment(data, commentId) {
+      return data.keys().hasAll([
+          'id',
+          'mangaId',
+          'chapterId',
+          'chapterNumber',
+          'depth',
+          'isSpoiler',
+          'authorUid',
+          'authorName',
+          'text',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'mangaId',
+          'chapterId',
+          'chapterNumber',
+          'parentId',
+          'rootId',
+          'depth',
+          'replyToUserName',
+          'pageNumber',
+          'isSpoiler',
+          'authorUid',
+          'authorName',
+          'authorBadge',
+          'text',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidShortId(data.id) &&
+        data.id == commentId &&
+        isValidShortId(data.mangaId) &&
+        isValidShortId(data.chapterId) &&
+        data.chapterNumber is int && data.chapterNumber >= 1 && data.chapterNumber <= 10000 &&
+        data.depth is int && data.depth in [0, 1, 2, 3, 4] &&
+        (
+          (data.depth == 0 && !('parentId' in data) && !('rootId' in data) && !('replyToUserName' in data)) ||
+          (data.depth >= 1 &&
+            'parentId' in data && isValidShortId(data.parentId) &&
+            'rootId' in data && isValidShortId(data.rootId) &&
+            (!('replyToUserName' in data) || (data.replyToUserName is string && data.replyToUserName.size() >= 1 && data.replyToUserName.size() <= 80)))
+        ) &&
+        (!('pageNumber' in data) || (data.pageNumber is int && data.pageNumber >= 1 && data.pageNumber <= 5000)) &&
+        data.isSpoiler is bool &&
+        isValidId(data.authorUid) &&
+        data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80 &&
+        (!('authorBadge' in data) || (data.authorBadge is string && data.authorBadge.size() <= 40)) &&
+        data.text is string && data.text.size() >= 1 && data.text.size() <= 500 &&
+        data.status is string && data.status.size() <= 20 && data.status in ['published', 'deleted'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidChapterCommentLike(data, likeId) {
+      return data.keys().hasAll(['id', 'commentId', 'chapterId', 'mangaId', 'uid', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'commentId', 'chapterId', 'mangaId', 'uid', 'createdAt']) &&
+        isValidId(data.id) &&
+        data.id == likeId &&
+        isValidShortId(data.commentId) &&
+        isValidShortId(data.chapterId) &&
+        isValidShortId(data.mangaId) &&
+        isValidId(data.uid) && data.uid.size() <= 48 &&
+        data.id == data.commentId + '__' + data.uid &&
+        data.createdAt is timestamp;
+    }
+
     // ---------------------------------------------------------
     // Collection Match Blocks
     // ---------------------------------------------------------
@@ -424,7 +523,8 @@ service cloud.firestore {
           docId == 'info' &&
           isOwner(userId) &&
           isValidUserPrivateInfo(incoming(), userId) &&
-          incoming().email == request.auth.token.email &&
+          (!('email' in incoming()) || ('email' in request.auth.token && incoming().email == request.auth.token.email)) &&
+          (!('phone' in incoming()) || ('phone_number' in request.auth.token && incoming().phone == request.auth.token.phone_number)) &&
           incoming().createdAt == request.time &&
           incoming().updatedAt == request.time &&
           hasParentUser(userId);
@@ -439,8 +539,9 @@ service cloud.firestore {
           hasParentUser(userId) && (
             isAdmin() ||
             (isOwner(userId) &&
-              incoming().email == request.auth.token.email &&
-              incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']))
+              (!('email' in incoming()) || ('email' in request.auth.token && incoming().email == request.auth.token.email)) &&
+              (!('phone' in incoming()) || ('phone_number' in request.auth.token && incoming().phone == request.auth.token.phone_number)) &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'updatedAt']))
           );
 
         allow delete: if isValidId(userId) && isValidId(docId) && isAdmin();
@@ -813,6 +914,86 @@ service cloud.firestore {
         );
 
       allow delete: if isValidSummaryId(summaryId) && isAdmin();
+    }
+
+    // 9. Threaded Chapter Comments & Nested Replies (No PII, Parent Relational Gate)
+    match /chapter_comments/{commentId} {
+      allow get: if isValidShortId(commentId) && (existing().status == 'published' || isAdmin());
+      allow list: if existing().status == 'published';
+
+      allow create: if isVerifiedUser() &&
+        isValidShortId(commentId) &&
+        isValidChapterComment(incoming(), commentId) &&
+        incoming().authorUid == request.auth.uid &&
+        incoming().status == 'published' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time && (
+          incoming().depth == 0 || (
+            incoming().parentId != commentId &&
+            exists(/databases/$(database)/documents/chapter_comments/$(incoming().parentId)) &&
+            get(/databases/$(database)/documents/chapter_comments/$(incoming().parentId)).data.mangaId == incoming().mangaId &&
+            get(/databases/$(database)/documents/chapter_comments/$(incoming().parentId)).data.chapterId == incoming().chapterId &&
+            get(/databases/$(database)/documents/chapter_comments/$(incoming().parentId)).data.status == 'published' &&
+            incoming().depth == get(/databases/$(database)/documents/chapter_comments/$(incoming().parentId)).data.depth + 1 &&
+            (
+              (incoming().depth == 1 && incoming().rootId == incoming().parentId) ||
+              (incoming().depth >= 2 && incoming().rootId == get(/databases/$(database)/documents/chapter_comments/$(incoming().parentId)).data.rootId)
+            )
+          )
+        );
+
+      allow update: if isVerifiedUser() &&
+        isValidShortId(commentId) &&
+        isValidChapterComment(incoming(), commentId) &&
+        incoming().id == existing().id &&
+        incoming().mangaId == existing().mangaId &&
+        incoming().chapterId == existing().chapterId &&
+        incoming().chapterNumber == existing().chapterNumber &&
+        incoming().depth == existing().depth &&
+        incoming().authorUid == existing().authorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (existing().depth == 0 || (incoming().parentId == existing().parentId && incoming().rootId == existing().rootId)) &&
+        // Terminal State Lock: Soft-deleted comments cannot be edited or resurrected except by Admin
+        (existing().status != 'deleted' || isAdmin()) && (
+          isAdmin() ||
+          // Action 1: Author edits own published comment text or spoiler flag
+          (existing().authorUid == request.auth.uid &&
+            incoming().status == 'published' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['text', 'isSpoiler', 'updatedAt'])) ||
+          // Action 2: Author soft-deletes own comment
+          (existing().authorUid == request.auth.uid &&
+            incoming().status == 'deleted' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+        );
+
+      allow delete: if isValidShortId(commentId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().authorUid == request.auth.uid)
+      );
+    }
+
+    // 10. Chapter Comment Likes (Deterministic 1-Like-Per-User Interaction Collection)
+    match /chapter_comment_likes/{likeId} {
+      allow get: if isValidId(likeId) && isValidShortId(existing().chapterId);
+      allow list: if existing().chapterId is string &&
+        existing().chapterId.size() >= 1 &&
+        existing().chapterId.size() <= 76;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(likeId) &&
+        isValidChapterCommentLike(incoming(), likeId) &&
+        incoming().uid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        exists(/databases/$(database)/documents/chapter_comments/$(incoming().commentId)) &&
+        get(/databases/$(database)/documents/chapter_comments/$(incoming().commentId)).data.chapterId == incoming().chapterId &&
+        get(/databases/$(database)/documents/chapter_comments/$(incoming().commentId)).data.mangaId == incoming().mangaId &&
+        get(/databases/$(database)/documents/chapter_comments/$(incoming().commentId)).data.status == 'published';
+
+      allow delete: if isValidId(likeId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().uid == request.auth.uid)
+      );
     }
   }
 }

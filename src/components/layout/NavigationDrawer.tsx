@@ -153,7 +153,19 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
 
   const handleLinkClick = (
     e: React.MouseEvent,
-    tab: 'readers' | 'creators' | 'chats' | 'wallet' | 'privacy' | 'terms' | 'awards' | 'settings' | 'backdrop'
+    tab:
+      | 'readers'
+      | 'creators'
+      | 'chats'
+      | 'wallet'
+      | 'privacy'
+      | 'terms'
+      | 'awards'
+      | 'settings'
+      | 'backdrop'
+      | 'dashboard'
+      | 'login'
+      | 'register'
   ) => {
     e.preventDefault();
     onNavigate(tab);
@@ -411,7 +423,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       <span>Privacy Policy</span>
                       <span className="text-[10px] font-mono text-slate-400">/privacy</span>
                     </div>
-                    <p className="text-[11px] text-slate-400">POPIA compliance, Firebase & data safety</p>
+                    <p className="text-[11px] text-slate-400">POPIA compliance, security &amp; data safety</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition" />
@@ -479,6 +491,32 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             </div>
 
             <div className="space-y-1.5">
+              {/* Creator Dashboard (/dashboard) */}
+              <a
+                id="drawer-link-dashboard"
+                href="/dashboard"
+                onClick={(e) => handleLinkClick(e, 'dashboard')}
+                className={`w-full flex items-center justify-between p-3 rounded-xl transition group ${
+                  activeTab === 'dashboard'
+                    ? 'bg-[#00DC64]/15 border border-[#00DC64]/40 text-[#00DC64] font-bold'
+                    : 'bg-slate-900/60 hover:bg-slate-800/90 text-slate-300 border border-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-[#00DC64]/15 text-[#00DC64] border border-[#00DC64]/25">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-sm font-semibold flex items-center gap-1.5">
+                      <span>Creator Dashboard</span>
+                      <span className="text-[10px] font-mono text-slate-400">/dashboard</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">Pen name, verified profile &amp; session</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-[#00DC64] transition" />
+              </a>
+
               {/* Readers Page */}
               <a
                 id="drawer-link-readers"

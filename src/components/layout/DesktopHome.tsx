@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { motion } from 'motion/react';
+import React, { useCallback, useMemo } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import { Manga } from '../../types';
 import { MangaCard } from '../manga/MangaCard';
 import { MangaGrid } from '../manga/MangaGrid';
@@ -10,6 +10,7 @@ import { RecommendationsTray } from '../recommendations/RecommendationsTray';
 import { RatingAverageDisplay } from '../common/StarRating';
 import { buildPreviewChapterId } from '../../services/ratingService';
 import { UserTasteProfile } from '../../services/recommendationEngine';
+import { isLowEndOrReducedMotion } from '../../utils/devicePerformance';
 import {
   Search,
   Upload,
@@ -124,6 +125,24 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
       canvasSeries: canvas,
     };
   }, [mangaList]);
+
+  const osReducedMotion = useReducedMotion();
+  const skipMotionOverhead = Boolean(osReducedMotion) || isLowEndOrReducedMotion();
+  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+
+  const handleCardToggleFavorite = useCallback(
+    (_e: React.MouseEvent, id: string) => {
+      onToggleFavorite(id);
+    },
+    [onToggleFavorite]
+  );
+
+  const handleCardOpenAiReport = useCallback(
+    (_e: React.MouseEvent, m: Manga) => {
+      onOpenAiReport?.(m);
+    },
+    [onOpenAiReport]
+  );
 
   const spotlightManga = featuredManga || mangaList[0];
   const isDefaultView = selectedFilter === 'all' && !searchQuery;
@@ -485,6 +504,21 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
                     <span>Publish Your First Original</span>
                   </button>
                 </div>
+              ) : skipMotionOverhead ? (
+                <div className="flex items-stretch gap-4 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-amber-500/30 overscroll-x-contain smooth-scroll-container">
+                  {originalSeries.map((manga, idx) => (
+                    <div key={`desktop-orig-${manga.id}-${idx}`} className="w-56 shrink-0">
+                      <MangaCard
+                        manga={manga}
+                        priority={idx < 2}
+                        isFavorite={favoriteSet.has(manga.id)}
+                        onToggleFavorite={handleCardToggleFavorite}
+                        onSelect={onSelectDetailManga}
+                        onOpenAiReport={handleCardOpenAiReport}
+                      />
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <motion.div
                   key={`desktop-orig-track-${selectedFilter}-${searchQuery}`}
@@ -494,7 +528,7 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
                     hidden: { opacity: 0 },
                     visible: {
                       opacity: 1,
-                      transition: { staggerChildren: 0.05, delayChildren: 0.02 },
+                      transition: { staggerChildren: 0.04, delayChildren: 0.01 },
                     },
                   }}
                   className="flex items-stretch gap-4 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-amber-500/30 overscroll-x-contain smooth-scroll-container"
@@ -503,22 +537,23 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
                     <motion.div
                       key={`desktop-orig-${manga.id}-${idx}`}
                       variants={{
-                        hidden: { opacity: 0, y: 18, scale: 0.96 },
+                        hidden: { opacity: 0, y: 12, scale: 0.98 },
                         visible: {
                           opacity: 1,
                           y: 0,
                           scale: 1,
-                          transition: { duration: 0.32, ease: [0.16, 1, 0.3, 1] },
+                          transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
                         },
                       }}
                       className="w-56 shrink-0"
                     >
                       <MangaCard
                         manga={manga}
-                        isFavorite={favoriteIds.includes(manga.id)}
-                        onToggleFavorite={(_e, id) => onToggleFavorite(id)}
+                        priority={idx < 2}
+                        isFavorite={favoriteSet.has(manga.id)}
+                        onToggleFavorite={handleCardToggleFavorite}
                         onSelect={onSelectDetailManga}
-                        onOpenAiReport={(_e, m) => onOpenAiReport?.(m)}
+                        onOpenAiReport={handleCardOpenAiReport}
                       />
                     </motion.div>
                   ))}
@@ -652,6 +687,8 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
                 title={spotlightManga.title}
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 referrerPolicy="no-referrer"
+                loading="eager"
+                fetchPriority="high"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent"></div>
 
@@ -713,15 +750,15 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
                 <button
                   onClick={() => onToggleFavorite(spotlightManga.id)}
                   className={`flex items-center justify-center gap-1.5 rounded-xl border py-2 px-3 text-xs font-bold transition ${
-                    favoriteIds.includes(spotlightManga.id)
+                    favoriteSet.has(spotlightManga.id)
                       ? 'border-rose-500 bg-rose-500/20 text-rose-300'
                       : 'border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300'
                   }`}
                 >
                   <Heart className={`w-3.5 h-3.5 ${
-                    favoriteIds.includes(spotlightManga.id) ? 'fill-rose-500 text-rose-500' : ''
+                    favoriteSet.has(spotlightManga.id) ? 'fill-rose-500 text-rose-500' : ''
                   }`} />
-                  <span>{favoriteIds.includes(spotlightManga.id) ? 'Favorited' : 'Favorite'}</span>
+                  <span>{favoriteSet.has(spotlightManga.id) ? 'Favorited' : 'Favorite'}</span>
                 </button>
 
                 <button

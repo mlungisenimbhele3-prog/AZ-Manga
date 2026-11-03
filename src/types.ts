@@ -327,7 +327,17 @@ export interface Comment {
   userName: string;
   text: string;
   timestamp: string;
+  chapterId?: string;
   chapterNumber?: number;
+  parentId?: string | null;
+  rootId?: string | null;
+  depth?: number;
+  replyToUserName?: string;
+  pageNumber?: number;
+  isSpoiler?: boolean;
   userBadge?: string;
   likes?: number;
+  status?: 'published' | 'deleted';
+  updatedAt?: string;
 }
+

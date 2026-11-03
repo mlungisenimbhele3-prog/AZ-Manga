@@ -25,6 +25,7 @@ import {
   where,
 } from './firebase';
 import { safeStorage } from '../utils/safeStorage';
+import { scheduleIdleTask } from '../utils/devicePerformance';
 import { getUserTasteProfile, saveUserTasteProfile } from './recommendationEngine';
 
 const LOCAL_USER_RATINGS_STORAGE_KEY = 'az_oververse_user_ratings_v1';
@@ -48,15 +49,31 @@ const listeners = new Set<RatingListener>();
 let ratingRevision = 0;
 let firestoreListenersInitialized = false;
 
-// Cloud state hydrated from Firestore
+// Cloud state hydrated from Firestore + O(1) secondary index by mangaId
 const cloudSummaries = new Map<string, RatingSummaryRecord>();
+const cloudSummariesByMangaId = new Map<string, Map<string, RatingSummaryRecord>>();
 const cloudUserRatings = new Map<string, 1 | 2 | 3 | 4 | 5>();
 let activeAuthUid: string | null = null;
 let activeAuthVerified = false;
 let unsubscribeUserRatingsSnapshot: (() => void) | null = null;
 
-// Local persisted ratings (supports instant guest preview + offline-first sync)
+// Local persisted ratings (supports instant guest preview + offline-first sync) + O(1) index by mangaId
 let localUserRatings: Record<string, LocalUserRatingEntry> = loadLocalUserRatings();
+const localRatingsByMangaId = new Map<string, LocalUserRatingEntry[]>();
+rebuildLocalRatingsIndex();
+
+function rebuildLocalRatingsIndex(): void {
+  localRatingsByMangaId.clear();
+  for (const entry of Object.values(localUserRatings)) {
+    const safeId = sanitizeRatingKeyPart(entry.mangaId, 68);
+    let bucket = localRatingsByMangaId.get(safeId);
+    if (!bucket) {
+      bucket = [];
+      localRatingsByMangaId.set(safeId, bucket);
+    }
+    bucket.push(entry);
+  }
+}
 
 function loadLocalUserRatings(): Record<string, LocalUserRatingEntry> {
   const raw = safeStorage.getJSON<Record<string, LocalUserRatingEntry>>(
@@ -80,7 +97,8 @@ function loadLocalUserRatings(): Record<string, LocalUserRatingEntry> {
 }
 
 function persistLocalUserRatings(): void {
-  safeStorage.setJSON(LOCAL_USER_RATINGS_STORAGE_KEY, localUserRatings);
+  rebuildLocalRatingsIndex();
+  safeStorage.setJSONDeferred(LOCAL_USER_RATINGS_STORAGE_KEY, localUserRatings);
 }
 
 function emitRatingChange(): void {
@@ -159,6 +177,7 @@ export function initRatingService(): void {
       summariesQuery,
       (snapshot) => {
         cloudSummaries.clear();
+        cloudSummariesByMangaId.clear();
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
           if (
@@ -171,7 +190,7 @@ export function initRatingService(): void {
             typeof data.ratingCount === 'number' &&
             typeof data.ratingSum === 'number'
           ) {
-            cloudSummaries.set(docSnap.id, {
+            const record: RatingSummaryRecord = {
               id: docSnap.id,
               targetType: data.targetType,
               targetId: data.targetId,
@@ -187,7 +206,14 @@ export function initRatingService(): void {
                   : roundAverage(data.ratingSum, data.ratingCount),
               updatedAt:
                 data.updatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
-            });
+            };
+            cloudSummaries.set(docSnap.id, record);
+            let mangaBucket = cloudSummariesByMangaId.get(record.mangaId);
+            if (!mangaBucket) {
+              mangaBucket = new Map();
+              cloudSummariesByMangaId.set(record.mangaId, mangaBucket);
+            }
+            mangaBucket.set(docSnap.id, record);
           }
         });
         emitRatingChange();
@@ -690,17 +716,24 @@ export function getMangaOverallRatingStats(manga: Manga): ComputedRatingStats {
     includeSummary(buildSummaryId('chapter', ch.id), 'chapter', ch.id);
   }
 
-  // 3. Any additional cloud or local summaries tagged with this mangaId
-  cloudSummaries.forEach((record, summaryId) => {
-    if (record.mangaId === safeMangaId && !processedSummaryIds.has(summaryId)) {
-      includeSummary(summaryId, record.targetType, record.targetId);
+  // 3. O(1) indexed lookup of any additional cloud or local summaries tagged with this mangaId
+  const cloudBucket = cloudSummariesByMangaId.get(safeMangaId);
+  if (cloudBucket) {
+    cloudBucket.forEach((record, summaryId) => {
+      if (!processedSummaryIds.has(summaryId)) {
+        includeSummary(summaryId, record.targetType, record.targetId);
+      }
+    });
+  }
+  const localBucket = localRatingsByMangaId.get(safeMangaId);
+  if (localBucket) {
+    for (let i = 0; i < localBucket.length; i++) {
+      const entry = localBucket[i];
+      if (!processedSummaryIds.has(entry.summaryId)) {
+        includeSummary(entry.summaryId, entry.targetType, entry.targetId);
+      }
     }
-  });
-  Object.values(localUserRatings).forEach((entry) => {
-    if (entry.mangaId === safeMangaId && !processedSummaryIds.has(entry.summaryId)) {
-      includeSummary(entry.summaryId, entry.targetType, entry.targetId);
-    }
-  });
+  }
 
   const averageRating =
     totalCount > 0 ? roundAverage(totalSum, totalCount) : Number(manga.rating || 0);
@@ -791,11 +824,20 @@ export function useRatingRevision(): number {
   const [rev, setRev] = useState<number>(() => getRatingRevision());
 
   useEffect(() => {
-    initRatingService();
-    setRev(getRatingRevision());
-    return subscribeToRatings(() => {
+    listeners.add(handleUpdate);
+    const cancelIdle = scheduleIdleTask(() => {
+      initRatingService();
       setRev(getRatingRevision());
-    });
+    }, 1000);
+
+    function handleUpdate() {
+      setRev(getRatingRevision());
+    }
+
+    return () => {
+      cancelIdle();
+      listeners.delete(handleUpdate);
+    };
   }, []);
 
   return rev;

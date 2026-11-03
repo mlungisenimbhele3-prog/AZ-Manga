@@ -109,6 +109,11 @@ html.tier-high {
   -webkit-font-smoothing: antialiased;
 }
 
+html.tier-ultra .manga-page-img,
+html.tier-high .manga-page-img {
+  image-rendering: high-quality;
+}
+
 /* Dynamic Viewport Height Support (100dvh for mobile address bar resilience) */
 .h-screen-dynamic {
   height: 100vh;
@@ -129,19 +134,33 @@ html.tier-high {
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
 }
 
-/* LITE SAVER MODE (Low-End Phone / Budget Mali-Adreno GPU / Low RAM) */
-html.lite-mode-active .backdrop-blur-md,
+/* LITE SAVER MODE (Low-End Phone / Budget Mali-Adreno GPU / Low RAM)
+   Scoped to specific expensive utility classes instead of universal `*` to keep
+   DOM style recalculation O(1) while preserving Tailwind ring-* focus outlines! */
+html.lite-mode-active .backdrop-blur,
+html.lite-mode-active .backdrop-blur-xs,
 html.lite-mode-active .backdrop-blur-sm,
+html.lite-mode-active .backdrop-blur-md,
 html.lite-mode-active .backdrop-blur-lg,
-html.lite-mode-active .backdrop-blur-xl {
+html.lite-mode-active .backdrop-blur-xl,
+html.lite-mode-active .backdrop-blur-2xl,
+html.lite-mode-active .backdrop-blur-3xl {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   background-color: rgba(10, 13, 20, 0.98) !important;
 }
 
-html.lite-mode-active .shadow-2xl,
-html.lite-mode-active .shadow-xl {
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4) !important;
+html.lite-mode-active .shadow-lg,
+html.lite-mode-active .shadow-xl,
+html.lite-mode-active .shadow-2xl {
+  box-shadow: none !important;
+}
+
+html.lite-mode-active .blur-xl,
+html.lite-mode-active .blur-2xl,
+html.lite-mode-active .blur-3xl {
+  filter: none !important;
+  opacity: 0.25 !important;
 }
 
 html.lite-mode-active .gpu-layer {
@@ -149,9 +168,14 @@ html.lite-mode-active .gpu-layer {
   backface-visibility: visible !important;
 }
 
-html.lite-mode-active *:not(.animate-spin) {
-  animation-duration: 0.01ms !important;
-  animation-iteration-count: 1 !important;
+html.lite-mode-active .animate-fadeIn,
+html.lite-mode-active .animate-fadeInScale,
+html.lite-mode-active .animate-slideRight,
+html.lite-mode-active .animate-pulse {
+  animation: none !important;
+}
+
+html.lite-mode-active [class*="transition"] {
   transition-duration: 0.01ms !important;
 }
 
@@ -286,17 +310,10 @@ html.theme-light {
   color: #0f172a !important;
 }
 
-/* Lower-end Devices: eliminate GPU memory stalls & composite overhead */
+/* Lower-end Devices: CSS custom property guard without universal descendant selector cost */
 .tier-lite-saver,
 html.lite-mode-active {
   --backdrop-blur: none !important;
 }
 
-.tier-lite-saver *,
-html.lite-mode-active * {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
-}
 

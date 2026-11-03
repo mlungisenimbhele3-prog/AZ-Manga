@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Flame,
@@ -38,7 +38,9 @@ import {
   Sliders,
   Check,
   Compass,
+  Loader2,
 } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   ReadingStreakData,
   getReadingStreak,
@@ -58,9 +60,9 @@ import {
   saveLocalProfile,
   updateReadingPreferences,
   toggleMangaBookmark,
-  signInWithGoogleCreator,
   registerWithEmail,
   loginWithEmail,
+  verifyLoginTwoFactorCode,
   logoutUser,
   updateUserBioAndAvatar,
   toggleFollowUser,
@@ -104,9 +106,33 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authDisplayName, setAuthDisplayName] = useState('');
+  const prefersReducedMotion = useReducedMotion();
+  const modalTotpInputRef = useRef<HTMLInputElement | null>(null);
+  const modalEmailInputRef = useRef<HTMLInputElement | null>(null);
   const [authIsCreator, setAuthIsCreator] = useState(false);
+  const [authMfaToken, setAuthMfaToken] = useState<string | null>(null);
+  const [authStepDirection, setAuthStepDirection] = useState<1 | -1>(1);
+  const [authTotpCode, setAuthTotpCode] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+
+  const authMfaActiveRef = useRef(false);
+  authMfaActiveRef.current = Boolean(authMode === 'login' && authMfaToken);
+
+  useEffect(() => {
+    if (!isOpen || authMode !== 'login' || !authMfaToken) return;
+    const delayMs = prefersReducedMotion ? 260 : 520;
+    const timer = window.setTimeout(() => {
+      if (
+        authMfaActiveRef.current &&
+        typeof document !== 'undefined' &&
+        document.activeElement !== modalTotpInputRef.current
+      ) {
+        modalTotpInputRef.current?.focus({ preventScroll: true });
+      }
+    }, delayMs);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, authMode, authMfaToken, prefersReducedMotion]);
 
   // Edit profile states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -171,9 +197,40 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         } else {
           setAuthError(res.error || 'Failed to create account.');
         }
+      } else if (authMfaToken) {
+        const trimmed = authTotpCode.trim();
+        const isValidTotp = /^\d{6}$/.test(trimmed);
+        const isValidRecovery = /^[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}$/.test(trimmed);
+        if (!isValidTotp && !isValidRecovery) {
+          setAuthError(
+            'Enter a 6-digit authenticator code or an 8-character recovery code (XXXX-XXXX).'
+          );
+          setAuthLoading(false);
+          return;
+        }
+        const res = await verifyLoginTwoFactorCode(authMfaToken, trimmed);
+        if (res.success && res.user) {
+          setAuthMfaToken(null);
+          setAuthTotpCode('');
+          setProfile(res.user);
+          onSwitchUserEmail?.(res.user.email);
+          setJustLoggedToast(`Welcome back, ${res.user.displayName}!`);
+          setTimeout(() => setJustLoggedToast(null), 3500);
+        } else {
+          setAuthError(res.error || 'Invalid 6-digit authenticator code.');
+          window.setTimeout(() => {
+            modalTotpInputRef.current?.focus({ preventScroll: true });
+            modalTotpInputRef.current?.select();
+          }, 0);
+        }
       } else {
         const res = await loginWithEmail(authEmail, authPassword);
-        if (res.success && res.user) {
+        if (res.requiresTwoFactor && res.mfaToken) {
+          setAuthStepDirection(1);
+          setAuthMfaToken(res.mfaToken);
+          setAuthTotpCode('');
+          setAuthError(null);
+        } else if (res.success && res.user) {
           setProfile(res.user);
           onSwitchUserEmail?.(res.user.email);
           setJustLoggedToast(`Welcome back, ${res.user.displayName}!`);
@@ -189,23 +246,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  const handleGoogleSignInDirect = async () => {
-    setAuthError(null);
-    setAuthLoading(true);
+  const handleOpenCreatorPortal = (targetRoute: 'dashboard' | 'login' | 'register') => {
+    onClose();
     try {
-      const res = await signInWithGoogleCreator();
-      if (res.success && res.profile) {
-        setProfile(res.profile);
-        onSwitchUserEmail?.(res.profile.email);
-        setJustLoggedToast(`Signed in as ${res.profile.displayName}!`);
-        setTimeout(() => setJustLoggedToast(null), 3500);
-      } else {
-        setAuthError(res.error || 'Google Sign-In cancelled or failed.');
-      }
-    } catch (err: any) {
-      setAuthError(err.message || 'Google Sign-In failed.');
-    } finally {
-      setAuthLoading(false);
+      window.history.pushState(null, '', `/${targetRoute}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    } catch {
+      window.location.hash = targetRoute;
     }
   };
 
@@ -515,16 +562,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  id="profile-google-signin-btn"
-                  disabled={authLoading}
-                  onClick={handleGoogleSignInDirect}
-                  className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-black text-xs transition shadow flex items-center justify-center gap-2"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>{authLoading ? 'Signing in with Google...' : 'Sign In with Google'}</span>
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    id="profile-open-dashboard-btn"
+                    onClick={() => handleOpenCreatorPortal('dashboard')}
+                    className="min-h-[44px] py-2.5 px-3 rounded-xl bg-[#00DC64] hover:bg-[#00c458] text-zinc-950 font-bold text-xs transition flex items-center justify-center gap-2"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Creator Dashboard</span>
+                  </button>
+                  <button
+                    type="button"
+                    id="profile-open-register-btn"
+                    onClick={() => handleOpenCreatorPortal('register')}
+                    className="min-h-[44px] py-2.5 px-3 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-2"
+                  >
+                    <UserPlus className="w-4 h-4 text-[#00DC64]" />
+                    <span>Register Pen Name</span>
+                  </button>
+                </div>
 
                 <div className="flex items-center gap-2 mb-2">
                   <button
@@ -557,69 +614,198 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </div>
                 )}
 
-                <form onSubmit={handleAuthSubmit} className="space-y-3">
-                  {authMode === 'register' && (
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">Full Name / Pen Name</label>
-                      <input
-                        type="text"
-                        value={authDisplayName}
-                        onChange={(e) => setAuthDisplayName(e.target.value)}
-                        placeholder="e.g. Sipho Dlamini"
-                        className="w-full rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                  )}
+                <form onSubmit={handleAuthSubmit} className="space-y-3 overflow-hidden">
+                  <AnimatePresence mode="wait" initial={false} custom={authStepDirection}>
+                    {authMode === 'login' && authMfaToken ? (
+                      <motion.div
+                        key="modal-auth-totp"
+                        initial={{
+                          opacity: 0,
+                          x: prefersReducedMotion ? 0 : authStepDirection * 24,
+                        }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{
+                          opacity: 0,
+                          x: prefersReducedMotion ? 0 : authStepDirection * -24,
+                        }}
+                        transition={{
+                          duration: prefersReducedMotion ? 0.12 : 0.24,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        onAnimationComplete={() => {
+                          if (authMfaActiveRef.current) {
+                            modalTotpInputRef.current?.focus({ preventScroll: true });
+                          }
+                        }}
+                        className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <label
+                            htmlFor="modal-totp-code"
+                            className="text-xs font-bold text-white"
+                          >
+                            02. 6-Digit Authenticator Code
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthStepDirection(-1);
+                              setAuthMfaToken(null);
+                              setAuthTotpCode('');
+                              setAuthError(null);
+                            }}
+                            className="text-[11px] font-semibold text-slate-400 hover:text-white transition"
+                          >
+                            Back to password
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Password verified for{' '}
+                          <span className="text-slate-200 font-medium">{authEmail}</span>. Enter the
+                          6-digit code from your authenticator app.
+                        </p>
+                        <input
+                          ref={modalTotpInputRef}
+                          id="modal-totp-code"
+                          type="text"
+                          autoComplete="one-time-code"
+                          maxLength={9}
+                          disabled={authLoading}
+                          value={authTotpCode}
+                          onChange={(e) =>
+                            setAuthTotpCode(
+                              e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 9)
+                            )
+                          }
+                          placeholder="000000 or XXXX-XXXX"
+                          className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-center font-mono text-base tracking-[0.25em] tabular-nums text-white disabled:opacity-70 focus:outline-none focus:border-amber-500"
+                        />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key={`modal-auth-${authMode}`}
+                        initial={{
+                          opacity: 0,
+                          x: prefersReducedMotion ? 0 : authStepDirection * 24,
+                        }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{
+                          opacity: 0,
+                          x: prefersReducedMotion ? 0 : authStepDirection * -24,
+                        }}
+                        transition={{
+                          duration: prefersReducedMotion ? 0.12 : 0.24,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        onAnimationComplete={() => {
+                          if (!authMfaActiveRef.current && authStepDirection === -1) {
+                            modalEmailInputRef.current?.focus({ preventScroll: true });
+                          }
+                        }}
+                        className="space-y-3"
+                      >
+                        {authMode === 'register' && (
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                              Full Name / Pen Name
+                            </label>
+                            <input
+                              type="text"
+                              value={authDisplayName}
+                              onChange={(e) => setAuthDisplayName(e.target.value)}
+                              placeholder="e.g. Sipho Dlamini"
+                              className="w-full rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+                        )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">Email Address</label>
-                      <input
-                        type="email"
-                        value={authEmail}
-                        onChange={(e) => setAuthEmail(e.target.value)}
-                        placeholder="reader@azoververse.com"
-                        className="w-full rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">Password</label>
-                      <input
-                        type="password"
-                        value={authPassword}
-                        onChange={(e) => setAuthPassword(e.target.value)}
-                        placeholder="••••••••••••"
-                        className="w-full rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                  </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                              Email Address
+                            </label>
+                            <input
+                              ref={modalEmailInputRef}
+                              type="email"
+                              value={authEmail}
+                              onChange={(e) => setAuthEmail(e.target.value)}
+                              placeholder="reader@azoververse.com"
+                              className="w-full rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                              Password
+                            </label>
+                            <input
+                              type="password"
+                              value={authPassword}
+                              onChange={(e) => setAuthPassword(e.target.value)}
+                              placeholder="••••••••••••"
+                              className="w-full rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+                        </div>
 
-                  {authMode === 'register' && (
-                    <label className="flex items-center gap-2 cursor-pointer pt-1">
-                      <input
-                        type="checkbox"
-                        checked={authIsCreator}
-                        onChange={(e) => setAuthIsCreator(e.target.checked)}
-                        className="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0"
-                      />
-                      <span className="text-xs text-slate-300 font-medium">
-                        I am a Manga Creator / Artist (enable Mangaka Publisher tools)
-                      </span>
-                    </label>
-                  )}
+                        {authMode === 'register' && (
+                          <label className="flex items-center gap-2 cursor-pointer pt-1">
+                            <input
+                              type="checkbox"
+                              checked={authIsCreator}
+                              onChange={(e) => setAuthIsCreator(e.target.checked)}
+                              className="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0"
+                            />
+                            <span className="text-xs text-slate-300 font-medium">
+                              I am a Manga Creator / Artist (enable Mangaka Publisher tools)
+                            </span>
+                          </label>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   <button
                     type="submit"
                     disabled={authLoading}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black font-black text-xs hover:brightness-110 transition shadow flex items-center justify-center gap-2"
+                    aria-busy={authLoading}
+                    className="relative overflow-hidden w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black font-black text-xs hover:brightness-110 transition shadow flex items-center justify-center gap-2"
                   >
                     {authLoading ? (
-                      <span>Processing...</span>
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        <span>
+                          {authMfaToken ? 'Authenticating Code...' : 'Processing...'}
+                        </span>
+                      </>
                     ) : (
                       <>
                         <UserCheck className="w-4 h-4" />
-                        <span>{authMode === 'register' ? 'Complete Registration' : 'Sign In Now'}</span>
+                        <span>
+                          {authMode === 'register'
+                            ? 'Complete Registration'
+                            : authMfaToken
+                              ? 'Verify 6-Digit Code'
+                              : 'Sign In Now'}
+                        </span>
                       </>
+                    )}
+                    {authLoading && authMfaToken && (
+                      <span
+                        role="progressbar"
+                        aria-label="Verifying two-factor authentication code"
+                        className="absolute inset-x-0 bottom-0 h-1 bg-black/20 overflow-hidden"
+                      >
+                        <motion.span
+                          initial={{ x: '-100%' }}
+                          animate={{ x: ['-100%', '200%'] }}
+                          transition={{
+                            duration: 0.95,
+                            repeat: Infinity,
+                            ease: 'easeInOut',
+                          }}
+                          className="block h-full w-1/2 bg-black/75"
+                        />
+                      </span>
                     )}
                   </button>
                 </form>

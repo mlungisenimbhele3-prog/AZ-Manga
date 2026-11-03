@@ -58,7 +58,7 @@
     },
     "userPrivateInfo": {
       "title": "User Private PII Record",
-      "description": "Isolated PII record accessible strictly by the account owner or admin",
+      "description": "Isolated PII record (email and/or verified phone number) accessible strictly by the account owner or admin",
       "type": "object",
       "properties": {
         "uid": {
@@ -73,6 +73,13 @@
           "minLength": 3,
           "maxLength": 254
         },
+        "phone": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 20,
+          "pattern": "^\\+[1-9][0-9]{6,18}$",
+          "description": "Verified E.164 phone number from Firebase Phone Auth"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -82,7 +89,7 @@
           "format": "date-time"
         }
       },
-      "required": ["uid", "email", "createdAt", "updatedAt"]
+      "required": ["uid", "createdAt", "updatedAt"]
     },
     "readingProgress": {
       "title": "Reading Progress",
@@ -586,6 +593,157 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "chapterComment": {
+      "title": "Chapter Comment & Threaded Reply",
+      "description": "Public chapter comment or nested threaded reply linked via parentId and rootId without PII",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mangaId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "chapterId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "chapterNumber": {
+          "type": "integer",
+          "description": "1-indexed chapter number"
+        },
+        "parentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Parent comment ID when depth >= 1"
+        },
+        "rootId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Top-level thread root comment ID when depth >= 1"
+        },
+        "depth": {
+          "type": "integer",
+          "enum": [0, 1, 2, 3, 4],
+          "description": "Thread nesting depth (0 for root comment, 1-4 for nested replies)"
+        },
+        "replyToUserName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Display name of the reader being directly replied to"
+        },
+        "pageNumber": {
+          "type": "integer",
+          "description": "Optional 1-indexed chapter page reference"
+        },
+        "isSpoiler": {
+          "type": "boolean",
+          "description": "Whether comment text is masked behind a spoiler warning"
+        },
+        "authorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "authorBadge": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "status": {
+          "type": "string",
+          "enum": ["published", "deleted"],
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "mangaId",
+        "chapterId",
+        "chapterNumber",
+        "depth",
+        "isSpoiler",
+        "authorUid",
+        "authorName",
+        "text",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "chapterCommentLike": {
+      "title": "Chapter Comment Like",
+      "description": "Deterministic per-user like record (commentId__uid) for a chapter comment or reply",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "commentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "chapterId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mangaId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 76,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "commentId", "chapterId", "mangaId", "uid", "createdAt"]
     }
   },
   "firestore": {
@@ -636,6 +794,14 @@
     "/rating_summaries/{summaryId}": {
       "schema": "ratingSummary",
       "description": "Public aggregate rating counters and averages atomically linked to user ratings"
+    },
+    "/chapter_comments/{commentId}": {
+      "schema": "chapterComment",
+      "description": "Public chapter comments and nested threaded replies verified against parent comments"
+    },
+    "/chapter_comment_likes/{likeId}": {
+      "schema": "chapterCommentLike",
+      "description": "Deterministic per-user likes on chapter comments and replies"
     }
   }
 }

@@ -7,15 +7,14 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
-import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.lifecycle.lifecycleScope
 import com.getcapacitor.BridgeActivity
-import com.getcapacitor.BridgeWebViewClient
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +47,7 @@ open class StudioActivity : BridgeActivity() {
      * Native Android Credential Manager Google Sign-In (replaces disallowed WebView OAuth).
      */
     fun launchGoogleSignIn() {
-        val webClientId = getString(R.string.default_web_client_id)
+        val webClientId = getString(R.string.server_client_id)
 
         // In your Sign In with Google button click
         val googleIdOption = GetGoogleIdOption.Builder()
@@ -161,7 +160,7 @@ open class StudioActivity : BridgeActivity() {
 
         @JavascriptInterface
         fun getWebClientId(): String {
-            return getString(R.string.default_web_client_id)
+            return getString(R.string.server_client_id)
         }
     }
 
@@ -187,32 +186,25 @@ open class StudioActivity : BridgeActivity() {
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         settings.setSupportMultipleWindows(false)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            settings.offscreenPreRaster = true
+        // Strip WebView '; wv' marker so Google OAuth redirect (signInWithRedirect) works seamlessly
+        val defaultUa = settings.userAgentString ?: ""
+        if (defaultUa.isNotEmpty()) {
+            settings.userAgentString = defaultUa
+                .replace("; wv)", ")")
+                .replace("; wv", "")
+                .replace(Regex("\\s*Version/\\d+\\.\\d+"), "")
         }
 
-        // Block any attempt to open https://accounts.google.com inside WebView and route to CredentialManager
-        webView.webViewClient = object : BridgeWebViewClient(capacitorBridge) {
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                val host = request.url?.host?.lowercase() ?: ""
-                if (host == "accounts.google.com" || host.endsWith(".accounts.google.com")) {
-                    Log.i("OVERVERSE", "Intercepted accounts.google.com in WebView; launching native CredentialManager")
-                    runOnUiThread { launchGoogleSignIn() }
-                    return true
-                }
-                return super.shouldOverrideUrlLoading(view, request)
-            }
+        // Enable cookies & third-party cookies for Firebase https://localhost <-> firebaseapp.com redirect state
+        try {
+            val cookieManager = CookieManager.getInstance()
+            cookieManager.setAcceptCookie(true)
+            cookieManager.setAcceptThirdPartyCookies(webView, true)
+        } catch (ignored: Exception) {
+        }
 
-            @Deprecated("Deprecated in Java")
-            override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                val lower = url.lowercase()
-                if (lower.startsWith("https://accounts.google.com") || lower.contains("://accounts.google.com/")) {
-                    Log.i("OVERVERSE", "Intercepted accounts.google.com URL in WebView; launching native CredentialManager")
-                    runOnUiThread { launchGoogleSignIn() }
-                    return true
-                }
-                return super.shouldOverrideUrlLoading(view, url)
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            settings.offscreenPreRaster = true
         }
     }
 

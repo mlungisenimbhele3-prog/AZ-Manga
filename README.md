@@ -1,83 +1,97 @@
-# AZ OVERVERSE 🇿🇦 👑
-> **The Premier Pan-African Manga Publishing & Reading Platform**  
-> **Produced & Created by Mlungiseni Mbhele**  
-> Live Platform: [`https://az-oververse.ai.studio`](https://az-oververse.ai.studio)  
-> Public GitHub Repository: [`mlungisenimbhele3-prog/manga-publisher-app`](https://github.com/mlungisenimbhele3-prog/manga-publisher-app)
+# AZ OVERVERSE
+
+**The Pan-African Manga & Webtoon Publishing Platform — Produced by Mlungiseni Mbhele**
+
+AZ OVERVERSE includes a complete, first-party custom authentication and Creator Studio identity system inspired by **WEBTOON Canvas** and **MANGA Plus Creators by SHUEISHA**—built with **zero Firebase Auth, zero Firestore, and zero Supabase Auth**.
 
 ---
 
-## 📱 About AZ OVERVERSE
-**AZ OVERVERSE** is an indigenous, next-generation Pan-African manga serialization ecosystem built for African and global creators. It features:
-- **Dual Reading Engine**: Seamless **Left-to-Right (LTR) Manga** and **AZ Vertical Webtoon** page modes with hardware-accelerated 120Hz/60Hz physics.
-- **70% Creator Revenue Share**: Direct author monetization powered exclusively by **Google AdMob** (persistent banner & rewarded chapter unlocks) and **Google Play Billing**.
-- **AZ Backdrop & Originals**: Independent creator self-publishing desk with official IP promotion pathways.
-- **Manga of the Year Gala 2026**: Reader's Choice voting and category awards.
-- **Capacitor Android Native App**: Pre-configured with hardware WebView rasterization and Google Mobile Ads SDK.
+## Custom Authentication Architecture
+
+- **Database (`users` table on PostgreSQL)**:
+  - `id` (UUID PK), `email` (unique), `password_hash`, `pen_name` (creator nickname), `studio_name`, `bio`, `avatar_url`, `email_verified` (`boolean`), `verification_token`, `reset_token`, `role` (`reader` | `creator` | `admin`), `created_at`, `updated_at`
+- **Password & Token Security**:
+  - `bcryptjs` password hashing (`12` salt rounds)
+  - `jsonwebtoken` purpose-bound tokens: `15m` access token, `7d` refresh token in an `httpOnly` cookie, `1d` email verification JWT, and `1h` password reset JWT
+  - Strict rate limiting (`5 requests / 15 minutes` on `/register`, `/login`, `/forgot`, `/reset`, and `/resend-verification`)
+  - `zod` request validation on every endpoint; `password_hash`, `verification_token`, and `reset_token` are stripped before serialization
+- **Transactional Emails (`Resend`)**:
+  - Sends verification links (`/verify?token=xxx`) and password reset links (`/reset?token=xxx`) via `RESEND_API_KEY`
+- **API Endpoints**:
+  - `POST /api/auth/register`
+  - `GET /api/auth/verify?token=xxx`
+  - `POST /api/auth/resend-verification`
+  - `POST /api/auth/login`
+  - `POST /api/auth/refresh`
+  - `POST /api/auth/forgot`
+  - `POST /api/auth/reset`
+  - `GET /api/auth/me`
+  - `PATCH /api/auth/profile`
+  - `POST /api/auth/logout`
+- **Frontend Pages (Dark WEBTOON Canvas / MANGA Plus Creators Theme)**:
+  - `/register` — Register email, creator `pen_name`, role (`creator` / `reader`), password & confirm password
+  - `/login` — Sign in with verified email & password
+  - `/verify` — Verifies `?token=xxx` and confirms `"Email verified"`
+  - `/forgot` & `/reset` — Password recovery flow
+  - `/dashboard` — Protected route (verifies JWT + `7d` `httpOnly` refresh cookie), displays `pen_name`, profile editor, Studio shortcuts, and `Logout`
 
 ---
 
-## 📦 Public Release `v1.0.0` — Android APK & Google Play Bundle (`.aab`)
+## Live Workspace Project Structure
 
-Download the official **`v1.0.0`** Android builds directly from GitHub Releases (no sign-in required when repository visibility is Public):
-
-- 👉 **Direct Install Debug APK (`app-debug.apk`)**:  
-  [`https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-debug.apk`](https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-debug.apk)
-- 👉 **Signed Google Play Release Bundle (`app-release.aab`)**:  
-  [`https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-release.aab`](https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/download/v1.0.0/app-release.aab)
-- 👉 **Release `v1.0.0` Notes & SHA-256 Checksums**:  
-  [`https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/tag/v1.0.0`](https://github.com/mlungisenimbhele3-prog/manga-publisher-app/releases/tag/v1.0.0)
+```text
+├── .env.example
+├── server.ts                              # Express + Vite server mounting /api/auth/*
+├── src/
+│   ├── db/
+│   │   ├── drizzle.config.ts              # PostgreSQL schema configuration
+│   │   ├── index.ts                       # PostgreSQL connection pool
+│   │   ├── schema.ts                      # users table definition & UserRole enum
+│   │   └── users.ts                       # Sanitized repository (strips password_hash)
+│   ├── server/
+│   │   ├── authRoutes.ts                  # /api/auth/* routes + 5 req/15m rate limiter
+│   │   ├── jwt.ts                         # 15m access, 7d refresh, 1d verify, 1h reset JWTs
+│   │   ├── mailer.ts                      # Resend email dispatcher
+│   │   └── validation.ts                  # Zod input validation schemas
+│   ├── services/
+│   │   ├── oververseAuth.ts               # Client JWT + httpOnly refresh session manager
+│   │   └── userProfile.ts                 # Creator Studio state bridged to custom auth
+│   └── pages/
+│       └── auth/
+│           ├── OververseAuthPages.tsx     # /register, /login, /verify, /forgot, /reset
+│           └── CreatorDashboardPage.tsx   # Protected /dashboard route
+└── docs/
+    └── NEXTJS14_NEON_PRISMA_BLUEPRINT.md  # Full Next.js 14 App Router + Neon + Prisma copy-paste package
+```
 
 ---
 
-## 🚀 Quick Start & Development
+## Running Locally
 
-### Prerequisites
-- **Node.js**: v22 or higher
-- **npm**: v10+
-- **JDK**: Java 21 (Temurin) for Android Gradle 8.11.1 builds
-- **Android SDK**: API Level 35 (Android 15)
-
-### Installation
+### 1. Live AZ OVERVERSE App (Express + React + PostgreSQL)
 ```bash
-# Clone this repository
-git clone https://github.com/mlungisenimbhele3-prog/manga-publisher-app.git
-cd manga-publisher-app
-
-# Install dependencies
 npm install
+cp .env.example .env
+# Set JWT_SECRET and RESEND_API_KEY in .env
+npm run dev
+# Opens on http://localhost:3000
+```
 
-# Start local dev server (port 3000)
+### 2. Standalone Next.js 14 App Router + Neon + Prisma Export
+See **[`docs/NEXTJS14_NEON_PRISMA_BLUEPRINT.md`](./docs/NEXTJS14_NEON_PRISMA_BLUEPRINT.md)** for the complete copy-pasteable Next.js 14 App Router files (`prisma/schema.prisma`, `.env.example`, `/app/api/auth/*`, `/register`, `/login`, `/verify`, `/dashboard`):
+
+```bash
+npm install
+npx prisma migrate dev --name init_oververse_users
 npm run dev
 ```
 
-### Build Web Production Bundle
-```bash
-npm run build
-```
-
 ---
 
-## 🤖 Automated GitHub Release `v1.0.0` Pipeline
+## Deploying to Vercel + Neon + Resend
 
-The workflow [`.github/workflows/build-release-aab.yml`](.github/workflows/build-release-aab.yml) automatically runs on every push to `main`:
-1. Builds the production web bundle (`npm run build`) and syncs Capacitor Android (`npx cap sync android`).
-2. Compiles **both** `app-debug.apk` (`:app:assembleDebug`) and cryptographically signed `app-release.aab` (`:app:bundleRelease`, API 35, JDK 21, Gradle 8.11.1, AGP 8.7.3).
-3. Publishes non-draft, latest Release **`v1.0.0`** with public downloadable `app-debug.apk`, `app-release.aab`, and `SHA256SUMS.txt`.
-
-### One-Command Local Push + Public Repo + `v1.0.0` Release (with GitHub CLI)
-```bash
-npm run release:v1
-```
-
----
-
-## 🛠️ Tech Stack
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS v4, Motion, Lucide Icons
-- **Backend / Server**: Express 4, Node.js, TSX
-- **Mobile Runtime**: Capacitor 6, Android SDK 35 WebView with 120Hz display modes
-- **Storage & Monetization**: Google Play Billing, Google AdMob, Firebase, Supabase
-
----
-
-## 📄 License & Intellectual Property
-All AZ Originals are © **AZ OVERVERSE / Mlungiseni Mbhele**. All Canvas and Backdrop works remain © their respective creators. AZ OVERVERSE holds a non-exclusive license to display Backdrop titles.
+1. **Neon (`https://neon.tech`)**: Provision a PostgreSQL 16 database and copy your pooled connection string (`?sslmode=require`).
+2. **Resend (`https://resend.com`)**: Verify your domain, create an API key (`re_...`), and configure `RESEND_API_KEY` + `RESEND_FROM_EMAIL`.
+3. **Vercel (`https://vercel.com`)**:
+   - Import your repository and configure `DATABASE_URL` (for Next.js/Prisma), `JWT_SECRET` (`openssl rand -hex 32`), `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `NEXT_PUBLIC_APP_URL`.
+   - Set Build Command to `npx prisma generate && npx prisma migrate deploy && next build` (for Next.js 14) and deploy.

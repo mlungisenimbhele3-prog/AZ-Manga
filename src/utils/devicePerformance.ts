@@ -1,6 +1,8 @@
 // Device Capability & Adaptive Performance Engine for AZ OVERVERSE
 // Produced by Mlungiseni Mbhele
 
+import { safeStorage } from './safeStorage';
+
 export type DeviceTier = 'ultra' | 'high' | 'balanced' | 'lite_saver';
 
 export interface NetworkDiagnostics {
@@ -9,7 +11,7 @@ export interface NetworkDiagnostics {
   rttMs: number;
   isSaveDataActive: boolean;
   isSlowConnection: boolean;
-  recommendedPreloadConcurrency: 1 | 2 | 3;
+  recommendedPreloadConcurrency: 1 | 2 | 3 | 4;
 }
 
 export interface DeviceDiagnostics {
@@ -34,12 +36,13 @@ export interface PerformanceProfileConfig {
   enableBackdropBlur: boolean;
   enableComplexAnimations: boolean;
   imagePreloadCount: number;
-  preloadConcurrency: 1 | 2 | 3;
+  preloadConcurrency: 1 | 2 | 3 | 4;
   maxDecodedPagesInMemory: number;
   supportDoublePage: boolean;
   enableHardwareAcceleration: boolean;
   cacheLimitMB: number;
   reduceDomOverhead: boolean;
+  enableIdleChunkPrefetch: boolean;
 }
 
 const PROFILE_CONFIGS: Record<DeviceTier, PerformanceProfileConfig> = {
@@ -47,25 +50,27 @@ const PROFILE_CONFIGS: Record<DeviceTier, PerformanceProfileConfig> = {
     targetFps: 120,
     enableBackdropBlur: true,
     enableComplexAnimations: true,
-    imagePreloadCount: 4,
-    preloadConcurrency: 3,
-    maxDecodedPagesInMemory: 24,
+    imagePreloadCount: 6,
+    preloadConcurrency: 4,
+    maxDecodedPagesInMemory: 32,
     supportDoublePage: true,
     enableHardwareAcceleration: true,
     cacheLimitMB: 500,
     reduceDomOverhead: false,
+    enableIdleChunkPrefetch: true,
   },
   high: {
     targetFps: 90,
     enableBackdropBlur: true,
     enableComplexAnimations: true,
-    imagePreloadCount: 3,
+    imagePreloadCount: 4,
     preloadConcurrency: 3,
-    maxDecodedPagesInMemory: 16,
+    maxDecodedPagesInMemory: 20,
     supportDoublePage: true,
     enableHardwareAcceleration: true,
     cacheLimitMB: 300,
     reduceDomOverhead: false,
+    enableIdleChunkPrefetch: true,
   },
   balanced: {
     targetFps: 60,
@@ -73,17 +78,18 @@ const PROFILE_CONFIGS: Record<DeviceTier, PerformanceProfileConfig> = {
     enableComplexAnimations: true,
     imagePreloadCount: 3,
     preloadConcurrency: 2,
-    maxDecodedPagesInMemory: 10,
+    maxDecodedPagesInMemory: 12,
     supportDoublePage: true,
     enableHardwareAcceleration: true,
     cacheLimitMB: 150,
     reduceDomOverhead: false,
+    enableIdleChunkPrefetch: false,
   },
   lite_saver: {
     targetFps: 60,
     enableBackdropBlur: false,
     enableComplexAnimations: false,
-    // Always preload the next 3 pages sequentially (concurrency 1) so slow networks
+    // Preload next 3 pages sequentially (concurrency 1) so slow networks
     // and low-RAM phones still get seamless reading without bandwidth contention or OOM
     imagePreloadCount: 3,
     preloadConcurrency: 1,
@@ -92,17 +98,24 @@ const PROFILE_CONFIGS: Record<DeviceTier, PerformanceProfileConfig> = {
     enableHardwareAcceleration: false,
     cacheLimitMB: 60,
     reduceDomOverhead: true,
+    enableIdleChunkPrefetch: false,
   },
 };
 
 let cachedDiagnostics: DeviceDiagnostics | null = null;
 let cachedGpuRenderer: string | undefined;
+let cachedBatteryLevel: number | undefined;
+let cachedBatteryCharging: boolean | undefined;
+let measuredRefreshRate: number | null = null;
+let refreshCalibrationStarted = false;
 let gpuProbed = false;
 let listenersInitialized = false;
 let readerChunkPrewarmed = false;
+let coreChunksPrewarmed = false;
 
 const preloadedUrlCache = new Set<string>();
 const profileSubscribers = new Set<(tier: DeviceTier) => void>();
+const visibilitySubscribers = new Set<(isVisible: boolean) => void>();
 
 function probeGpuOnce(): string | undefined {
   if (gpuProbed || typeof document === 'undefined') {
@@ -129,6 +142,42 @@ function probeGpuOnce(): string | undefined {
     // Safe fallback if WebGL is restricted
   }
   return cachedGpuRenderer;
+}
+
+function startIdleRefreshRateCalibration(): void {
+  if (refreshCalibrationStarted || typeof window === 'undefined') return;
+  refreshCalibrationStarted = true;
+
+  scheduleIdleTask(() => {
+    if (document.visibilityState === 'hidden') return;
+    let samples = 0;
+    let lastTs = 0;
+    let minDelta = Infinity;
+
+    const sampleFrame = (ts: number) => {
+      if (lastTs > 0) {
+        const delta = ts - lastTs;
+        if (delta > 3 && delta < minDelta) {
+          minDelta = delta;
+        }
+        samples++;
+      }
+      lastTs = ts;
+      if (samples < 10) {
+        window.requestAnimationFrame(sampleFrame);
+        return;
+      }
+      if (minDelta < Infinity && minDelta > 0) {
+        const rawHz = 1000 / minDelta;
+        measuredRefreshRate = rawHz >= 108 ? 120 : rawHz >= 80 ? 90 : 60;
+        if (cachedDiagnostics) {
+          cachedDiagnostics.screenRefreshRate = measuredRefreshRate;
+        }
+      }
+    };
+
+    window.requestAnimationFrame(sampleFrame);
+  }, 2200);
 }
 
 export function getNetworkDiagnostics(): NetworkDiagnostics {
@@ -159,8 +208,10 @@ export function getNetworkDiagnostics(): NetworkDiagnostics {
     downlinkMbps < 1.5 ||
     rttMs > 350;
 
-  const recommendedPreloadConcurrency: 1 | 2 | 3 = isSlowConnection
+  const recommendedPreloadConcurrency: 1 | 2 | 3 | 4 = isSlowConnection
     ? 1
+    : downlinkMbps >= 15 && rttMs <= 80
+    ? 4
     : downlinkMbps >= 8 && rttMs <= 120
     ? 3
     : 2;
@@ -197,17 +248,38 @@ function initEnvironmentListeners(): void {
     connection.addEventListener('change', handleEnvChange);
   }
 
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      const visible = document.visibilityState !== 'hidden';
+      visibilitySubscribers.forEach((cb) => {
+        try {
+          cb(visible);
+        } catch {}
+      });
+    });
+  }
+
   if (nav && typeof nav.getBattery === 'function') {
     nav
       .getBattery()
       .then((battery: any) => {
         if (!battery) return;
         const syncBattery = () => {
+          const prevLowBattery =
+            typeof cachedBatteryLevel === 'number' &&
+            cachedBatteryLevel <= 15 &&
+            cachedBatteryCharging === false;
+
+          cachedBatteryLevel = Math.round((battery.level ?? 1) * 100);
+          cachedBatteryCharging = Boolean(battery.charging);
+
           if (cachedDiagnostics) {
-            cachedDiagnostics.batteryLevel = Math.round((battery.level ?? 1) * 100);
-            cachedDiagnostics.isBatteryCharging = Boolean(battery.charging);
+            cachedDiagnostics.batteryLevel = cachedBatteryLevel;
+            cachedDiagnostics.isBatteryCharging = cachedBatteryCharging;
           }
-          if (!battery.charging && typeof battery.level === 'number' && battery.level <= 0.15) {
+
+          const nextLowBattery = cachedBatteryLevel <= 15 && !cachedBatteryCharging;
+          if (prevLowBattery !== nextLowBattery) {
             handleEnvChange();
           }
         };
@@ -219,6 +291,8 @@ function initEnvironmentListeners(): void {
       })
       .catch(() => {});
   }
+
+  startIdleRefreshRateCalibration();
 }
 
 export function detectDeviceCapabilities(forceRefresh = false): DeviceDiagnostics {
@@ -262,7 +336,9 @@ export function detectDeviceCapabilities(forceRefresh = false): DeviceDiagnostic
     lowerGpu.includes('adreno (tm) 505') ||
     lowerGpu.includes('adreno (tm) 506') ||
     lowerGpu.includes('adreno (tm) 610') ||
-    lowerGpu.includes('powervr');
+    lowerGpu.includes('powervr') ||
+    lowerGpu.includes('swiftshader') ||
+    lowerGpu.includes('llvmpipe');
 
   const isFlagshipGpu =
     lowerGpu.includes('adreno (tm) 7') ||
@@ -270,15 +346,26 @@ export function detectDeviceCapabilities(forceRefresh = false): DeviceDiagnostic
     lowerGpu.includes('immortalis') ||
     lowerGpu.includes('apple') ||
     lowerGpu.includes('nvidia') ||
-    lowerGpu.includes('radeon');
+    lowerGpu.includes('radeon') ||
+    lowerGpu.includes('arc');
+
+  const isLowBatteryUnplugged =
+    typeof cachedBatteryLevel === 'number' &&
+    cachedBatteryLevel <= 15 &&
+    cachedBatteryCharging === false;
 
   const isLowMemory = memory <= 2;
   const isLowCores = cores <= 2;
   const isLowEndDevice =
-    isLowMemory || isLowCores || net.isSlowConnection || net.isSaveDataActive || isBudgetGpu;
+    isLowMemory ||
+    isLowCores ||
+    net.isSlowConnection ||
+    net.isSaveDataActive ||
+    isBudgetGpu ||
+    isLowBatteryUnplugged;
 
   let tier: DeviceTier = 'balanced';
-  if (isLowEndDevice || net.isSaveDataActive) {
+  if (isLowEndDevice || net.isSaveDataActive || isLowBatteryUnplugged) {
     tier = 'lite_saver';
   } else if ((cores >= 8 && memory >= 6 && !net.isSlowConnection) || isFlagshipGpu) {
     tier = 'ultra';
@@ -289,13 +376,14 @@ export function detectDeviceCapabilities(forceRefresh = false): DeviceDiagnostic
   }
 
   const screenRefreshRate =
-    window.screen && (window.screen as any).refreshRate
+    measuredRefreshRate ||
+    (window.screen && (window.screen as any).refreshRate
       ? (window.screen as any).refreshRate
       : tier === 'ultra'
       ? 120
       : tier === 'high'
       ? 90
-      : 60;
+      : 60);
 
   cachedDiagnostics = {
     tier,
@@ -309,6 +397,8 @@ export function detectDeviceCapabilities(forceRefresh = false): DeviceDiagnostic
     isTouchDevice: isTouch,
     devicePixelRatio: dpr,
     isLowEndDevice,
+    batteryLevel: cachedBatteryLevel,
+    isBatteryCharging: cachedBatteryCharging,
     gpuRenderer,
   };
 
@@ -319,25 +409,19 @@ const STORAGE_KEY = 'ka_pulse_performance_tier';
 
 export function getActivePerformanceTier(): DeviceTier {
   if (typeof window === 'undefined') return 'balanced';
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (
-      stored &&
-      (stored === 'ultra' || stored === 'high' || stored === 'balanced' || stored === 'lite_saver')
-    ) {
-      return stored as DeviceTier;
-    }
-  } catch {
-    // Safe fallback
+  const stored = safeStorage.getItem(STORAGE_KEY);
+  if (
+    stored &&
+    (stored === 'ultra' || stored === 'high' || stored === 'balanced' || stored === 'lite_saver')
+  ) {
+    return stored as DeviceTier;
   }
   return detectDeviceCapabilities().tier;
 }
 
 export function setActivePerformanceTier(tier: DeviceTier): void {
   if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_KEY, tier);
-  } catch {}
+  safeStorage.setItem(STORAGE_KEY, tier);
   applyPerformanceClasses(tier);
   profileSubscribers.forEach((cb) => {
     try {
@@ -348,9 +432,7 @@ export function setActivePerformanceTier(tier: DeviceTier): void {
 
 export function resetPerformanceTierToAuto(): DeviceTier {
   if (typeof window === 'undefined') return 'balanced';
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {}
+  safeStorage.removeItem(STORAGE_KEY);
   const auto = detectDeviceCapabilities(true);
   applyPerformanceClasses(auto.tier);
   profileSubscribers.forEach((cb) => {
@@ -366,6 +448,14 @@ export function subscribeToPerformanceTier(callback: (tier: DeviceTier) => void)
   profileSubscribers.add(callback);
   return () => {
     profileSubscribers.delete(callback);
+  };
+}
+
+export function subscribeToAppVisibility(callback: (isVisible: boolean) => void): () => void {
+  initEnvironmentListeners();
+  visibilitySubscribers.add(callback);
+  return () => {
+    visibilitySubscribers.delete(callback);
   };
 }
 
@@ -389,12 +479,17 @@ export function isLowEndOrReducedMotion(tier?: DeviceTier): boolean {
 export function applyPerformanceClasses(tier: DeviceTier): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  root.classList.remove('tier-ultra', 'tier-high', 'tier-balanced', 'tier-lite-saver');
-  root.classList.add(`tier-${tier.replace('_', '-')}`);
+  const targetClass = `tier-${tier.replace('_', '-')}`;
+  if (!root.classList.contains(targetClass)) {
+    root.classList.remove('tier-ultra', 'tier-high', 'tier-balanced', 'tier-lite-saver');
+    root.classList.add(targetClass);
+  }
 
   if (tier === 'lite_saver') {
-    root.classList.add('lite-mode-active');
-  } else {
+    if (!root.classList.contains('lite-mode-active')) {
+      root.classList.add('lite-mode-active');
+    }
+  } else if (root.classList.contains('lite-mode-active')) {
     root.classList.remove('lite-mode-active');
   }
 }
@@ -439,12 +534,41 @@ export function prewarmReaderChunk(): void {
   }, 800);
 }
 
+/**
+ * On High & Ultra devices with fast, non-Save-Data connections, pre-compiles core
+ * interactive route/modal chunks during browser idle frames for 0ms navigation.
+ */
+export function prewarmHighEndAppChunks(tier?: DeviceTier): void {
+  if (coreChunksPrewarmed || typeof window === 'undefined') return;
+  const profile = getProfileConfig(tier);
+  if (!profile.enableIdleChunkPrefetch) return;
+  const net = getNetworkDiagnostics();
+  if (net.isSlowConnection || net.isSaveDataActive) return;
+
+  coreChunksPrewarmed = true;
+  scheduleIdleTask(() => {
+    if (document.visibilityState === 'hidden') return;
+    void import('../components/reader/ReaderView').catch(() => {});
+    readerChunkPrewarmed = true;
+    scheduleIdleTask(() => {
+      if (document.visibilityState === 'hidden') return;
+      void import('../components/manga/MangaDetailModal').catch(() => {});
+      void import('../pages/BackdropPage').catch(() => {});
+    }, 2500);
+  }, 1800);
+}
+
 export function preloadMangaImages(imageUrls: string[], priorityCount = 3): void {
   if (typeof window === 'undefined' || !imageUrls || imageUrls.length === 0) return;
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+
   const targets = imageUrls.slice(0, priorityCount);
 
   targets.forEach((url) => {
     if (!url || preloadedUrlCache.has(url)) return;
+    if (preloadedUrlCache.size > 200) {
+      preloadedUrlCache.clear();
+    }
     preloadedUrlCache.add(url);
     try {
       const img = new Image();
@@ -456,3 +580,4 @@ export function preloadMangaImages(imageUrls: string[], priorityCount = 3): void
     }
   });
 }
+

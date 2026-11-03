@@ -1,30 +1,20 @@
 // User Profile, Creator Studio Account Gate, Reading Progress & Bookmarks Engine
-// Produced by Mlungiseni Mbhele
+// Powered 100% by AZ OVERVERSE Custom Auth (PostgreSQL + JWT + bcrypt + Resend) — Zero Firebase / Supabase Auth
 import { safeStorage } from '../utils/safeStorage';
 import {
   getMangakaApplications,
   saveMangakaApplications,
 } from '../utils/mangakaManager';
 import {
-  auth,
-  db,
-  doc,
-  setDoc,
-  updateDoc,
-  getDoc,
-  deleteDoc,
-  writeBatch,
-  serverTimestamp,
-  authenticateWithOververseGoogle,
-  signInToOververseWithToken,
-  signOut,
-  onAuthStateChanged,
-  updateProfile as updateFirebaseProfile,
-  handleFirestoreError,
-  isPermissionError,
-  OperationType,
-  FirebaseUser,
-} from './firebase';
+  OververseAuthUser,
+  getOververseAuthSnapshot,
+  subscribeToOververseAuth,
+  registerOververseUser,
+  loginOververseUser,
+  verifyOververseLoginTwoFactor,
+  patchOververseCreatorProfile,
+  logoutOververseSession,
+} from './oververseAuth';
 
 export interface ReadingProgressItem {
   mangaId: string;
@@ -53,6 +43,7 @@ export interface ReadingPreferences {
 export interface UserProfile {
   uid: string;
   email: string;
+  phone?: string;
   displayName: string;
   avatarUrl: string;
   bio: string;
@@ -75,7 +66,7 @@ export interface UserProfile {
 
 export interface CreatorAuthState {
   authReady: boolean;
-  firebaseUser: FirebaseUser | null;
+  authUser: OververseAuthUser | null;
   profile: UserProfile;
   hasCreatorAccount: boolean;
 }
@@ -88,6 +79,10 @@ export interface CreateCreatorAccountInput {
 }
 
 const STORAGE_KEY_PROFILE = 'ka_pulse_user_profile_v2';
+const STORAGE_KEY_CREATOR_DRAFT = 'az_oververse_creator_form_draft';
+
+export const DEFAULT_CREATOR_PEN_NAME = 'Mlungiseni';
+export const DEFAULT_CREATOR_STUDIO_NAME = 'Mlungiseni NM Studio';
 
 export const DEFAULT_PREFERENCES: ReadingPreferences = {
   theme: 'dark',
@@ -101,12 +96,42 @@ export const DEFAULT_PREFERENCES: ReadingPreferences = {
 
 export const ADMIN_EMAILS = ['mlungisenimbhele3@gmail.com'];
 
-// Unauthenticated Guest Reader default — NEVER pre-granted Creator Studio access
+export function getCreatorFormDraft(): CreateCreatorAccountInput {
+  const saved = safeStorage.getJSON<Partial<CreateCreatorAccountInput> | null>(
+    STORAGE_KEY_CREATOR_DRAFT,
+    null
+  );
+  return {
+    penName:
+      typeof saved?.penName === 'string' && saved.penName.trim().length > 0
+        ? saved.penName
+        : DEFAULT_CREATOR_PEN_NAME,
+    studioName:
+      typeof saved?.studioName === 'string' && saved.studioName.trim().length > 0
+        ? saved.studioName
+        : DEFAULT_CREATOR_STUDIO_NAME,
+    bio: typeof saved?.bio === 'string' ? saved.bio : '',
+    primaryGenres:
+      Array.isArray(saved?.primaryGenres) && saved.primaryGenres.length > 0
+        ? saved.primaryGenres
+        : ['Action', 'Fantasy'],
+  };
+}
+
+export function saveCreatorFormDraft(draft: Partial<CreateCreatorAccountInput>): void {
+  const current = getCreatorFormDraft();
+  safeStorage.setJSON(STORAGE_KEY_CREATOR_DRAFT, {
+    ...current,
+    ...draft,
+  });
+}
+
 export const DEFAULT_USER_PROFILE: UserProfile = {
   uid: 'u-guest-reader',
   email: 'reader@azoververse.com',
   displayName: 'Guest Reader',
-  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  avatarUrl:
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   bio: 'Manga reader on AZ OVERVERSE.',
   isCreator: false,
   penName: undefined,
@@ -120,7 +145,8 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
     'manga-1': {
       mangaId: 'manga-1',
       mangaTitle: 'The Lost Kingdom of Mapungubwe',
-      mangaCover: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80',
+      mangaCover:
+        'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80',
       chapterId: 'chap-1-1',
       chapterNumber: 1,
       chapterTitle: 'The Golden Rhino Awakens',
@@ -142,11 +168,6 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
 function sanitizeBoundedString(val: unknown, maxLen: number, fallback = ''): string {
   if (typeof val !== 'string') return fallback;
   return val.replace(/[<>]/g, '').trim().slice(0, maxLen);
-}
-
-function sanitizeSafeId(val: string): string {
-  const cleaned = val.replace(/[^a-zA-Z0-9_\-]/g, '-').slice(0, 128);
-  return cleaned || 'item-1';
 }
 
 function normalizeReadingDirection(dir?: string): ReadingPreferences['readingDirection'] {
@@ -173,13 +194,14 @@ function loadLocalProfile(): UserProfile {
     return {
       ...DEFAULT_USER_PROFILE,
       ...cached,
-      // Enforce strict rule: Guest / unauthenticated local profiles NEVER count as Creator Accounts
       isCreator: guest ? false : Boolean(cached.isCreator && cached.penName?.trim()),
       penName: guest ? undefined : cached.penName,
       studioName: guest ? undefined : cached.studioName,
       role: guest ? 'reader' : cached.role || 'reader',
       preferences: mergedPrefs,
-      bookmarks: Array.isArray(cached.bookmarks) ? cached.bookmarks : DEFAULT_USER_PROFILE.bookmarks,
+      bookmarks: Array.isArray(cached.bookmarks)
+        ? cached.bookmarks
+        : DEFAULT_USER_PROFILE.bookmarks,
       readingProgress: cached.readingProgress || {},
       following: Array.isArray(cached.following) ? cached.following : ['c-1', 'c-2'],
     };
@@ -188,24 +210,27 @@ function loadLocalProfile(): UserProfile {
 }
 
 let activeProfile: UserProfile = loadLocalProfile();
-let activeFirebaseUser: FirebaseUser | null = auth.currentUser;
-let isAuthReady = false;
+let activeAuthUser: OververseAuthUser | null = getOververseAuthSnapshot().user;
+let isAuthReady = getOververseAuthSnapshot().ready;
 
 type CreatorAuthListener = (state: CreatorAuthState) => void;
 const creatorAuthListeners = new Set<CreatorAuthListener>();
 
-function computeHasCreatorAccount(fbUser: FirebaseUser | null, profile: UserProfile): boolean {
-  if (!fbUser) return false;
-  if (isGuestUid(profile.uid) || profile.uid !== fbUser.uid) return false;
+function computeHasCreatorAccount(
+  authUser: OververseAuthUser | null,
+  profile: UserProfile
+): boolean {
+  if (!authUser || !authUser.email_verified) return false;
+  if (isGuestUid(profile.uid) || profile.uid !== authUser.id) return false;
   return Boolean(profile.isCreator && profile.penName && profile.penName.trim().length >= 2);
 }
 
 export function getCreatorAuthState(): CreatorAuthState {
   return {
     authReady: isAuthReady,
-    firebaseUser: activeFirebaseUser,
+    authUser: activeAuthUser,
     profile: activeProfile,
-    hasCreatorAccount: computeHasCreatorAccount(activeFirebaseUser, activeProfile),
+    hasCreatorAccount: computeHasCreatorAccount(activeAuthUser, activeProfile),
   };
 }
 
@@ -242,11 +267,11 @@ function ensureCreatorApprovedInMangakaDirectory(profile: UserProfile) {
     userEmail: profile.email,
     legalName: profile.displayName || profile.penName,
     penName: profile.penName,
-    bio: profile.bio || `Verified Creator at ${profile.studioName || 'OVERVERSE Studio'}.`,
+    bio: profile.bio || `Verified Creator at ${profile.studioName || DEFAULT_CREATOR_STUDIO_NAME}.`,
     idPhotoUrl: profile.avatarUrl || DEFAULT_USER_PROFILE.avatarUrl,
     portfolioUrl: 'https://az-oververse.ai.studio',
     country: 'South Africa',
-    region: profile.studioName || 'OVERVERSE Creator Studio',
+    region: profile.studioName || DEFAULT_CREATOR_STUDIO_NAME,
     primaryGenres:
       profile.primaryGenres && profile.primaryGenres.length > 0
         ? profile.primaryGenres
@@ -254,8 +279,8 @@ function ensureCreatorApprovedInMangakaDirectory(profile: UserProfile) {
     submittedAt: existingIdx >= 0 ? apps[existingIdx].submittedAt : new Date().toISOString(),
     status: 'approved' as const,
     reviewedAt: new Date().toISOString(),
-    reviewedBy: 'OVERVERSE Creator Auth',
-    adminNotes: 'Verified Creator Studio Account',
+    reviewedBy: 'OVERVERSE Custom Auth',
+    adminNotes: 'Verified PostgreSQL Creator Account',
   };
 
   if (existingIdx >= 0) {
@@ -267,74 +292,43 @@ function ensureCreatorApprovedInMangakaDirectory(profile: UserProfile) {
   }
 }
 
-async function hydrateProfileFromFirestore(fbUser: FirebaseUser): Promise<UserProfile> {
-  const userPath = `users/${fbUser.uid}`;
-  let remoteData: Record<string, any> | null = null;
+function mapOververseUserToProfile(user: OververseAuthUser): UserProfile {
+  const isAdmin = ADMIN_EMAILS.includes(user.email.toLowerCase()) || user.role === 'admin';
+  const isCreator =
+    user.role === 'creator' ||
+    user.role === 'admin' ||
+    Boolean(user.pen_name && user.pen_name.trim().length >= 2);
+  const draft = getCreatorFormDraft();
 
-  try {
-    const snap = await getDoc(doc(db, 'users', fbUser.uid));
-    if (snap.exists()) {
-      remoteData = snap.data();
-    }
-  } catch (err) {
-    if (isPermissionError(err)) {
-      handleFirestoreError(err, OperationType.GET, userPath);
-    }
-    console.warn('[UserProfile] Firestore profile fetch notice:', err);
-  }
-
-  const email = fbUser.email || activeProfile.email || '';
-  const isCreator = Boolean(remoteData?.isCreator && typeof remoteData?.penName === 'string' && remoteData.penName.trim().length >= 2);
-  const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase());
-
-  const hydrated: UserProfile = {
+  return {
     ...activeProfile,
-    uid: fbUser.uid,
-    email,
-    displayName:
-      sanitizeBoundedString(remoteData?.displayName, 80) ||
-      sanitizeBoundedString(fbUser.displayName, 80) ||
-      email.split('@')[0] ||
-      'OVERVERSE User',
-    avatarUrl:
-      sanitizeBoundedString(remoteData?.avatarUrl, 1000) ||
-      sanitizeBoundedString(fbUser.photoURL, 1000) ||
-      DEFAULT_USER_PROFILE.avatarUrl,
-    bio:
-      sanitizeBoundedString(remoteData?.bio, 500) ||
-      (isCreator ? 'Creator on AZ OVERVERSE.' : 'Manga reader on AZ OVERVERSE.'),
+    uid: user.id,
+    email: user.email,
+    displayName: user.pen_name || user.email.split('@')[0] || 'OVERVERSE Creator',
+    avatarUrl: user.avatar_url || activeProfile.avatarUrl || DEFAULT_USER_PROFILE.avatarUrl,
+    bio: user.bio || `Creator at ${user.studio_name || DEFAULT_CREATOR_STUDIO_NAME}.`,
     isCreator,
-    penName: isCreator ? sanitizeBoundedString(remoteData?.penName, 80) : undefined,
-    studioName: isCreator ? sanitizeBoundedString(remoteData?.studioName, 80) : undefined,
-    primaryGenres: Array.isArray(remoteData?.primaryGenres)
-      ? remoteData.primaryGenres.slice(0, 6).map((g: unknown) => sanitizeBoundedString(g, 40)).filter(Boolean)
-      : [],
+    penName: user.pen_name,
+    studioName: user.studio_name || draft.studioName || `${user.pen_name} Studio`,
+    primaryGenres: draft.primaryGenres || ['Action', 'Fantasy'],
     role: isAdmin ? 'admin' : isCreator ? 'creator' : 'reader',
-    followersCount: typeof remoteData?.followersCount === 'number' ? remoteData.followersCount : 0,
-    followingCount: typeof remoteData?.followingCount === 'number' ? remoteData.followingCount : activeProfile.following.length,
+    createdAt: user.created_at || activeProfile.createdAt,
     lastLoginAt: new Date().toISOString(),
   };
-
-  if (hydrated.isCreator) {
-    ensureCreatorApprovedInMangakaDirectory(hydrated);
-  }
-
-  saveLocalProfile(hydrated);
-  return hydrated;
 }
 
-// Listen to Firebase Auth state changes across sessions
 if (typeof window !== 'undefined') {
-  onAuthStateChanged(auth, async (fbUser) => {
-    activeFirebaseUser = fbUser;
-    if (fbUser) {
-      try {
-        await hydrateProfileFromFirestore(fbUser);
-      } catch (err) {
-        console.error('[UserProfile] Failed to hydrate user profile:', err);
+  subscribeToOververseAuth((snapshot) => {
+    activeAuthUser = snapshot.user;
+    isAuthReady = snapshot.ready;
+
+    if (snapshot.user) {
+      const mapped = mapOververseUserToProfile(snapshot.user);
+      if (mapped.isCreator && mapped.penName) {
+        ensureCreatorApprovedInMangakaDirectory(mapped);
       }
-    } else {
-      // Signed out: ensure Creator Studio access is locked
+      saveLocalProfile(mapped);
+    } else if (snapshot.ready) {
       if (!isGuestUid(activeProfile.uid) || activeProfile.isCreator) {
         const guestReset: UserProfile = {
           ...DEFAULT_USER_PROFILE,
@@ -343,27 +337,12 @@ if (typeof window !== 'undefined') {
           preferences: activeProfile.preferences,
         };
         saveLocalProfile(guestReset);
+      } else {
+        notifyCreatorAuthListeners();
       }
     }
-      isAuthReady = true;
-      notifyCreatorAuthListeners();
-    });
-
-    // Handle Google ID tokens delivered directly from StudioActivity.kt CredentialManager
-    window.__onOververseNativeGoogleToken = async (idToken: string) => {
-      try {
-        if (!auth.currentUser) {
-          const user = await signInToOververseWithToken(idToken);
-          activeFirebaseUser = user;
-          await hydrateProfileFromFirestore(user);
-          isAuthReady = true;
-          notifyCreatorAuthListeners();
-        }
-      } catch (err) {
-        console.error('[OVERVERSE] Native Google ID token sign-in failed:', err);
-      }
-    };
-  }
+  });
+}
 
 export function getCurrentUserProfile(): UserProfile {
   return activeProfile;
@@ -381,14 +360,12 @@ export function saveLocalProfile(profile: UserProfile): void {
   activeProfile = normalizedProfile;
   safeStorage.setJSON(STORAGE_KEY_PROFILE, normalizedProfile);
   applyReadingThemeClass(normalizedProfile.preferences.theme);
-  broadcastProfileChange(normalizedProfile);
-  notifyCreatorAuthListeners();
-}
-
-function broadcastProfileChange(profile: UserProfile) {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('az_profile_updated', { detail: { profile } }));
+    window.dispatchEvent(
+      new CustomEvent('az_profile_updated', { detail: { profile: normalizedProfile } })
+    );
   }
+  notifyCreatorAuthListeners();
 }
 
 export function applyReadingThemeClass(theme: ReadingPreferences['theme']) {
@@ -408,52 +385,6 @@ if (typeof window !== 'undefined') {
   applyReadingThemeClass(activeProfile.preferences.theme);
 }
 
-// -------------------------------------------------------------
-// CREATOR STUDIO ACCOUNT AUTHENTICATION & CREATION (GOOGLE + FIRESTORE)
-// -------------------------------------------------------------
-
-/**
- * Signs in with Google via popup and checks if an active Creator Account exists in Firestore.
- */
-export async function signInWithGoogleCreator(): Promise<{
-  success: boolean;
-  hasCreatorAccount: boolean;
-  profile?: UserProfile;
-  error?: string;
-}> {
-  try {
-    const fbUser = await authenticateWithOververseGoogle();
-    activeFirebaseUser = fbUser;
-    const hydrated = await hydrateProfileFromFirestore(fbUser);
-    isAuthReady = true;
-    notifyCreatorAuthListeners();
-
-    return {
-      success: true,
-      hasCreatorAccount: computeHasCreatorAccount(fbUser, hydrated),
-      profile: hydrated,
-    };
-  } catch (err: any) {
-    const code = err?.code || '';
-    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-      return {
-        success: false,
-        hasCreatorAccount: false,
-        error: 'Sign-in window was closed before completing authentication.',
-      };
-    }
-    return {
-      success: false,
-      hasCreatorAccount: false,
-      error: err?.message || 'Failed to sign in with Google.',
-    };
-  }
-}
-
-/**
- * Creates or activates a Creator Studio Account in Firestore (isolated public + private PII records).
- * Automatically prompts Google Sign-In first if the user is not yet authenticated.
- */
 export async function createCreatorAccount(
   input: CreateCreatorAccountInput
 ): Promise<{
@@ -461,182 +392,57 @@ export async function createCreatorAccount(
   profile?: UserProfile;
   error?: string;
 }> {
-  const cleanPenName = sanitizeBoundedString(input.penName, 80);
-  const cleanStudioName = sanitizeBoundedString(input.studioName, 80);
+  const cleanPenName = sanitizeBoundedString(input.penName, 60) || DEFAULT_CREATOR_PEN_NAME;
+  const cleanStudioName =
+    sanitizeBoundedString(input.studioName, 80) || DEFAULT_CREATOR_STUDIO_NAME;
   const cleanBio = sanitizeBoundedString(
     input.bio,
     500,
-    `Creator at ${cleanStudioName || 'OVERVERSE Studio'}.`
+    `Creator at ${cleanStudioName}.`
   );
-  const cleanGenres = (input.primaryGenres || [])
-    .map((g) => sanitizeBoundedString(g, 40))
-    .filter((g) => g.length >= 1)
-    .slice(0, 6);
 
-  if (cleanPenName.length < 2) {
+  saveCreatorFormDraft({
+    penName: cleanPenName,
+    studioName: cleanStudioName,
+    bio: cleanBio,
+    primaryGenres: input.primaryGenres,
+  });
+
+  const res = await patchOververseCreatorProfile({
+    pen_name: cleanPenName,
+    studio_name: cleanStudioName,
+    bio: cleanBio,
+    role: 'creator',
+  });
+
+  if (!res.success || !res.user) {
     return {
       success: false,
-      error: 'Creator Pen Name must be between 2 and 80 characters.',
+      error: res.error || 'Please sign in first to activate your Creator Studio.',
     };
   }
 
-  if (cleanStudioName.length < 2) {
-    return {
-      success: false,
-      error: 'Studio or Imprint Name must be between 2 and 80 characters.',
-    };
+  return {
+    success: true,
+    profile: activeProfile,
+  };
+}
+
+export async function signInWithGoogleCreator(): Promise<{
+  success: boolean;
+  hasCreatorAccount: boolean;
+  profile?: UserProfile;
+  error?: string;
+}> {
+  if (typeof window !== 'undefined') {
+    window.history.pushState(null, '', '/login');
+    window.dispatchEvent(new PopStateEvent('popstate'));
   }
-
-  try {
-    let fbUser = auth.currentUser;
-    if (!fbUser) {
-      fbUser = await authenticateWithOververseGoogle();
-      activeFirebaseUser = fbUser;
-    }
-
-    const uid = fbUser.uid;
-    const email = sanitizeBoundedString(fbUser.email || '', 254);
-    if (!email || !fbUser.emailVerified) {
-      return {
-        success: false,
-        error: 'A verified Google account email is required to create a Creator Account.',
-      };
-    }
-
-    const cleanDisplayName =
-      sanitizeBoundedString(fbUser.displayName, 80) ||
-      cleanPenName ||
-      email.split('@')[0] ||
-      'Creator';
-    const cleanAvatarUrl = sanitizeBoundedString(
-      fbUser.photoURL || activeProfile.avatarUrl || DEFAULT_USER_PROFILE.avatarUrl,
-      1000
-    );
-
-    const userRef = doc(db, 'users', uid);
-    const privateRef = doc(db, 'users', uid, 'private', 'info');
-    const userPath = `users/${uid}`;
-    const privatePath = `users/${uid}/private/info`;
-
-    let userExists = false;
-    let privateExists = false;
-
-    try {
-      const existingUserSnap = await getDoc(userRef);
-      userExists = existingUserSnap.exists();
-    } catch (err) {
-      if (isPermissionError(err)) {
-        handleFirestoreError(err, OperationType.GET, userPath);
-      }
-      throw err;
-    }
-
-    if (userExists) {
-      try {
-        const existingPrivateSnap = await getDoc(privateRef);
-        privateExists = existingPrivateSnap.exists();
-      } catch (err) {
-        if (isPermissionError(err)) {
-          handleFirestoreError(err, OperationType.GET, privatePath);
-        }
-        throw err;
-      }
-    }
-
-    const batch = writeBatch(db);
-
-    if (!userExists) {
-      batch.set(userRef, {
-        uid,
-        displayName: cleanDisplayName,
-        avatarUrl: cleanAvatarUrl,
-        bio: cleanBio,
-        isCreator: true,
-        penName: cleanPenName,
-        studioName: cleanStudioName,
-        primaryGenres: cleanGenres.length > 0 ? cleanGenres : ['Action'],
-        followersCount: 0,
-        followingCount: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    } else {
-      batch.update(userRef, {
-        displayName: cleanDisplayName,
-        avatarUrl: cleanAvatarUrl,
-        bio: cleanBio,
-        isCreator: true,
-        penName: cleanPenName,
-        studioName: cleanStudioName,
-        primaryGenres: cleanGenres.length > 0 ? cleanGenres : ['Action'],
-        updatedAt: serverTimestamp(),
-      });
-    }
-
-    if (!privateExists) {
-      batch.set(privateRef, {
-        uid,
-        email,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    } else {
-      batch.update(privateRef, {
-        email,
-        updatedAt: serverTimestamp(),
-      });
-    }
-
-    try {
-      await batch.commit();
-    } catch (err) {
-      if (isPermissionError(err)) {
-        handleFirestoreError(
-          err,
-          userExists ? OperationType.UPDATE : OperationType.CREATE,
-          userPath
-        );
-      }
-      throw err;
-    }
-
-    const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase());
-    const createdProfile: UserProfile = {
-      ...activeProfile,
-      uid,
-      email,
-      displayName: cleanDisplayName,
-      avatarUrl: cleanAvatarUrl,
-      bio: cleanBio,
-      isCreator: true,
-      penName: cleanPenName,
-      studioName: cleanStudioName,
-      primaryGenres: cleanGenres.length > 0 ? cleanGenres : ['Action'],
-      role: isAdmin ? 'admin' : 'creator',
-      lastLoginAt: new Date().toISOString(),
-    };
-
-    ensureCreatorApprovedInMangakaDirectory(createdProfile);
-    isAuthReady = true;
-    saveLocalProfile(createdProfile);
-
-    return {
-      success: true,
-      profile: createdProfile,
-    };
-  } catch (err: any) {
-    const code = err?.code || '';
-    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-      return {
-        success: false,
-        error: 'Google authentication window was closed before completing setup.',
-      };
-    }
-    return {
-      success: false,
-      error: err?.message || 'Unable to create Creator Account. Please try again.',
-    };
-  }
+  return {
+    success: false,
+    hasCreatorAccount: false,
+    error: 'Use your AZ OVERVERSE Email & Password account to sign in.',
+  };
 }
 
 export async function signOutCreatorAccount(): Promise<void> {
@@ -644,146 +450,51 @@ export async function signOutCreatorAccount(): Promise<void> {
 }
 
 // -------------------------------------------------------------
-// READING PROGRESS
+// READING PROGRESS & BOOKMARKS
 // -------------------------------------------------------------
-export async function saveReadingProgress(progress: Omit<ReadingProgressItem, 'updatedAt'>): Promise<void> {
+export async function saveReadingProgress(
+  progress: Omit<ReadingProgressItem, 'updatedAt'>
+): Promise<void> {
   const fullItem: ReadingProgressItem = {
     ...progress,
     updatedAt: new Date().toISOString(),
   };
 
-  const updatedProgress = {
-    ...activeProfile.readingProgress,
-    [progress.mangaId]: fullItem,
-  };
-
-  const updatedProfile: UserProfile = {
+  saveLocalProfile({
     ...activeProfile,
-    readingProgress: updatedProgress,
-  };
-
-  saveLocalProfile(updatedProfile);
-
-  if (auth.currentUser && auth.currentUser.emailVerified) {
-    const uid = auth.currentUser.uid;
-    const safeMangaId = sanitizeSafeId(progress.mangaId);
-    const path = `users/${uid}/reading_progress/${safeMangaId}`;
-    const progressRef = doc(db, 'users', uid, 'reading_progress', safeMangaId);
-
-    try {
-      const parentSnap = await getDoc(doc(db, 'users', uid));
-      if (!parentSnap.exists()) return;
-
-      const existingSnap = await getDoc(progressRef);
-      const payloadBase = {
-        mangaTitle: sanitizeBoundedString(progress.mangaTitle, 160),
-        mangaCover: sanitizeBoundedString(progress.mangaCover, 1000),
-        chapterId: sanitizeSafeId(progress.chapterId),
-        chapterNumber: Math.max(0, Math.min(10000, Number(progress.chapterNumber) || 1)),
-        chapterTitle: sanitizeBoundedString(progress.chapterTitle, 160),
-        pageNumber: Math.max(0, Math.min(5000, Number(progress.pageNumber) || 1)),
-        totalPages: Math.max(1, Math.min(5000, Number(progress.totalPages) || 1)),
-        progressPercent: Math.max(0, Math.min(100, Number(progress.progressPercent) || 0)),
-        completed: Boolean(progress.completed),
-        updatedAt: serverTimestamp(),
-      };
-
-      if (!existingSnap.exists()) {
-        await setDoc(progressRef, {
-          uid,
-          mangaId: safeMangaId,
-          ...payloadBase,
-          createdAt: serverTimestamp(),
-        });
-      } else {
-        await updateDoc(progressRef, payloadBase);
-      }
-    } catch (err) {
-      if (isPermissionError(err)) {
-        handleFirestoreError(err, OperationType.WRITE, path);
-      }
-      console.warn('[UserProfile] Firestore progress sync fallback to local:', err);
-    }
-  }
+    readingProgress: {
+      ...activeProfile.readingProgress,
+      [progress.mangaId]: fullItem,
+    },
+  });
 }
 
 export function getMangaReadingProgress(mangaId: string): ReadingProgressItem | null {
   return activeProfile.readingProgress[mangaId] || null;
 }
 
-// -------------------------------------------------------------
-// BOOKMARKS
-// -------------------------------------------------------------
 export function isMangaBookmarked(mangaId: string): boolean {
   return activeProfile.bookmarks.includes(mangaId);
 }
 
 export async function toggleMangaBookmark(
   mangaId: string,
-  mangaTitle?: string,
-  coverImage?: string
+  _title?: string,
+  _coverImage?: string
 ): Promise<boolean> {
   const isCurrentlyBookmarked = activeProfile.bookmarks.includes(mangaId);
   const newBookmarks = isCurrentlyBookmarked
     ? activeProfile.bookmarks.filter((id) => id !== mangaId)
     : [...activeProfile.bookmarks, mangaId];
 
-  const updatedProfile: UserProfile = {
+  saveLocalProfile({
     ...activeProfile,
     bookmarks: newBookmarks,
-  };
-
-  saveLocalProfile(updatedProfile);
-
-  if (auth.currentUser && auth.currentUser.emailVerified) {
-    const uid = auth.currentUser.uid;
-    const safeMangaId = sanitizeSafeId(mangaId);
-    const path = `users/${uid}/bookmarks/${safeMangaId}`;
-    const bookmarkRef = doc(db, 'users', uid, 'bookmarks', safeMangaId);
-
-    try {
-      const parentSnap = await getDoc(doc(db, 'users', uid));
-      if (parentSnap.exists()) {
-        if (isCurrentlyBookmarked) {
-          await deleteDoc(bookmarkRef);
-        } else {
-          const existingSnap = await getDoc(bookmarkRef);
-          if (!existingSnap.exists()) {
-            await setDoc(bookmarkRef, {
-              uid,
-              mangaId: safeMangaId,
-              mangaTitle: sanitizeBoundedString(mangaTitle || '', 160),
-              coverImage: sanitizeBoundedString(coverImage || '', 1000),
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-          } else {
-            await updateDoc(bookmarkRef, {
-              mangaTitle: sanitizeBoundedString(mangaTitle || '', 160),
-              coverImage: sanitizeBoundedString(coverImage || '', 1000),
-              updatedAt: serverTimestamp(),
-            });
-          }
-        }
-      }
-    } catch (err) {
-      if (isPermissionError(err)) {
-        handleFirestoreError(
-          err,
-          isCurrentlyBookmarked ? OperationType.DELETE : OperationType.WRITE,
-          path
-        );
-      }
-      console.warn('[UserProfile] Bookmark remote sync fallback to local:', err);
-    }
-  }
+  });
 
   return !isCurrentlyBookmarked;
 }
 
-// -------------------------------------------------------------
-// READING PREFERENCES
-// -------------------------------------------------------------
 export async function updateReadingPreferences(
   prefs: Partial<ReadingPreferences>
 ): Promise<ReadingPreferences> {
@@ -792,57 +503,14 @@ export async function updateReadingPreferences(
     ...prefs,
   };
 
-  const updatedProfile: UserProfile = {
+  saveLocalProfile({
     ...activeProfile,
     preferences: merged,
-  };
-
-  saveLocalProfile(updatedProfile);
-
-  if (auth.currentUser && auth.currentUser.emailVerified) {
-    const uid = auth.currentUser.uid;
-    const path = `users/${uid}/preferences/settings`;
-    const prefRef = doc(db, 'users', uid, 'preferences', 'settings');
-
-    try {
-      const parentSnap = await getDoc(doc(db, 'users', uid));
-      if (parentSnap.exists()) {
-        const existingSnap = await getDoc(prefRef);
-        const prefPayload = {
-          theme: merged.theme,
-          textSize: merged.textSize,
-          readingDirection: merged.readingDirection,
-          autoScroll: Boolean(merged.autoScroll),
-          autoScrollSpeed: Math.max(1, Math.min(5, Number(merged.autoScrollSpeed) || 2)),
-          soundEffects: Boolean(merged.soundEffects),
-          hapticFeedback: Boolean(merged.hapticFeedback),
-          updatedAt: serverTimestamp(),
-        };
-
-        if (!existingSnap.exists()) {
-          await setDoc(prefRef, {
-            uid,
-            ...prefPayload,
-            createdAt: serverTimestamp(),
-          });
-        } else {
-          await updateDoc(prefRef, prefPayload);
-        }
-      }
-    } catch (err) {
-      if (isPermissionError(err)) {
-        handleFirestoreError(err, OperationType.WRITE, path);
-      }
-      console.warn('[UserProfile] Preferences remote sync fallback:', err);
-    }
-  }
+  });
 
   return merged;
 }
 
-// -------------------------------------------------------------
-// SOCIAL FOLLOWING
-// -------------------------------------------------------------
 export function isUserFollowed(targetUserId: string): boolean {
   return activeProfile.following.includes(targetUserId);
 }
@@ -853,86 +521,103 @@ export async function toggleFollowUser(targetUserId: string): Promise<boolean> {
     ? activeProfile.following.filter((id) => id !== targetUserId)
     : [...activeProfile.following, targetUserId];
 
-  const updatedProfile: UserProfile = {
+  saveLocalProfile({
     ...activeProfile,
     following: newFollowing,
     followingCount: newFollowing.length,
-  };
-
-  saveLocalProfile(updatedProfile);
+  });
   return !isFollowing;
 }
 
 // -------------------------------------------------------------
-// LEGACY MODAL AUTH HELPERS (READER PROFILE MODAL COMPATIBILITY)
+// MODAL AUTH HELPERS (CUSTOM POSTGRESQL + JWT + RESEND)
 // -------------------------------------------------------------
 export async function registerWithEmail(
   email: string,
   pass: string,
   displayName: string,
-  isCreator = false,
+  isCreator = true,
   penName?: string
-): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
-  if (isCreator) {
-    const res = await createCreatorAccount({
-      penName: penName || displayName || email.split('@')[0] || 'Creator',
-      studioName: `${displayName || 'OVERVERSE'} Studio`,
-      bio: 'Creator on AZ OVERVERSE.',
-      primaryGenres: ['Action'],
-    });
-    return { success: res.success, user: res.profile, error: res.error };
+): Promise<{
+  success: boolean;
+  user?: UserProfile;
+  message?: string;
+  previewVerificationUrl?: string;
+  error?: string;
+}> {
+  const resolvedPenName =
+    sanitizeBoundedString(penName || displayName || email.split('@')[0], 60) ||
+    DEFAULT_CREATOR_PEN_NAME;
+
+  const res = await registerOververseUser({
+    email,
+    pen_name: resolvedPenName,
+    password: pass,
+    confirmPassword: pass,
+    studio_name: `${resolvedPenName} Studio`,
+    role: isCreator ? 'creator' : 'reader',
+  });
+
+  if (!res.success) {
+    return { success: false, error: res.error };
   }
 
-  try {
-    const res = await signInWithGoogleCreator();
-    if (res.success && res.profile) {
-      return { success: true, user: res.profile };
-    }
-    return {
-      success: false,
-      error: res.error || 'Please sign in with Google to register.',
-    };
-  } catch (e: any) {
-    return { success: false, error: e.message || 'Failed to create account.' };
-  }
+  return {
+    success: true,
+    message: res.message,
+    previewVerificationUrl: res.previewVerificationUrl,
+  };
 }
 
 export async function loginWithEmail(
-  _email: string,
-  _pass: string
-): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
-  const res = await signInWithGoogleCreator();
+  email: string,
+  pass: string
+): Promise<{
+  success: boolean;
+  requiresTwoFactor?: boolean;
+  mfaToken?: string;
+  user?: UserProfile;
+  error?: string;
+}> {
+  const res = await loginOververseUser({ email, password: pass });
+  if (res.requiresTwoFactor && res.mfaToken) {
+    return {
+      success: false,
+      requiresTwoFactor: true,
+      mfaToken: res.mfaToken,
+    };
+  }
+  if (!res.success) {
+    return {
+      success: false,
+      error: res.error,
+    };
+  }
   return {
-    success: res.success,
-    user: res.profile,
-    error: res.error,
+    success: true,
+    user: activeProfile,
+  };
+}
+
+export async function verifyLoginTwoFactorCode(
+  mfaToken: string,
+  code: string
+): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
+  const res = await verifyOververseLoginTwoFactor({ mfaToken, code });
+  if (!res.success) {
+    return {
+      success: false,
+      error: res.error || 'Invalid 6-digit authenticator code.',
+    };
+  }
+  return {
+    success: true,
+    user: activeProfile,
   };
 }
 
 export async function logoutUser(): Promise<void> {
-  try {
-    await signOut(auth);
-  } catch (err) {
-    console.warn('[UserProfile] Sign out warning:', err);
-  }
-
-  activeFirebaseUser = null;
-
-  const guestProfile: UserProfile = {
-    ...DEFAULT_USER_PROFILE,
-    uid: `u-guest-${Date.now()}`,
-    email: 'reader@azoververse.com',
-    displayName: 'Guest Reader',
-    isCreator: false,
-    penName: undefined,
-    studioName: undefined,
-    role: 'reader',
-    bookmarks: activeProfile.bookmarks,
-    readingProgress: activeProfile.readingProgress,
-    preferences: activeProfile.preferences,
-  };
-
-  saveLocalProfile(guestProfile);
+  await logoutOververseSession();
 }
 
 export async function updateUserBioAndAvatar(
@@ -940,7 +625,7 @@ export async function updateUserBioAndAvatar(
   bio: string,
   avatarUrl?: string
 ): Promise<UserProfile> {
-  const cleanName = sanitizeBoundedString(displayName, 80, activeProfile.displayName || 'Reader');
+  const cleanName = sanitizeBoundedString(displayName, 60, activeProfile.displayName || 'Creator');
   const cleanBio = sanitizeBoundedString(bio, 500, activeProfile.bio || '');
   const cleanAvatar = sanitizeBoundedString(
     avatarUrl || activeProfile.avatarUrl,
@@ -948,41 +633,22 @@ export async function updateUserBioAndAvatar(
     DEFAULT_USER_PROFILE.avatarUrl
   );
 
+  if (activeAuthUser) {
+    await patchOververseCreatorProfile({
+      pen_name: cleanName,
+      bio: cleanBio,
+      avatar_url: cleanAvatar,
+    });
+  }
+
   const updated: UserProfile = {
     ...activeProfile,
     displayName: cleanName,
+    penName: activeProfile.isCreator ? cleanName : activeProfile.penName,
     bio: cleanBio,
     avatarUrl: cleanAvatar,
   };
 
   saveLocalProfile(updated);
-
-  if (auth.currentUser && auth.currentUser.emailVerified) {
-    const uid = auth.currentUser.uid;
-    const path = `users/${uid}`;
-    const userRef = doc(db, 'users', uid);
-
-    try {
-      await updateFirebaseProfile(auth.currentUser, {
-        displayName: cleanName,
-        photoURL: cleanAvatar,
-      });
-      const existingSnap = await getDoc(userRef);
-      if (existingSnap.exists()) {
-        await updateDoc(userRef, {
-          displayName: cleanName,
-          bio: cleanBio,
-          avatarUrl: cleanAvatar,
-          updatedAt: serverTimestamp(),
-        });
-      }
-    } catch (err) {
-      if (isPermissionError(err)) {
-        handleFirestoreError(err, OperationType.UPDATE, path);
-      }
-      console.warn('[UserProfile] Bio remote update warning:', err);
-    }
-  }
-
   return updated;
 }

@@ -46,8 +46,17 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   Layers,
+  CornerDownRight,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { isMangaRecentlyPublished } from './MangaCard';
+import {
+  postChapterComment,
+  toggleChapterCommentLike,
+  useChapterComments,
+  ThreadedCommentNode,
+} from '../../services/chapterCommentService';
 
 interface MangaDetailModalProps {
   manga: Manga | null;
@@ -61,7 +70,7 @@ interface MangaDetailModalProps {
   isFavorite?: boolean;
   onToggleFavorite?: (mangaId: string) => void;
   comments: Comment[];
-  onAddComment: (text: string, chapterNumber?: number) => void;
+  onAddComment: (text: string, chapterNumber?: number, parentComment?: Comment) => void;
   onLikeComment?: (commentId: string) => void;
   onOpenAiReport?: (manga: Manga) => void;
   allManga?: Manga[];
@@ -86,6 +95,8 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
   allManga = [],
   onSelectManga,
 }) => {
+  const MAX_COMMENT_LENGTH = 500;
+  const commentInputRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(() => manga ? isMangaBookmarked(manga.id) : false);
   const [cachedManga, setCachedManga] = useState<Manga | null>(manga);
   const [newCommentText, setNewCommentText] = useState('');
@@ -96,6 +107,14 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
   });
   const [isEditingName, setIsEditingName] = useState(false);
   const [likedCommentIds, setLikedCommentIds] = useState<Record<string, boolean>>({});
+  const [activeReplyCommentId, setActiveReplyCommentId] = useState<string | null>(null);
+  const [replyDraftText, setReplyDraftText] = useState('');
+  const [collapsedThreadIds, setCollapsedThreadIds] = useState<Record<string, boolean>>({});
+
+  const handleClearComment = () => {
+    setNewCommentText('');
+    commentInputRef.current?.focus();
+  };
 
   useEffect(() => {
     if (manga) {
@@ -218,13 +237,139 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
     return getSimilarManga(activeManga, allManga, 4);
   }, [activeManga, allManga]);
 
+  const activeChapterForSync = useMemo(() => {
+    if (!activeManga) {
+      return { chapterId: 'preview-ch-1', chapterNumber: 1 };
+    }
+    const desiredNum =
+      typeof selectedChapterFilter === 'number'
+        ? selectedChapterFilter
+        : targetCommentChapter || activeManga.chapters[0]?.number || 1;
+    const matchedCh = activeManga.chapters.find((c) => c.number === desiredNum);
+    return {
+      chapterId: matchedCh?.id || buildPreviewChapterId(activeManga.id, desiredNum),
+      chapterNumber: desiredNum,
+    };
+  }, [activeManga, selectedChapterFilter, targetCommentChapter]);
+
+  const { threads: syncedChapterThreads, totalCount: syncedChapterTotalCount } =
+    useChapterComments({
+      mangaId: activeManga?.id || 'manga',
+      chapterId: activeChapterForSync.chapterId,
+      chapterNumber: activeChapterForSync.chapterNumber,
+      userBadge: isVipUser ? 'VIP Reader' : undefined,
+    });
+
+  // Flatten synced chapter nodes into Comment objects so both ReaderView and MangaDetailModal share threads seamlessly
+  const { flattenedSyncedComments, syncedLikedIdSet } = useMemo(() => {
+    if (!activeManga) {
+      return { flattenedSyncedComments: [] as Comment[], syncedLikedIdSet: new Set<string>() };
+    }
+    const list: Comment[] = [];
+    const likedSet = new Set<string>();
+    const walk = (nodes: ThreadedCommentNode[]) => {
+      for (const n of nodes) {
+        if (n.isLikedByCurrentUser) {
+          likedSet.add(n.id);
+        }
+        list.push({
+          id: n.id,
+          mangaId: activeManga.id,
+          userId: n.authorUid,
+          userName: n.authorName,
+          text: n.text,
+          timestamp: n.createdAt,
+          chapterId: n.chapterId,
+          chapterNumber: n.chapterNumber,
+          parentId: n.parentId,
+          rootId: n.rootId,
+          depth: n.depth,
+          replyToUserName: n.replyToUserName,
+          pageNumber: n.pageNumber,
+          isSpoiler: n.isSpoiler,
+          userBadge: n.authorBadge,
+          likes: n.likesCount,
+        });
+        if (n.replies.length > 0) {
+          walk(n.replies);
+        }
+      }
+    };
+    walk(syncedChapterThreads);
+    return { flattenedSyncedComments: list, syncedLikedIdSet: likedSet };
+  }, [activeManga, syncedChapterThreads]);
+
+  const combinedComments = useMemo<Comment[]>(() => {
+    const byId = new Map<string, Comment>();
+    for (const c of flattenedSyncedComments) {
+      byId.set(c.id, c);
+    }
+    for (const c of comments) {
+      if (!byId.has(c.id)) {
+        byId.set(c.id, c);
+      }
+    }
+    return Array.from(byId.values());
+  }, [flattenedSyncedComments, comments]);
+
   // Filtered comments based on selected chapter tab
   const filteredComments = useMemo(() => {
     if (selectedChapterFilter === 'all') {
-      return comments;
+      return combinedComments;
     }
-    return comments.filter((c) => c.chapterNumber === selectedChapterFilter);
-  }, [comments, selectedChapterFilter]);
+    return combinedComments.filter((c) => c.chapterNumber === selectedChapterFilter);
+  }, [combinedComments, selectedChapterFilter]);
+
+  interface DetailCommentTreeNode extends Comment {
+    replies: DetailCommentTreeNode[];
+    descendantCount: number;
+    isSyncedChapterNode: boolean;
+  }
+
+  const threadedDetailComments = useMemo<DetailCommentTreeNode[]>(() => {
+    const syncedIdSet = new Set(flattenedSyncedComments.map((c) => c.id));
+    const map = new Map<string, DetailCommentTreeNode>();
+
+    for (const c of filteredComments) {
+      map.set(c.id, {
+        ...c,
+        replies: [],
+        descendantCount: 0,
+        isSyncedChapterNode: syncedIdSet.has(c.id),
+      });
+    }
+
+    const roots: DetailCommentTreeNode[] = [];
+    map.forEach((node) => {
+      if ((node.depth || 0) > 0 && node.parentId) {
+        const parent = map.get(node.parentId) || (node.rootId ? map.get(node.rootId) : undefined);
+        if (parent && parent.id !== node.id) {
+          parent.replies.push(node);
+          return;
+        }
+      }
+      roots.push(node);
+    });
+
+    const countReplies = (n: DetailCommentTreeNode): number => {
+      n.replies.sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      let total = 0;
+      for (const child of n.replies) {
+        total += 1 + countReplies(child);
+      }
+      n.descendantCount = total;
+      return total;
+    };
+
+    for (const r of roots) {
+      countReplies(r);
+    }
+
+    roots.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return roots;
+  }, [filteredComments, flattenedSyncedComments]);
 
   const handleNameChange = (name: string) => {
     const trimmed = name.slice(0, 20);
@@ -234,18 +379,82 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
 
   const handlePostComment = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!newCommentText.trim()) return;
+    const trimmed = newCommentText.trim();
+    if (!trimmed || !activeManga) return;
 
-    onAddComment(newCommentText.trim(), targetCommentChapter);
+    if (targetCommentChapter) {
+      const targetCh = activeManga.chapters.find((c) => c.number === targetCommentChapter);
+      const targetChId = targetCh?.id || buildPreviewChapterId(activeManga.id, targetCommentChapter);
+      void postChapterComment({
+        mangaId: activeManga.id,
+        chapterId: targetChId,
+        chapterNumber: targetCommentChapter,
+        text: trimmed,
+        authorNameOverride: readerName,
+        authorBadge: isVipUser ? 'VIP Reader' : undefined,
+      });
+    } else {
+      onAddComment(trimmed, targetCommentChapter);
+    }
     setNewCommentText('');
   };
 
-  const handleToggleLike = (commentId: string) => {
+  const handleSubmitDetailReply = (parent: DetailCommentTreeNode) => {
+    const trimmed = replyDraftText.trim();
+    if (!trimmed || !activeManga) return;
+
+    if (parent.isSyncedChapterNode || parent.chapterNumber) {
+      const chNum = parent.chapterNumber || targetCommentChapter || 1;
+      const targetCh = activeManga.chapters.find((c) => c.number === chNum);
+      const chId = parent.chapterId || targetCh?.id || buildPreviewChapterId(activeManga.id, chNum);
+
+      void postChapterComment({
+        mangaId: activeManga.id,
+        chapterId: chId,
+        chapterNumber: chNum,
+        text: trimmed,
+        parentComment: parent.isSyncedChapterNode
+          ? {
+              id: parent.id,
+              parentId: parent.parentId || null,
+              rootId: parent.rootId || null,
+              depth: (Math.min(4, Math.max(0, parent.depth || 0)) as 0 | 1 | 2 | 3 | 4),
+              authorName: parent.userName,
+            }
+          : null,
+        authorNameOverride: readerName,
+        authorBadge: isVipUser ? 'VIP Reader' : undefined,
+      });
+
+      if (!parent.isSyncedChapterNode) {
+        onAddComment(trimmed, chNum, parent);
+      }
+    } else {
+      onAddComment(trimmed, parent.chapterNumber, parent);
+    }
+
+    setReplyDraftText('');
+    setActiveReplyCommentId(null);
+    setCollapsedThreadIds((prev) => ({ ...prev, [parent.id]: false }));
+  };
+
+  const handleToggleLike = (comment: DetailCommentTreeNode) => {
+    if (comment.isSyncedChapterNode && activeManga) {
+      const chNum = comment.chapterNumber || 1;
+      const chId = comment.chapterId || buildPreviewChapterId(activeManga.id, chNum);
+      void toggleChapterCommentLike({
+        commentId: comment.id,
+        chapterId: chId,
+        mangaId: activeManga.id,
+      });
+      return;
+    }
+
     setLikedCommentIds((prev) => ({
       ...prev,
-      [commentId]: !prev[commentId],
+      [comment.id]: !prev[comment.id],
     }));
-    onLikeComment?.(commentId);
+    onLikeComment?.(comment.id);
   };
 
   const formatTimestamp = (timestamp: string): string => {
@@ -1175,27 +1384,46 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                           : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
                       }`}
                     >
-                      All ({comments.length})
+                      All ({combinedComments.length})
                     </button>
-                    {activeManga.chapters.map((ch, idx) => {
-                      const chCommentCount = comments.filter((c) => c.chapterNumber === ch.number).length;
-                      return (
-                        <button
-                          key={`${modalId}-comment-tab-${ch.id}-${idx}`}
-                          onClick={() => {
-                            setSelectedChapterFilter(ch.number);
-                            setTargetCommentChapter(ch.number);
-                          }}
-                          className={`rounded-lg px-2.5 py-1 text-xs font-semibold shrink-0 transition ${
-                            selectedChapterFilter === ch.number
-                              ? 'bg-amber-500 text-black font-bold'
-                              : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
-                          }`}
-                        >
-                          Ch. {ch.number} ({chCommentCount})
-                        </button>
-                      );
-                    })}
+                    {activeManga.chapters.length === 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedChapterFilter(1);
+                          setTargetCommentChapter(1);
+                        }}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-semibold shrink-0 transition ${
+                          selectedChapterFilter === 1
+                            ? 'bg-amber-500 text-black font-bold'
+                            : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Ch. 1 Preview ({syncedChapterTotalCount})
+                      </button>
+                    ) : (
+                      activeManga.chapters.map((ch, idx) => {
+                        const chCommentCount = combinedComments.filter(
+                          (c) => c.chapterNumber === ch.number
+                        ).length;
+                        return (
+                          <button
+                            key={`${modalId}-comment-tab-${ch.id}-${idx}`}
+                            onClick={() => {
+                              setSelectedChapterFilter(ch.number);
+                              setTargetCommentChapter(ch.number);
+                            }}
+                            className={`rounded-lg px-2.5 py-1 text-xs font-semibold shrink-0 transition ${
+                              selectedChapterFilter === ch.number
+                                ? 'bg-amber-500 text-black font-bold'
+                                : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Ch. {ch.number} ({chCommentCount})
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
 
                   {/* Comment Input Box */}
@@ -1209,16 +1437,29 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                           className="bg-slate-900 border border-slate-700 text-amber-300 font-bold rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-amber-500 cursor-pointer"
                         >
                           <option value="">General Series Discussion</option>
-                          {activeManga.chapters.map((ch, idx) => (
-                            <option key={`${modalId}-select-ch-${ch.id}-${idx}`} value={ch.number}>
-                              Chapter {ch.number}: {ch.title}
-                            </option>
-                          ))}
+                          {activeManga.chapters.length === 0 ? (
+                            <option value={1}>Chapter 1: Serialization Preview</option>
+                          ) : (
+                            activeManga.chapters.map((ch, idx) => (
+                              <option key={`${modalId}-select-ch-${ch.id}-${idx}`} value={ch.number}>
+                                Chapter {ch.number}: {ch.title}
+                              </option>
+                            ))
+                          )}
                         </select>
                       </div>
 
-                      <span className="text-[11px] text-slate-500 font-mono">
-                        {newCommentText.length}/500
+                      <span
+                        aria-live="polite"
+                        className={`text-[11px] font-mono tabular-nums font-semibold transition-colors ${
+                          newCommentText.length >= MAX_COMMENT_LENGTH
+                            ? 'text-rose-400'
+                            : newCommentText.length >= Math.floor(MAX_COMMENT_LENGTH * 0.85)
+                            ? 'text-amber-400'
+                            : 'text-slate-400'
+                        }`}
+                      >
+                        {newCommentText.length} / {MAX_COMMENT_LENGTH} chars
                       </span>
                     </div>
 
@@ -1228,7 +1469,12 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                         <button
                           key={`${modalId}-reaction-${reaction}-${idx}`}
                           type="button"
-                          onClick={() => setNewCommentText((prev) => (prev ? `${prev} ${reaction}` : reaction))}
+                          onClick={() =>
+                            setNewCommentText((prev) => {
+                              const next = prev ? `${prev} ${reaction}` : reaction;
+                              return next.slice(0, MAX_COMMENT_LENGTH);
+                            })
+                          }
                           className="rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-amber-300 px-2.5 py-0.5 text-[11px] font-medium transition"
                         >
                           {reaction}
@@ -1236,11 +1482,13 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                       ))}
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="rounded-xl border border-slate-700 bg-slate-900 focus-within:border-amber-500 transition overflow-hidden">
                       <textarea
+                        id="manga-detail-comment-textarea"
+                        ref={commentInputRef}
                         value={newCommentText}
-                        maxLength={500}
-                        onChange={(e) => setNewCommentText(e.target.value)}
+                        maxLength={MAX_COMMENT_LENGTH}
+                        onChange={(e) => setNewCommentText(e.target.value.slice(0, MAX_COMMENT_LENGTH))}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
@@ -1249,23 +1497,62 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                         }}
                         rows={2}
                         placeholder={`Share your thoughts on ${targetCommentChapter ? `Chapter ${targetCommentChapter}` : activeManga.title}...`}
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 resize-none transition"
+                        className="w-full bg-transparent px-3 pt-2.5 pb-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none resize-none"
                       />
 
-                      <button
-                        type="submit"
-                        disabled={!newCommentText.trim()}
-                        className="rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:hover:bg-amber-500 text-black px-4 py-2 text-xs font-bold transition flex flex-col items-center justify-center gap-1 shadow-md shrink-0"
-                      >
-                        <Send className="w-4 h-4 fill-black" />
-                        <span>Post</span>
-                      </button>
+                      <div className="flex items-center justify-between gap-2 border-t border-slate-800/90 bg-slate-950/60 px-3 py-2">
+                        <div
+                          id="comment-character-counter"
+                          className="flex items-center gap-2 text-[11px] font-mono tabular-nums"
+                        >
+                          <span
+                            className={
+                              newCommentText.length >= MAX_COMMENT_LENGTH
+                                ? 'text-rose-400 font-bold'
+                                : newCommentText.length >= Math.floor(MAX_COMMENT_LENGTH * 0.85)
+                                ? 'text-amber-400 font-semibold'
+                                : 'text-slate-400'
+                            }
+                          >
+                            {newCommentText.length}/{MAX_COMMENT_LENGTH}
+                          </span>
+                          {newCommentText.length >= Math.floor(MAX_COMMENT_LENGTH * 0.85) && (
+                            <span className="text-[10px] text-slate-500">
+                              ({MAX_COMMENT_LENGTH - newCommentText.length} left)
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            id="clear-comment-input-btn"
+                            type="button"
+                            disabled={newCommentText.length === 0}
+                            onClick={handleClearComment}
+                            aria-label="Clear comment"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 hover:text-white disabled:opacity-35 disabled:pointer-events-none px-2.5 py-1.5 text-xs font-semibold text-slate-300 transition"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Clear</span>
+                          </button>
+
+                          <button
+                            id="submit-comment-btn"
+                            type="submit"
+                            disabled={!newCommentText.trim()}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:hover:bg-amber-500 text-black px-3.5 py-1.5 text-xs font-bold transition shadow-md shrink-0"
+                          >
+                            <Send className="w-3.5 h-3.5 fill-black" />
+                            <span>Post</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </form>
 
-                  {/* Comments Feed */}
-                  <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                    {filteredComments.length === 0 ? (
+                  {/* Threaded Comments & Direct Replies Feed */}
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                    {threadedDetailComments.length === 0 ? (
                       <div className="rounded-2xl border border-slate-800/80 bg-slate-950/40 p-6 text-center space-y-2">
                         <MessageSquare className="w-8 h-8 text-slate-600 mx-auto" />
                         <p className="text-xs text-slate-400">
@@ -1275,79 +1562,245 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                         </p>
                       </div>
                     ) : (
-                      filteredComments.map((comment, idx) => {
-                        const isLiked = Boolean(likedCommentIds[comment.id]);
-                        const initialLikes = comment.likes || 0;
-                        const displayLikes = initialLikes + (isLiked ? 1 : 0);
-                        const userInitial = (comment.userName || 'R').charAt(0).toUpperCase();
+                      (() => {
+                        const renderCommentBranch = (
+                          comment: DetailCommentTreeNode,
+                          isNested = false
+                        ): React.ReactNode => {
+                          const isLiked = comment.isSyncedChapterNode
+                            ? syncedLikedIdSet.has(comment.id)
+                            : Boolean(likedCommentIds[comment.id]);
+                          const initialLikes = comment.likes || 0;
+                          const displayLikes = comment.isSyncedChapterNode
+                            ? initialLikes
+                            : initialLikes + (isLiked ? 1 : 0);
+                          const userInitial = (comment.userName || 'R').charAt(0).toUpperCase();
+                          const isReplyingHere = activeReplyCommentId === comment.id;
+                          const isCollapsed = Boolean(collapsedThreadIds[comment.id]);
 
-                        return (
-                          <div
-                            key={`${modalId}-comment-${comment.id}-${idx}`}
-                            className="rounded-2xl bg-slate-950 border border-slate-800/80 p-3.5 space-y-2 transition hover:border-slate-700"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2.5">
-                                {/* Avatar Initial */}
-                                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-tr from-amber-600 to-yellow-400 text-black font-black text-xs shadow-sm">
-                                  {userInitial}
+                          return (
+                            <div
+                              key={`${modalId}-comment-${comment.id}`}
+                              className={
+                                isNested
+                                  ? 'pt-2.5 space-y-1.5'
+                                  : 'rounded-2xl bg-slate-950 border border-slate-800/80 p-3.5 space-y-2 transition hover:border-slate-700'
+                              }
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div
+                                    className={`flex items-center justify-center rounded-full font-bold shrink-0 ${
+                                      isNested
+                                        ? 'h-6 w-6 text-[11px] bg-slate-800 text-slate-200 border border-slate-700'
+                                        : 'h-7 w-7 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                    }`}
+                                  >
+                                    {userInitial}
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                                    <span className="font-bold text-white">{comment.userName}</span>
+
+                                    {comment.userBadge && (
+                                      <>
+                                        <span aria-hidden="true" className="text-slate-600">
+                                          ·
+                                        </span>
+                                        <span className="text-[11px] font-medium text-amber-400/90">
+                                          {comment.userBadge}
+                                        </span>
+                                      </>
+                                    )}
+
+                                    {comment.chapterNumber && (
+                                      <>
+                                        <span aria-hidden="true" className="text-slate-600">
+                                          ·
+                                        </span>
+                                        <span className="text-[11px] font-mono tabular-nums text-slate-400">
+                                          Ch. {comment.chapterNumber}
+                                          {comment.pageNumber ? ` · Pg ${comment.pageNumber}` : ''}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
 
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-xs font-bold text-white">
-                                    {comment.userName}
+                                <div
+                                  className="flex items-center gap-1 text-[10px] text-slate-500 font-mono tabular-nums shrink-0"
+                                  title={new Date(comment.timestamp).toLocaleString()}
+                                >
+                                  <Clock className="w-3 h-3 text-slate-600" />
+                                  <span>{formatTimestamp(comment.timestamp)}</span>
+                                </div>
+                              </div>
+
+                              {comment.replyToUserName && (
+                                <p className="text-[11px] text-slate-400 pl-8">
+                                  Replying to{' '}
+                                  <span className="font-semibold text-amber-300/90">
+                                    @{comment.replyToUserName}
                                   </span>
+                                </p>
+                              )}
 
-                                  {comment.userBadge && (
-                                    <span className="rounded bg-purple-950/80 border border-purple-500/40 px-1.5 py-0.2 text-[9px] font-bold text-purple-300">
-                                      {comment.userBadge}
-                                    </span>
-                                  )}
+                              <p className="text-xs text-slate-300 leading-relaxed pl-8 whitespace-pre-wrap break-words">
+                                {comment.text}
+                              </p>
 
-                                  {comment.chapterNumber && (
-                                    <span className="rounded bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.2 text-[9px] font-bold text-amber-300 font-mono">
-                                      Ch. {comment.chapterNumber}
-                                    </span>
+                              <div className="flex flex-wrap items-center gap-3 pl-8 pt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleLike(comment)}
+                                  className={`inline-flex items-center gap-1 text-[11px] font-semibold transition whitespace-nowrap shrink-0 ${
+                                    isLiked
+                                      ? 'text-rose-400 font-bold'
+                                      : 'text-slate-400 hover:text-slate-200'
+                                  }`}
+                                >
+                                  <Heart
+                                    className={`w-3.5 h-3.5 ${
+                                      isLiked ? 'fill-rose-500 text-rose-500' : ''
+                                    }`}
+                                  />
+                                  <span className="font-mono tabular-nums">
+                                    {displayLikes > 0 ? displayLikes : 'Like'}
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveReplyCommentId((prev) =>
+                                      prev === comment.id ? null : comment.id
+                                    );
+                                    setReplyDraftText('');
+                                  }}
+                                  className={`inline-flex items-center gap-1 text-[11px] font-semibold transition whitespace-nowrap shrink-0 ${
+                                    isReplyingHere
+                                      ? 'text-amber-300'
+                                      : 'text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  <CornerDownRight className="w-3.5 h-3.5" />
+                                  <span>{isReplyingHere ? 'Cancel' : 'Reply'}</span>
+                                </button>
+
+                                {comment.replies.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setCollapsedThreadIds((prev) => ({
+                                        ...prev,
+                                        [comment.id]: !prev[comment.id],
+                                      }))
+                                    }
+                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-400/90 hover:text-amber-300 transition whitespace-nowrap shrink-0"
+                                  >
+                                    {isCollapsed ? (
+                                      <>
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                        <span className="tabular-nums">
+                                          View {comment.descendantCount}{' '}
+                                          {comment.descendantCount === 1 ? 'reply' : 'replies'}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronUp className="w-3.5 h-3.5" />
+                                        <span className="tabular-nums">
+                                          Hide {comment.descendantCount}{' '}
+                                          {comment.descendantCount === 1 ? 'reply' : 'replies'}
+                                        </span>
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+
+                              {isReplyingHere && (
+                                <div className="pl-8 pt-2">
+                                  <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-2.5 space-y-2">
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <span className="text-slate-300">
+                                        Replying to{' '}
+                                        <span className="font-semibold text-amber-300">
+                                          @{comment.userName}
+                                        </span>
+                                      </span>
+                                      <span className="font-mono tabular-nums text-slate-500">
+                                        {replyDraftText.length}/{MAX_COMMENT_LENGTH}
+                                      </span>
+                                    </div>
+                                    <textarea
+                                      value={replyDraftText}
+                                      maxLength={MAX_COMMENT_LENGTH}
+                                      onChange={(e) =>
+                                        setReplyDraftText(e.target.value.slice(0, MAX_COMMENT_LENGTH))
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                          e.preventDefault();
+                                          handleSubmitDetailReply(comment);
+                                        }
+                                      }}
+                                      rows={2}
+                                      autoFocus
+                                      placeholder={`Reply to ${comment.userName}...`}
+                                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-white placeholder:text-slate-500 focus:border-amber-500 focus:outline-none resize-none"
+                                    />
+                                    <div className="flex items-center justify-end gap-2">
+                                      {replyDraftText.length > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setReplyDraftText('')}
+                                          className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs font-medium text-slate-300 hover:text-white transition whitespace-nowrap shrink-0"
+                                        >
+                                          <X className="w-3 h-3" />
+                                          <span>Clear</span>
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveReplyCommentId(null)}
+                                        className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-medium text-slate-300 hover:text-white transition whitespace-nowrap shrink-0"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={!replyDraftText.trim()}
+                                        onClick={() => handleSubmitDetailReply(comment)}
+                                        className="inline-flex items-center gap-1 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black px-3 py-1 text-xs font-bold transition whitespace-nowrap shrink-0"
+                                      >
+                                        <Send className="w-3 h-3 fill-black" />
+                                        <span>Reply</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {comment.replies.length > 0 && !isCollapsed && (
+                                <div className="relative ml-3.5 pl-4 space-y-2">
+                                  <div
+                                    aria-hidden="true"
+                                    className="absolute left-0 top-2 bottom-1 w-px bg-slate-800/90"
+                                  />
+                                  {comment.replies.map((replyNode) =>
+                                    renderCommentBranch(replyNode, true)
                                   )}
                                 </div>
-                              </div>
-
-                              {/* Timestamp with Clock Icon */}
-                              <div
-                                className="flex items-center gap-1 text-[10px] text-slate-500 font-mono"
-                                title={new Date(comment.timestamp).toLocaleString()}
-                              >
-                                <Clock className="w-3 h-3 text-slate-600" />
-                                <span>{formatTimestamp(comment.timestamp)}</span>
-                              </div>
+                              )}
                             </div>
+                          );
+                        };
 
-                            {/* Message Text */}
-                            <p className="text-xs text-slate-300 leading-relaxed pl-9">
-                              {comment.text}
-                            </p>
-
-                            {/* Comment Actions (Like / Upvote) */}
-                            <div className="flex items-center justify-between pl-9 pt-1">
-                              <button
-                                onClick={() => handleToggleLike(comment.id)}
-                                className={`flex items-center gap-1 text-[11px] font-semibold transition ${
-                                  isLiked
-                                    ? 'text-rose-400 font-bold'
-                                    : 'text-slate-400 hover:text-slate-200'
-                                }`}
-                              >
-                                <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
-                                <span>{displayLikes > 0 ? displayLikes : 'Like'}</span>
-                              </button>
-
-                              <span className="text-[10px] text-slate-600 font-mono">
-                                {new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                          </div>
+                        return threadedDetailComments.map((rootComment) =>
+                          renderCommentBranch(rootComment, false)
                         );
-                      })
+                      })()
                     )}
                   </div>
                 </div>

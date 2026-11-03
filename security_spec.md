@@ -3,10 +3,10 @@
 ## 1. Data Invariants & Relationship Mapping
 
 1. **Global Default-Deny Safety Net**: Every path not explicitly matched under `/databases/{database}/documents` is unconditionally denied (`allow read, write: if false;`).
-2. **Verified Identity Invariant**: All standard write mutations require `request.auth != null && request.auth.token.email_verified == true`.
+2. **Verified Identity Invariant**: All standard write mutations require `request.auth != null` AND either a verified Phone Auth token (`'phone_number' in request.auth.token && request.auth.token.phone_number is string`), a verified Email token (`request.auth.token.email_verified == true`), OR an authenticated Email/Password backup credential (`request.auth.token.firebase.sign_in_provider == 'password'` with non-empty `email`). Admin overrides (`isAdmin()`) strictly require `request.auth.token.email_verified == true` so unverified password accounts can never spoof admin emails.
 3. **PII Isolation (Split Collection Strategy)**:
-   - `/users/{userId}` stores ONLY public reader and Creator Studio metadata (`uid`, `displayName`, `avatarUrl`, `bio`, `isCreator`, `penName`, `studioName`, `primaryGenres`, `followersCount`, `followingCount`, `createdAt`, `updatedAt`). No `email` or `role` privilege field is allowed in `/users/{userId}`.
-   - `/users/{userId}/private/{docId}` (`docId == 'info'`) stores isolated PII (`uid`, `email`, `createdAt`, `updatedAt`) and is readable strictly by `isOwner(userId) || isAdmin()`.
+   - `/users/{userId}` stores ONLY public reader and Creator Studio metadata (`uid`, `displayName`, `avatarUrl`, `bio`, `isCreator`, `penName`, `studioName`, `primaryGenres`, `followersCount`, `followingCount`, `createdAt`, `updatedAt`). No `email`, `phone`, or `role` privilege field is allowed in `/users/{userId}`.
+   - `/users/{userId}/private/{docId}` (`docId == 'info'`) stores isolated PII (`uid`, optional `email` verified against `request.auth.token.email`, optional `phone` verified against `request.auth.token.phone_number` matching `^\\+[1-9][0-9]{6,18}$`, `createdAt`, `updatedAt`) and is readable strictly by `isOwner(userId) || isAdmin()`.
 4. **Master Gate (Relational Sync)**:
    - Every user subcollection (`/users/{userId}/private/{docId}`, `/users/{userId}/reading_progress/{mangaId}`, `/users/{userId}/bookmarks/{mangaId}`, `/users/{userId}/preferences/{prefId}`) verifies parent existence via `exists(/databases/$(database)/documents/users/$(userId))` (or `existsAfter` during atomic initial registration) and enforces `uid == userId`.
    - `/mangas/{mangaId}` creation requires that the author has an active Creator Account (`get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isCreator == true`).
@@ -18,6 +18,11 @@
    - Each user can hold at most one rating per target via deterministic ID `ratingId == summaryId + '__' + request.auth.uid`, with `score in [1, 2, 3, 4, 5]`.
    - `/ratings/{ratingId}` is readable only by its owner (`uid == request.auth.uid`) or `isAdmin()`, preventing cross-user behavioral scraping.
    - `/rating_summaries/{summaryId}` mutations are atomically bound via `existsAfter` / `getAfter` to `/ratings/$(summaryId + '__' + request.auth.uid)` at `request.time`, ensuring `ratingCount` can only increment by 1 on a user's first rating and `ratingSum` must match the exact delta `newScore - oldScore`.
+7. **Threaded Chapter Comments & Interaction Likes Invariant (`/chapter_comments/{commentId}` & `/chapter_comment_likes/{likeId}`)**:
+   - Zero PII (`email`, `phone`, `address`) is permitted inside `/chapter_comments/{commentId}`; `authorUid` must strictly equal `request.auth.uid`, and `text` is bounded to `1..500` characters.
+   - Root comments (`depth == 0`) forbid `parentId`, `rootId`, and `replyToUserName`. Threaded replies (`depth in [1, 2, 3, 4]`) require `parentId` and `rootId`, and on `create` verify via `exists()` + `get()` that `/chapter_comments/$(incoming().parentId)` exists, is `'published'`, belongs to the identical `mangaId` and `chapterId`, and satisfies `incoming().depth == parent.depth + 1`.
+   - Terminal State Lock: Once a comment's `status` transitions to `'deleted'`, no further client updates are permitted (except `isAdmin()`).
+   - Likes in `/chapter_comment_likes/{likeId}` enforce deterministic ID `likeId == commentId + '__' + request.auth.uid` and verify the target `/chapter_comments/$(incoming().commentId)` exists and is `'published'`.
 
 ---
 
@@ -36,6 +41,9 @@
 11. **Out-of-Bounds Star Rating (`CREATE /ratings/manga_nkosi__u1` with `score: 100` or `score: 0`)**: Rejected by `data.score is int && data.score in [1, 2, 3, 4, 5]`.
 12. **Aggregate Rating Inflation (`UPDATE /rating_summaries/manga_nkosi` with `ratingCount: 9999` without atomic `/ratings` write)**: Rejected by `existsAfter` + `getAfter(...).data.updatedAt == request.time` and exact delta arithmetic check.
 13. **Unauthorized Direct Message / User Rating Scraping (`LIST /chat_messages` or `LIST /ratings` without owner filter)**: Rejected by Query Enforcer (`existing().uid == request.auth.uid`).
+14. **Orphaned / Cross-Chapter Threaded Reply (`CREATE /chapter_comments/reply_1` referencing non-existent or mismatched-chapter `parentId`)**: Rejected by `exists(/databases/$(database)/documents/chapter_comments/$(incoming().parentId))` + `mangaId`/`chapterId`/`depth == parent.depth + 1` relational guard.
+15. **Terminal State Resurrection (`UPDATE /chapter_comments/c1` after `status == 'deleted'`)**: Rejected by `existing().status != 'deleted'` terminal state lock.
+16. **Phone PII Spoofing (`CREATE /users/u1/private/info` with `phone: "+27999999999"` not matching `request.auth.token.phone_number`)**: Rejected by `incoming().phone == request.auth.token.phone_number` and E.164 regex `^\\+[1-9][0-9]{6,18}$`.
 
 ---
 
@@ -43,7 +51,7 @@
 
 ```ts
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { readFileSync } from 'fs';
 
 export async function verifyDirtyDozen() {
@@ -109,6 +117,15 @@ export async function verifyDirtyDozen() {
   // 9. Unauthorized DM list query -> PERMISSION_DENIED
   await assertFails(getDocs(collection(mallory.firestore(), 'chat_messages')));
 
+  // 10. Orphaned threaded reply to non-existent parent -> PERMISSION_DENIED
+  await assertFails(setDoc(doc(mallory.firestore(), 'chapter_comments/orphan_reply'), {
+    id: 'orphan_reply', mangaId: 'nkosi-the-tale-of-myths', chapterId: 'nkosi-the-tale-of-myths-ch-1',
+    chapterNumber: 1, parentId: 'non_existent_parent', rootId: 'non_existent_parent', depth: 1,
+    replyToUserName: 'Alice', isSpoiler: false, authorUid: 'mallory_uid', authorName: 'Mallory',
+    text: 'Orphan reply', status: 'published', createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+  }));
+
   await testEnv.cleanup();
 }
 ```
+

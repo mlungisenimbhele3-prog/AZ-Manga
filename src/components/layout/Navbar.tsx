@@ -453,6 +453,43 @@ const NavbarComponent: React.FC<NavbarProps> = ({
                   <Crown className="w-3 h-3 text-amber-400" />
                 </div>
 
+                {/* Custom Creator Auth & Dashboard Links (/dashboard, /login, /register) */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    id="navbar-open-dashboard-btn"
+                    onClick={() => {
+                      onTabChange?.('dashboard');
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="min-h-[40px] rounded-xl bg-[#00DC64] hover:bg-[#00c458] text-zinc-950 font-bold text-[11px] px-2 py-2 transition text-center"
+                  >
+                    Dashboard
+                  </button>
+                  <button
+                    type="button"
+                    id="navbar-open-login-btn"
+                    onClick={() => {
+                      onTabChange?.('login');
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="min-h-[40px] rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white font-semibold text-[11px] px-2 py-2 transition text-center"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    id="navbar-open-register-btn"
+                    onClick={() => {
+                      onTabChange?.('register');
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="min-h-[40px] rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[#00DC64] hover:text-white font-semibold text-[11px] px-2 py-2 transition text-center"
+                  >
+                    Register
+                  </button>
+                </div>
+
                 {/* [Produced by Mlungiseni Mbhele] */}
                 <div className="flex items-center gap-2.5 rounded-xl p-2.5 bg-slate-900/60 border border-slate-800 text-xs">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-base">

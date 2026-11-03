@@ -177,10 +177,24 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
               </div>
             </div>
 
-            {diagnostics.gpuRenderer && (
-              <div className="mt-3 pt-2.5 border-t border-slate-900 text-[11px] text-slate-400 truncate">
-                <span className="text-slate-500 font-semibold">Detected GPU: </span>
-                <span className="font-mono text-slate-300">{diagnostics.gpuRenderer}</span>
+            {(diagnostics.gpuRenderer || typeof diagnostics.batteryLevel === 'number') && (
+              <div className="mt-3 pt-2.5 border-t border-slate-900 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                {diagnostics.gpuRenderer ? (
+                  <div className="truncate max-w-md">
+                    <span className="text-slate-500 font-semibold">Detected GPU: </span>
+                    <span className="font-mono text-slate-300">{diagnostics.gpuRenderer}</span>
+                  </div>
+                ) : (
+                  <span />
+                )}
+                {typeof diagnostics.batteryLevel === 'number' && (
+                  <div className="flex items-center gap-1.5 font-mono text-slate-300 shrink-0">
+                    <Battery className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>
+                      {diagnostics.batteryLevel}%{diagnostics.isBatteryCharging ? ' · Charging' : ''}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -213,7 +227,7 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Maximum visual fidelity, dual-page book spread, dynamic lighting, and preloads 4 pages ahead. Ideal for flagship phones & tablets.
+                  Maximum visual fidelity, crisp high-DPI scaling, idle route prewarming, and 6-page parallel preloading. Ideal for flagship phones, tablets & desktops.
                 </p>
               </button>
 
@@ -238,7 +252,7 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Smooth 90fps transitions, backdrop-blur effects enabled, and 3-page predictive caching.
+                  Smooth 90fps transitions, backdrop-blur effects enabled, idle chunk prewarming, and 4-page predictive caching.
                 </p>
               </button>
 

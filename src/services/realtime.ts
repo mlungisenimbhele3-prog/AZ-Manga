@@ -1,7 +1,4 @@
-// Firebase Realtime DB Service Stub for AZ OVERVERSE
-import { rtdb } from './firebase';
-
-export const syncRealtimeReadingPresence = (mangaId: string, userId: string) => {
-  if (!rtdb) return;
-  console.log(`[Firebase Realtime DB]: User ${userId} reading manga ${mangaId}`);
+// Reading Presence Tracker for AZ OVERVERSE (Zero Firebase Dependency)
+export const syncRealtimeReadingPresence = (_mangaId: string, _userId: string): void => {
+  // Presence handled locally / via custom backend session
 };
