@@ -19,8 +19,8 @@ android {
     }
     signingConfigs {
         release {
-            def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH") ?: "az-oververse-upload.keystore"
-            def keystoreFile = file(keystorePath)
+            def configuredPath = System.getenv("ANDROID_KEYSTORE_PATH") ?: "upload-keystore.jks"
+            def keystoreFile = file(configuredPath).exists() ? file(configuredPath) : file("../../upload-keystore.jks")
             def isReleaseTask = gradle.startParameter.taskNames.any {
                 it.toLowerCase().contains("release") && !it.toLowerCase().contains("signingreport")
             }
@@ -30,9 +30,9 @@ android {
             if (keystoreFile.exists()) {
                 storeType "PKCS12"
                 storeFile keystoreFile
-                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "AzOverversePlay2026!"
-                keyAlias System.getenv("ANDROID_KEY_ALIAS") ?: "azoververse_upload"
-                keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: "AzOverversePlay2026!"
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "AzOververse2026!"
+                keyAlias System.getenv("ANDROID_KEY_ALIAS") ?: "upload"
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: "AzOververse2026!"
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true
@@ -43,7 +43,8 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            if (file(System.getenv("ANDROID_KEYSTORE_PATH") ?: "az-oververse-upload.keystore").exists()) {
+            def releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH") ?: "upload-keystore.jks"
+            if (file(releaseKeystorePath).exists() || file("../../upload-keystore.jks").exists()) {
                 signingConfig signingConfigs.release
             }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

@@ -12,5 +12,10 @@ coverage/
 *.sha256
 SHA256SUMS.txt
 *.keystore
+*.jks
+!/upload-keystore.jks
+!/android/app/upload-keystore.jks
+!/upload_certificate.pem
 !/android/app/az-oververse-upload.keystore
+
 

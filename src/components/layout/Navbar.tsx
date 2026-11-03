@@ -505,34 +505,48 @@ const NavbarComponent: React.FC<NavbarProps> = ({
                   </div>
                 </div>
 
-                {/* [Admin Panel] */}
+                {/* [Admin Panel — Strictly Gated to Authenticated Admin] */}
                 <div className="flex items-center gap-2">
-                  {onOpenAdminDashboard && (
+                  {isAdmin ? (
+                    <>
+                      {onOpenAdminDashboard && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onOpenAdminDashboard();
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 border border-purple-500/50 text-purple-200 py-2 px-3 text-xs font-bold transition shadow-sm"
+                        >
+                          <ShieldAlert className="w-3.5 h-3.5 text-purple-400" />
+                          <span>Admin Panel</span>
+                        </button>
+                      )}
+                      {onSwitchUserEmail && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSwitchUserEmail('reader@azoververse.com');
+                            setIsMoreMenuOpen(false);
+                          }}
+                          className="flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-xs font-bold transition border shadow-sm bg-emerald-600/30 border-emerald-500/50 text-emerald-300 hover:bg-slate-900"
+                          title="Lock Admin Session"
+                        >
+                          <span>👑 Admin Active (Lock)</span>
+                        </button>
+                      )}
+                    </>
+                  ) : (
                     <button
+                      type="button"
                       onClick={() => {
-                        onOpenAdminDashboard();
+                        onTabChange?.('settings');
                         setIsMoreMenuOpen(false);
                       }}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 border border-purple-500/50 text-purple-200 py-2 px-3 text-xs font-bold transition shadow-sm"
+                      className="w-full flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-xs font-semibold transition border border-slate-800 bg-slate-900/80 text-slate-400 hover:text-amber-300 hover:border-amber-500/40"
                     >
-                      <ShieldAlert className="w-3.5 h-3.5 text-purple-400" />
-                      <span>Admin Panel</span>
-                    </button>
-                  )}
-                  {onSwitchUserEmail && (
-                    <button
-                      onClick={() => {
-                        onSwitchUserEmail(isAdmin ? 'reader@example.com' : 'mlungisenimbhele3@gmail.com');
-                        setIsMoreMenuOpen(false);
-                      }}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-xs font-bold transition border shadow-sm ${
-                        isAdmin
-                          ? 'bg-emerald-600/30 border-emerald-500/50 text-emerald-300'
-                          : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
-                      }`}
-                      title="Toggle Admin role"
-                    >
-                      <span>{isAdmin ? '👑 Admin (Mlungiseni)' : '👤 Role: Reader'}</span>
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Producer / Admin Sign-In</span>
                     </button>
                   )}
                 </div>

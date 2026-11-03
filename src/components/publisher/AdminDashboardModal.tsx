@@ -36,6 +36,7 @@ import {
 } from '../../utils/mangakaManager';
 import { detectAiContent } from '../../utils/aiDetector';
 import { MangaCoverImage } from '../common/MangaCoverImage';
+import { PlayUploadKeyCard } from '../common/PlayUploadKeyCard';
 
 interface AdminDashboardModalProps {
   isOpen: boolean;
@@ -476,6 +477,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             </button>
           </div>
         )}
+
+        {/* Private Admin Google Play Upload Key & Certificate */}
+        <div className="mt-4">
+          <PlayUploadKeyCard isAdmin={true} compact />
+        </div>
 
         {/* Navigation Tabs */}
         <div className="flex items-center gap-1.5 sm:gap-2 mt-5 p-1 rounded-2xl bg-slate-900/80 border border-slate-800 overflow-x-auto scrollbar-none">

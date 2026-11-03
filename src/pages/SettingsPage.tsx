@@ -28,12 +28,20 @@ import {
   EyeOff,
   X
 } from 'lucide-react';
+import {
+  PlayUploadKeyCard,
+  ADMIN_UNLOCK_STORAGE_KEY,
+  ADMIN_MASTER_SECRET_CACHE_KEY,
+} from '../components/common/PlayUploadKeyCard';
+import { safeStorage } from '../utils/safeStorage';
 
 export const ADMIN_PASSWORD = 'OVER2026!';
 const ADMIN_MASTER_EMAIL = 'mlungisenimbhele3@gmail.com';
 
 interface SettingsPageProps {
   currentUserEmail: string;
+  isAdmin?: boolean;
+  onAdminUnlockChange?: (unlocked: boolean) => void;
   onUpdateEmail: (email: string) => void;
   onNavigateToHome?: () => void;
   onNavigateToTerms?: () => void;
@@ -43,6 +51,8 @@ interface SettingsPageProps {
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
   currentUserEmail,
+  isAdmin: isAdminProp,
+  onAdminUnlockChange,
   onUpdateEmail,
   onNavigateToHome,
   onNavigateToTerms,
@@ -165,12 +175,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const handleConfirmAdminPassword = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (adminPasswordInput === ADMIN_PASSWORD) {
+      safeStorage.setItem(ADMIN_UNLOCK_STORAGE_KEY, 'true');
+      safeStorage.setItem(ADMIN_MASTER_SECRET_CACHE_KEY, ADMIN_PASSWORD);
+      onAdminUnlockChange?.(true);
       setIsAdminPasswordModalOpen(false);
       setAdminPasswordInput('');
       setAdminPasswordError(null);
       setEmailInput(ADMIN_MASTER_EMAIL);
       onUpdateEmail(ADMIN_MASTER_EMAIL);
-      setEmailToast(`Active user set to Administrator (${ADMIN_MASTER_EMAIL})`);
+      setEmailToast(`Active user verified as Administrator (${ADMIN_MASTER_EMAIL})`);
       setTimeout(() => setEmailToast(null), 3500);
     } else {
       setAdminPasswordError('Incorrect password');
@@ -191,10 +204,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       setTimeout(() => setEmailToast(null), 3000);
       return;
     }
-    // If attempting to switch to admin email manually, require password popup
-    if (trimmed.toLowerCase() === ADMIN_MASTER_EMAIL.toLowerCase() && currentUserEmail.toLowerCase() !== ADMIN_MASTER_EMAIL.toLowerCase()) {
+    // Switching to admin email always requires Master Admin Password verification unless already verified
+    if (trimmed.toLowerCase() === ADMIN_MASTER_EMAIL.toLowerCase() && !isAdminProp) {
       handleOpenAdminPasswordModal();
       return;
+    }
+    if (trimmed.toLowerCase() !== ADMIN_MASTER_EMAIL.toLowerCase()) {
+      safeStorage.removeItem(ADMIN_UNLOCK_STORAGE_KEY);
+      safeStorage.removeItem(ADMIN_MASTER_SECRET_CACHE_KEY);
+      onAdminUnlockChange?.(false);
     }
     onUpdateEmail(trimmed);
     setEmailToast(`Email successfully updated to ${trimmed}`);
@@ -210,16 +228,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     const favs = localStorage.getItem('ka_favorites');
     const readHistory = localStorage.getItem('manga_reading_history');
     const userEmail = localStorage.getItem('ka_africa_user_email');
-    
+    void favs;
+    void readHistory;
+    void userEmail;
+
     // Clear image cache entries in sessionStorage
     sessionStorage.clear();
-    
+
     setCacheClearedToast('App cache purged! 42MB of transient image buffers freed.');
     setTimeout(() => setCacheClearedToast(null), 4000);
   };
 
-  const ADMIN_EMAILS = ['mlungisenimbhele3@gmail.com', 'azoververse@gmail.com'];
-  const isAdmin = ADMIN_EMAILS.includes(currentUserEmail.toLowerCase());
+  const isAdmin =
+    typeof isAdminProp === 'boolean'
+      ? isAdminProp
+      : currentUserEmail.toLowerCase() === ADMIN_MASTER_EMAIL &&
+        safeStorage.getItem(ADMIN_UNLOCK_STORAGE_KEY) === 'true';
 
   return (
     <div className={`min-h-screen ${oledPureBlack ? 'bg-black' : 'bg-slate-950'} text-slate-200 p-4 sm:p-8 font-sans transition-colors duration-200`}>
@@ -514,9 +538,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               onClick={handleSetAdminEmail}
               className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition shrink-0 active:scale-95 shadow"
             >
-              Switch to mlungisenimbhele3@gmail.com
+              {isAdmin ? 'Admin Unlocked ✓' : 'Unlock Admin (Password Required)'}
             </button>
           </div>
+
+          {/* Admin-Only Google Play Upload Key & Certificate Download Section */}
+          {isAdmin && <PlayUploadKeyCard isAdmin={isAdmin} />}
 
           {/* Update Email Form */}
           <form onSubmit={handleSaveEmail} className="space-y-3">

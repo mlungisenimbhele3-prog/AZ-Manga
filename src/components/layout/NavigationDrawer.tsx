@@ -74,7 +74,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   activeTab,
   onNavigate,
   userSubscription,
-  currentUserEmail = 'mlungisenimbhele3@gmail.com',
+  currentUserEmail = 'reader@azoververse.com',
   isAdmin: isAdminProp,
   isCreator = false,
   onOpenProfileModal,
@@ -123,8 +123,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   const weeklyDays = getWeeklyStreakDays(streakData);
   const isApprovedMangaka = isUserApprovedMangaka(currentUserEmail);
   const mangakaApp = getMangakaApplicationByEmail(currentUserEmail);
-  const ADMIN_EMAILS = ['mlungisenimbhele3@gmail.com', 'azoververse@gmail.com'];
-  const isAdmin = typeof isAdminProp === 'boolean' ? isAdminProp : ADMIN_EMAILS.includes(currentUserEmail.toLowerCase());
+  const isAdmin = Boolean(isAdminProp);
 
   // Close on Escape key press
   useEffect(() => {
@@ -234,10 +233,14 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-bold text-white truncate max-w-[130px]">
-                      Mlungiseni Mbhele
+                      {isAdmin
+                        ? 'Mlungiseni Mbhele'
+                        : currentUserEmail === 'reader@azoververse.com'
+                        ? 'Guest Reader'
+                        : currentUserEmail.split('@')[0]}
                     </span>
                     <span className="rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[8px] font-black px-1 py-0.2">
-                      PRODUCER
+                      {isAdmin ? 'PRODUCER' : isCreator ? 'CREATOR' : 'READER'}
                     </span>
                   </div>
                   <span className="text-[10px] font-mono text-slate-400 truncate block max-w-[150px]">
@@ -984,21 +987,23 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 </button>
               )}
 
-              {/* Signed Google Play Bundle v1.0.2 Direct Download */}
-              <a
-                id="drawer-signed-aab-link"
-                href="/AZ-OVERVERSE-signed.aab"
-                download="AZ-OVERVERSE-signed.aab"
-                className="min-h-[44px] w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-emerald-500/40 text-xs text-emerald-300 hover:text-white hover:border-emerald-400 hover:bg-emerald-950/25 transition"
-              >
-                <div className="flex items-center gap-2">
-                  <ExternalLink className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="truncate font-bold">Download AZ-OVERVERSE-signed.aab</span>
-                </div>
-                <span className="text-[11px] font-mono text-emerald-300 shrink-0">
-                  v1.0.2
-                </span>
-              </a>
+              {/* Signed Google Play Bundle v1.0.2 Direct Download (Admin Only) */}
+              {isAdmin && (
+                <a
+                  id="drawer-signed-aab-link"
+                  href="/AZ-OVERVERSE-signed.aab"
+                  download="AZ-OVERVERSE-signed.aab"
+                  className="min-h-[44px] w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-emerald-500/40 text-xs text-emerald-300 hover:text-white hover:border-emerald-400 hover:bg-emerald-950/25 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <ExternalLink className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="truncate font-bold">Download AZ-OVERVERSE-signed.aab</span>
+                  </div>
+                  <span className="text-[11px] font-mono text-emerald-300 shrink-0">
+                    v1.0.2
+                  </span>
+                </a>
+              )}
             </div>
           </div>
         </div>

@@ -50,6 +50,11 @@ import {
 } from './services/userProfile';
 import { syncOfflineProgressWithServer } from './services/offlineCache';
 import { ResumeReadingBanner, LastReadProgress } from './components/common/ResumeReadingBanner';
+import {
+  PlayUploadKeyCard,
+  ADMIN_UNLOCK_STORAGE_KEY,
+  ADMIN_MASTER_SECRET_CACHE_KEY,
+} from './components/common/PlayUploadKeyCard';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { SplashScreen } from './components/splash/SplashScreen';
 import {
@@ -308,24 +313,25 @@ export default function App() {
   const [creatorStats, setCreatorStats] = useState<CreatorStats>(INITIAL_CREATOR_STATS);
   const [ads] = useState<AdData[]>(ADS_DATABASE);
 
-  // Admin Security & RBAC Guarantee (Admin: mlungisenimbhele3@gmail.com)
-  const ADMIN_EMAILS = ["mlungisenimbhele3@gmail.com"];
+  // Admin Security & RBAC Guarantee (Admin ONLY: mlungisenimbhele3@gmail.com via JWT or verified Master Password)
+  const ADMIN_EMAILS = ['mlungisenimbhele3@gmail.com'];
   const ADMIN_EMAIL = ADMIN_EMAILS[0];
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(
+    () => safeStorage.getItem(ADMIN_UNLOCK_STORAGE_KEY) === 'true'
+  );
   const [currentUserEmail, setCurrentUserEmail] = useState<string>(() => {
     const cached = safeStorage.getItem('ka_africa_user_email');
+    const unlocked = safeStorage.getItem(ADMIN_UNLOCK_STORAGE_KEY) === 'true';
     if (!cached || cached === 'azoververse@gmail.com') {
-      safeStorage.setItemDeferred('ka_africa_user_email', ADMIN_EMAIL);
-      return ADMIN_EMAIL;
+      safeStorage.setItemDeferred('ka_africa_user_email', 'reader@azoververse.com');
+      return 'reader@azoververse.com';
+    }
+    if (cached.toLowerCase() === ADMIN_EMAIL && !unlocked) {
+      safeStorage.setItemDeferred('ka_africa_user_email', 'reader@azoververse.com');
+      return 'reader@azoververse.com';
     }
     return cached;
   });
-  const currentUser = { email: currentUserEmail };
-  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email);
-
-  const handleSwitchUserEmail = useCallback((email: string) => {
-    setCurrentUserEmail(email);
-    safeStorage.setItemDeferred('ka_africa_user_email', email);
-  }, []);
 
   const [creatorAuthState, setCreatorAuthState] = useState<CreatorAuthState>(() =>
     getCreatorAuthState()
@@ -342,10 +348,37 @@ export default function App() {
     return unsubscribe;
   }, []);
 
+  const isJwtAdmin = Boolean(
+    creatorAuthState.authUser &&
+      (creatorAuthState.authUser.email?.toLowerCase() === ADMIN_EMAIL ||
+        creatorAuthState.authUser.role === 'admin')
+  );
+  const isAdmin =
+    isJwtAdmin ||
+    (isAdminUnlocked && currentUserEmail.toLowerCase() === ADMIN_EMAIL);
+
+  const handleSwitchUserEmail = useCallback(
+    (email: string) => {
+      const normalized = email.trim().toLowerCase();
+      setCurrentUserEmail(email);
+      safeStorage.setItemDeferred('ka_africa_user_email', email);
+      if (normalized !== ADMIN_EMAIL) {
+        safeStorage.removeItem(ADMIN_UNLOCK_STORAGE_KEY);
+        safeStorage.removeItem(ADMIN_MASTER_SECRET_CACHE_KEY);
+        setIsAdminUnlocked(false);
+        setIsAdminDashboardOpen(false);
+      } else {
+        setIsAdminUnlocked(safeStorage.getItem(ADMIN_UNLOCK_STORAGE_KEY) === 'true');
+      }
+    },
+    [ADMIN_EMAIL]
+  );
+
   const hasCreatorAccount = creatorAuthState.hasCreatorAccount;
   const isCreator = hasCreatorAccount;
 
   const [syncToastMessage, setSyncToastMessage] = useState<string | null>(null);
+  const [showPlayUploadKeyCard, setShowPlayUploadKeyCard] = useState<boolean>(true);
 
   // AZ OVERVERSE Splash Screen (shows on initial launch, auto-skipped on direct auth/verify/reset routes)
   const [showSplash, setShowSplash] = useState<boolean>(() => {
@@ -1434,7 +1467,13 @@ export default function App() {
   const handleOpenProfileModal = useCallback(() => setIsProfileModalOpen(true), []);
   const handleOpenSubscriptionModal = useCallback(() => setIsSubscriptionModalOpen(true), []);
   const handleOpenApplyMangaka = useCallback(() => setIsApplyMangakaOpen(true), []);
-  const handleOpenAdminDashboard = useCallback(() => setIsAdminDashboardOpen(true), []);
+  const handleOpenAdminDashboard = useCallback(() => {
+    if (!isAdmin) {
+      handleTabChange('settings');
+      return;
+    }
+    setIsAdminDashboardOpen(true);
+  }, [isAdmin, handleTabChange]);
   const handleOpenAwardsModal = useCallback(() => setIsAwardsModalOpen(true), []);
   const handleOpenGlobalShare = useCallback(() => setIsGlobalShareOpen(true), []);
   const handleOpenPerformanceModal = useCallback(() => setIsPerformanceModalOpen(true), []);
@@ -1748,7 +1787,13 @@ export default function App() {
         </Suspense>
       )}
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-6 space-y-8">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-6 space-y-6">
+        {isAdmin && showPlayUploadKeyCard && !activeRatedReaderManga && (
+          <PlayUploadKeyCard
+            isAdmin={isAdmin}
+            onDismiss={() => setShowPlayUploadKeyCard(false)}
+          />
+        )}
         {/* Optimized Tab Switch: Butter-smooth GPU transition on high-refresh devices, instant 0ms swap on Lite Saver */}
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
@@ -1841,6 +1886,8 @@ export default function App() {
               <Suspense fallback={<RouteLoadingFallback />}>
                 <SettingsPage
                   currentUserEmail={currentUserEmail}
+                  isAdmin={isAdmin}
+                  onAdminUnlockChange={setIsAdminUnlocked}
                   onUpdateEmail={handleSwitchUserEmail}
                   onNavigateToHome={() => handleTabChange('readers')}
                   onNavigateToTerms={() => handleTabChange('terms')}
@@ -2012,6 +2059,11 @@ export default function App() {
                             type="button"
                             onClick={async () => {
                               await signOutCreatorAccount();
+                              safeStorage.removeItem(ADMIN_UNLOCK_STORAGE_KEY);
+                              safeStorage.removeItem(ADMIN_MASTER_SECRET_CACHE_KEY);
+                              setIsAdminUnlocked(false);
+                              setCurrentUserEmail('reader@azoververse.com');
+                              safeStorage.setItemDeferred('ka_africa_user_email', 'reader@azoververse.com');
                               setAppMode('reader');
                             }}
                             className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-white font-medium text-xs px-3.5 py-2 transition"
@@ -2441,7 +2493,7 @@ export default function App() {
             onOpenProfileModal={() => setIsProfileModalOpen(true)}
             onOpenApplyMangaka={() => setIsApplyMangakaOpen(true)}
             onOpenMangakaDashboard={handleOpenMangakaStudio}
-            onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
+            onOpenAdminDashboard={handleOpenAdminDashboard}
             onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
             onOpenTasteProfile={() => setIsRecommendationModalOpen(true)}
             onOpenAppOpenAd={() => setIsAppOpenAdOpen(true)}
@@ -2459,7 +2511,7 @@ export default function App() {
             onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
             onOpenApplyMangaka={() => setIsApplyMangakaOpen(true)}
             onOpenMangakaDashboard={handleOpenMangakaStudio}
-            onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
+            onOpenAdminDashboard={handleOpenAdminDashboard}
             onSwitchUserEmail={handleSwitchUserEmail}
             onNavigateToTerms={() => handleTabChange('terms')}
             onNavigateToPrivacy={() => handleTabChange('privacy')}
@@ -2496,7 +2548,7 @@ export default function App() {
           />
         )}
 
-        {isAdminDashboardOpen && (
+        {isAdmin && isAdminDashboardOpen && (
           <AdminDashboardModal
             isOpen={isAdminDashboardOpen}
             onClose={() => setIsAdminDashboardOpen(false)}
@@ -2561,6 +2613,7 @@ export default function App() {
         {isStoreModalOpen && (
           <AppStoreModal
             isOpen={isStoreModalOpen}
+            isAdmin={isAdmin}
             onClose={() => setIsStoreModalOpen(false)}
           />
         )}

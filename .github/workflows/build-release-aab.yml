@@ -73,7 +73,7 @@ jobs:
             "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" > /dev/null || true
           fi
 
-      - name: Prepare Production Upload Keystore
+      - name: Prepare Production Upload Keystore (upload-keystore.jks)
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -81,23 +81,27 @@ jobs:
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           mkdir -p android/app
-          ALIAS_VAL="${KEY_ALIAS:-azoververse_upload}"
-          SPASS_VAL="${STORE_PASS:-AzOverversePlay2026!}"
-          KPASS_VAL="${KEY_PASS:-AzOverversePlay2026!}"
+          ALIAS_VAL="${KEY_ALIAS:-upload}"
+          SPASS_VAL="${STORE_PASS:-AzOververse2026!}"
+          KPASS_VAL="${KEY_PASS:-AzOververse2026!}"
 
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 --decode > android/app/az-oververse-upload.keystore
-          elif [ ! -f android/app/az-oververse-upload.keystore ]; then
+          if [ -f upload-keystore.jks ]; then
+            cp upload-keystore.jks android/app/upload-keystore.jks
+          elif [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 --decode > android/app/upload-keystore.jks
+            cp android/app/upload-keystore.jks upload-keystore.jks
+          elif [ ! -f android/app/upload-keystore.jks ]; then
             keytool -genkeypair -v \
               -storetype PKCS12 \
-              -keystore android/app/az-oververse-upload.keystore \
+              -keystore android/app/upload-keystore.jks \
               -alias "$ALIAS_VAL" \
               -keyalg RSA -keysize 2048 -sigalg SHA256withRSA -validity 10000 \
               -storepass "$SPASS_VAL" \
               -keypass "$KPASS_VAL" \
-              -dname "CN=Mlungiseni Mbhele, OU=AZ OVERVERSE, O=AZ OVERVERSE, L=Durban, ST=KwaZulu-Natal, C=ZA"
+              -dname "CN=AZ OVERVERSE, O=AZ OVERVERSE, C=ZA"
+            cp android/app/upload-keystore.jks upload-keystore.jks
           fi
-          test -s android/app/az-oververse-upload.keystore
+          test -s android/app/upload-keystore.jks
 
       - name: Build Signed AZ-OVERVERSE-signed.aab
         id: build_android
@@ -109,10 +113,10 @@ jobs:
           VERSION_CODE=$((102 + ${GITHUB_RUN_NUMBER:-0}))
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
-          export ANDROID_KEYSTORE_PATH="az-oververse-upload.keystore"
-          export ANDROID_KEY_ALIAS="${KEY_ALIAS:-azoververse_upload}"
-          export ANDROID_KEYSTORE_PASSWORD="${STORE_PASS:-AzOverversePlay2026!}"
-          export ANDROID_KEY_PASSWORD="${KEY_PASS:-AzOverversePlay2026!}"
+          export ANDROID_KEYSTORE_PATH="upload-keystore.jks"
+          export ANDROID_KEY_ALIAS="${KEY_ALIAS:-upload}"
+          export ANDROID_KEYSTORE_PASSWORD="${STORE_PASS:-AzOververse2026!}"
+          export ANDROID_KEY_PASSWORD="${KEY_PASS:-AzOververse2026!}"
           export ANDROID_VERSION_CODE="$VERSION_CODE"
           export ANDROID_VERSION_NAME="1.0.2"
 

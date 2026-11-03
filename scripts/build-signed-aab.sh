@@ -7,11 +7,13 @@ echo "========================================================================="
 echo "  AZ OVERVERSE v1.0.2 (com.azoververse.oververse) - Signed Release AAB   "
 echo "========================================================================="
 
-KEYSTORE_FILE_NAME="az-oververse-upload.keystore"
+KEYSTORE_FILE_NAME="upload-keystore.jks"
+ROOT_KEYSTORE_PATH="./$KEYSTORE_FILE_NAME"
 KEYSTORE_PATH="android/app/$KEYSTORE_FILE_NAME"
-KEY_ALIAS="${ANDROID_KEY_ALIAS:-azoververse_upload}"
-KEY_PASS="${ANDROID_KEY_PASSWORD:-AzOverversePlay2026!}"
-STORE_PASS="${ANDROID_KEYSTORE_PASSWORD:-AzOverversePlay2026!}"
+CERT_PEM_PATH="./upload_certificate.pem"
+KEY_ALIAS="${ANDROID_KEY_ALIAS:-upload}"
+KEY_PASS="${ANDROID_KEY_PASSWORD:-AzOververse2026!}"
+STORE_PASS="${ANDROID_KEYSTORE_PASSWORD:-AzOververse2026!}"
 VERSION_CODE="${ANDROID_VERSION_CODE:-102}"
 VERSION_NAME="${ANDROID_VERSION_NAME:-1.0.2}"
 
@@ -19,12 +21,16 @@ VERSION_NAME="${ANDROID_VERSION_NAME:-1.0.2}"
 echo "Generating Black AZ launcher icons and splash screens..."
 node scripts/generate-android-assets.cjs
 
-# 2. Check or generate PKCS12 RSA-2048 upload keystore
-if [ ! -f "$KEYSTORE_PATH" ]; then
-  echo "Generating signed RSA-2048 PKCS12 upload keystore at $KEYSTORE_PATH..."
+# 2. Preserve and sync permanent Google Play upload-keystore.jks (NEVER overwrite existing key)
+if [ -f "$ROOT_KEYSTORE_PATH" ] && [ ! -f "$KEYSTORE_PATH" ]; then
+  cp "$ROOT_KEYSTORE_PATH" "$KEYSTORE_PATH"
+elif [ -f "$KEYSTORE_PATH" ] && [ ! -f "$ROOT_KEYSTORE_PATH" ]; then
+  cp "$KEYSTORE_PATH" "$ROOT_KEYSTORE_PATH"
+elif [ ! -f "$ROOT_KEYSTORE_PATH" ] && [ ! -f "$KEYSTORE_PATH" ]; then
+  echo "Generating signed RSA-2048 upload keystore at $ROOT_KEYSTORE_PATH..."
   keytool -genkeypair -v \
     -storetype PKCS12 \
-    -keystore "$KEYSTORE_PATH" \
+    -keystore "$ROOT_KEYSTORE_PATH" \
     -alias "$KEY_ALIAS" \
     -keyalg RSA \
     -keysize 2048 \
@@ -32,9 +38,14 @@ if [ ! -f "$KEYSTORE_PATH" ]; then
     -validity 10000 \
     -storepass "$STORE_PASS" \
     -keypass "$KEY_PASS" \
-    -dname "CN=Mlungiseni Mbhele, OU=AZ OVERVERSE, O=AZ OVERVERSE, L=Durban, ST=KwaZulu-Natal, C=ZA"
-else
-  echo "Using upload keystore at $KEYSTORE_PATH"
+    -dname "CN=AZ OVERVERSE, O=AZ OVERVERSE, C=ZA"
+  cp "$ROOT_KEYSTORE_PATH" "$KEYSTORE_PATH"
+fi
+
+echo "Using permanent Google Play upload keystore at $KEYSTORE_PATH (alias: $KEY_ALIAS)"
+
+if [ ! -f "$CERT_PEM_PATH" ] && command -v keytool >/dev/null 2>&1; then
+  keytool -export -rfc -keystore "$ROOT_KEYSTORE_PATH" -alias "$KEY_ALIAS" -file "$CERT_PEM_PATH" -storepass "$STORE_PASS"
 fi
 
 # 3. Build Web Application & Capacitor Sync

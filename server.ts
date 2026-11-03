@@ -7,6 +7,7 @@ import * as dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { authRouter } from './src/server/authRoutes.ts';
+import { verifyPurposeToken } from './src/server/jwt.ts';
 
 dotenv.config();
 
@@ -215,6 +216,105 @@ async function startServer() {
 
   app.get('/AZ-OVERVERSE-signed.aab', serveSignedAab);
   app.get('/api/download-aab', serveSignedAab);
+
+  // Admin-only authorization guard for Google Play signing assets (upload-keystore.jks & upload_certificate.pem)
+  const ADMIN_MASTER_EMAIL = 'mlungisenimbhele3@gmail.com';
+  const requireAdminSigningAccess = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    // 1. Check Bearer JWT access token
+    const authHeader = req.headers.authorization;
+    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      try {
+        const claims = verifyPurposeToken(token, 'access');
+        if (
+          claims.email?.toLowerCase() === ADMIN_MASTER_EMAIL ||
+          claims.role === 'admin'
+        ) {
+          return next();
+        }
+      } catch {
+        // Fall through to refresh cookie / master key check
+      }
+    }
+
+    // 2. Check httpOnly refreshToken cookie
+    const refreshCookie = req.cookies?.refreshToken;
+    if (typeof refreshCookie === 'string' && refreshCookie.length > 0) {
+      try {
+        const claims = verifyPurposeToken(refreshCookie, 'refresh');
+        if (claims.email?.toLowerCase() === ADMIN_MASTER_EMAIL) {
+          return next();
+        }
+      } catch {
+        // Fall through to master password header check
+      }
+    }
+
+    // 3. Check verified Master Admin Password header
+    const adminPassHeader = req.headers['x-az-admin-pass'];
+    const expectedPass = process.env.ADMIN_MASTER_PASSWORD || 'OVER2026!';
+    if (typeof adminPassHeader === 'string' && adminPassHeader === expectedPass) {
+      return next();
+    }
+
+    return res.status(403).json({
+      error: 'Forbidden: Only Admin (mlungisenimbhele3@gmail.com) can access Google Play signing keys.',
+    });
+  };
+
+  // Direct download routes for Google Play Upload Certificate (upload_certificate.pem) & Keystore (upload-keystore.jks)
+  const serveUploadCertificatePem = async (_req: express.Request, res: express.Response) => {
+    try {
+      const certPath = path.join(process.cwd(), 'upload_certificate.pem');
+      if (!fs.existsSync(certPath)) {
+        return res.status(404).json({ error: 'upload_certificate.pem not found on server' });
+      }
+      const stat = await fs.promises.stat(certPath);
+      res.setHeader('Content-Type', 'application/x-pem-file; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="upload_certificate.pem"');
+      res.setHeader('Content-Length', String(stat.size));
+      res.setHeader('Cache-Control', 'no-store');
+      const content = await fs.promises.readFile(certPath);
+      res.end(content);
+    } catch (err) {
+      console.error('Failed to serve upload_certificate.pem:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to download upload_certificate.pem' });
+      }
+    }
+  };
+
+  const serveUploadKeystoreJks = async (_req: express.Request, res: express.Response) => {
+    try {
+      const primaryPath = path.join(process.cwd(), 'upload-keystore.jks');
+      const fallbackPath = path.join(process.cwd(), 'android', 'app', 'upload-keystore.jks');
+      const jksPath = fs.existsSync(primaryPath) ? primaryPath : fallbackPath;
+      if (!fs.existsSync(jksPath)) {
+        return res.status(404).json({ error: 'upload-keystore.jks not found on server' });
+      }
+      const stat = await fs.promises.stat(jksPath);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', 'attachment; filename="upload-keystore.jks"');
+      res.setHeader('Content-Length', String(stat.size));
+      res.setHeader('Cache-Control', 'no-store');
+      const content = await fs.promises.readFile(jksPath);
+      res.end(content);
+    } catch (err) {
+      console.error('Failed to serve upload-keystore.jks:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to download upload-keystore.jks' });
+      }
+    }
+  };
+
+  app.get('/upload_certificate.pem', requireAdminSigningAccess, serveUploadCertificatePem);
+  app.get('/api/download-upload-certificate', requireAdminSigningAccess, serveUploadCertificatePem);
+  app.get('/upload-keystore.jks', requireAdminSigningAccess, serveUploadKeystoreJks);
+  app.get('/api/download-upload-keystore', requireAdminSigningAccess, serveUploadKeystoreJks);
 
   // AZ OVERVERSE Custom Production Auth System (PostgreSQL + bcrypt 12 + JWT 15m/7d + Resend + Zod)
   app.use('/api/auth', authRouter);

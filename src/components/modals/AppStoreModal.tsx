@@ -18,16 +18,19 @@ import {
 } from 'lucide-react';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
+import { PlayUploadKeyCard } from '../common/PlayUploadKeyCard';
 
 interface AppStoreModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isAdmin?: boolean;
   onNotify?: (title: string, desc?: string, type?: 'success' | 'info' | 'favorite' | 'vip') => void;
 }
 
 export const AppStoreModal: React.FC<AppStoreModalProps> = ({
   isOpen,
   onClose,
+  isAdmin = false,
   onNotify,
 }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
@@ -189,36 +192,43 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                 </button>
               </div>
 
-              {/* Signed Google Play Console Release Bundle v1.0.2 */}
-              <div className="rounded-2xl border border-cyan-500/40 bg-cyan-950/25 p-4 sm:p-5 space-y-4">
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-cyan-300 font-semibold">
-                    <span>Release v1.0.2 (Code 102)</span>
-                    <span aria-hidden="true">·</span>
-                    <span>com.azoververse.oververse</span>
-                    <span aria-hidden="true">·</span>
-                    <span>RSA-2048 SHA256withRSA Signed</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-white">
-                    Signed Google Play Store Release Bundle (AZ-OVERVERSE-signed.aab)
-                  </h4>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    Ready for Google Play Console upload: cryptographically signed <code className="text-cyan-300 font-mono text-[11px]">AZ-OVERVERSE-signed.aab</code> built with package <code className="text-emerald-300 font-mono text-[11px]">com.azoververse.oververse</code>, version <code className="text-amber-300 font-mono text-[11px]">1.0.2</code> (versionCode 102), Target SDK 35, and the Black AZ launcher icon.
-                  </p>
-                </div>
+              {isAdmin && (
+                <>
+                  {/* Signed Google Play Console Release Bundle v1.0.2 (Admin Only) */}
+                  <div className="rounded-2xl border border-cyan-500/40 bg-cyan-950/25 p-4 sm:p-5 space-y-4">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-cyan-300 font-semibold">
+                        <span>Release v1.0.2 (Code 102)</span>
+                        <span aria-hidden="true">·</span>
+                        <span>com.azoververse.oververse</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Admin Only</span>
+                      </div>
+                      <h4 className="text-sm font-bold text-white">
+                        Signed Google Play Store Release Bundle (AZ-OVERVERSE-signed.aab)
+                      </h4>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Ready for Google Play Console upload: cryptographically signed <code className="text-cyan-300 font-mono text-[11px]">AZ-OVERVERSE-signed.aab</code> built with package <code className="text-emerald-300 font-mono text-[11px]">com.azoververse.oververse</code>, version <code className="text-amber-300 font-mono text-[11px]">1.0.2</code> (versionCode 102), Target SDK 35, and the Black AZ launcher icon.
+                      </p>
+                    </div>
 
-                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
-                  <a
-                    id="android-aab-direct-download-link"
-                    href="/AZ-OVERVERSE-signed.aab"
-                    download="AZ-OVERVERSE-signed.aab"
-                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs px-5 py-2.5 shadow-lg shadow-cyan-950/50 transition whitespace-nowrap"
-                  >
-                    <Download className="w-4 h-4 shrink-0" />
-                    <span>Download AZ-OVERVERSE-signed.aab</span>
-                  </a>
-                </div>
-              </div>
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
+                      <a
+                        id="android-aab-direct-download-link"
+                        href="/AZ-OVERVERSE-signed.aab"
+                        download="AZ-OVERVERSE-signed.aab"
+                        className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs px-5 py-2.5 shadow-lg shadow-cyan-950/50 transition whitespace-nowrap"
+                      >
+                        <Download className="w-4 h-4 shrink-0" />
+                        <span>Download AZ-OVERVERSE-signed.aab</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Google Play Upload Key & Certificate Download Card (Admin Only) */}
+                  <PlayUploadKeyCard isAdmin={isAdmin} compact />
+                </>
+              )}
 
               {/* Google Play Store Badge / Listing Card */}
               <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:p-5 space-y-3">
