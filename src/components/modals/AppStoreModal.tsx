@@ -195,7 +195,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                   <div className="flex flex-wrap items-center gap-2 text-xs text-cyan-300 font-semibold">
                     <span>Release v1.0.2 (Code 102)</span>
                     <span aria-hidden="true">·</span>
-                    <span>com.azoververse.app</span>
+                    <span>com.azoververse.oververse</span>
                     <span aria-hidden="true">·</span>
                     <span>RSA-2048 SHA256withRSA Signed</span>
                   </div>
@@ -203,7 +203,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                     Signed Google Play Store Release Bundle (AZ-OVERVERSE-signed.aab)
                   </h4>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Ready for Google Play Console upload: cryptographically signed <code className="text-cyan-300 font-mono text-[11px]">AZ-OVERVERSE-signed.aab</code> built with package <code className="text-emerald-300 font-mono text-[11px]">com.azoververse.app</code>, version <code className="text-amber-300 font-mono text-[11px]">1.0.2</code> (versionCode 102), Target SDK 35, and the Black AZ launcher icon.
+                    Ready for Google Play Console upload: cryptographically signed <code className="text-cyan-300 font-mono text-[11px]">AZ-OVERVERSE-signed.aab</code> built with package <code className="text-emerald-300 font-mono text-[11px]">com.azoververse.oververse</code>, version <code className="text-amber-300 font-mono text-[11px]">1.0.2</code> (versionCode 102), Target SDK 35, and the Black AZ launcher icon.
                   </p>
                 </div>
 
@@ -234,7 +234,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                     <div>
                       <h5 className="text-xs font-bold text-white">Google Play Store Submission Profile</h5>
                       <p className="text-[11px] text-slate-400">
-                        Package: <code className="text-emerald-400">com.azoververse.app</code> · v1.0.2
+                        Package: <code className="text-emerald-400">com.azoververse.oververse</code> · v1.0.2
                       </p>
                     </div>
                   </div>
@@ -344,7 +344,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                 <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-xs space-y-1">
                   <div className="flex items-center justify-between text-slate-400 text-[11px]">
                     <span>Bundle / Package ID:</span>
-                    <code className="text-amber-400">com.azoververse.app</code>
+                    <code className="text-amber-400">com.azoververse.oververse</code>
                   </div>
                   <div className="flex items-center justify-between text-slate-400 text-[11px]">
                     <span>Developer Team:</span>

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { CheckCircle2, AlertCircle, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { confirmOverversePasswordReset } from '../../../services/oververseAuth';
+import { PasswordStrengthIndicator } from '../../../components/common/PasswordStrengthIndicator';
 import { AuthSplitFrame } from '../layout';
 import {
   AuthRoutePath,
@@ -152,7 +153,18 @@ export function ResetPasswordPage({
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (fieldErrors.password) {
+                    setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                  }
+                }}
+                aria-invalid={Boolean(fieldErrors.password)}
+                aria-describedby={
+                  fieldErrors.password
+                    ? 'reset-password-error reset-password-strength'
+                    : 'reset-password-strength'
+                }
                 placeholder="Min. 8 chars (letter + number)"
                 className={`min-h-[46px] w-full rounded-xl border bg-slate-900/90 pl-10 pr-10 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none transition ${
                   fieldErrors.password
@@ -170,8 +182,14 @@ export function ResetPasswordPage({
               </button>
             </div>
             {fieldErrors.password && (
-              <p className="mt-1.5 text-xs text-rose-300">{fieldErrors.password}</p>
+              <p id="reset-password-error" className="mt-1.5 text-xs text-rose-300">
+                {fieldErrors.password}
+              </p>
             )}
+            <PasswordStrengthIndicator
+              password={password}
+              id="reset-password-strength"
+            />
           </div>
 
           <div>
@@ -188,7 +206,16 @@ export function ResetPasswordPage({
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  if (fieldErrors.confirmPassword) {
+                    setFieldErrors((prev) => ({ ...prev, confirmPassword: undefined }));
+                  }
+                }}
+                aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                aria-describedby={
+                  fieldErrors.confirmPassword ? 'reset-confirm-password-error' : undefined
+                }
                 placeholder="Re-enter new password"
                 className={`min-h-[46px] w-full rounded-xl border bg-slate-900/90 pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none transition ${
                   fieldErrors.confirmPassword
@@ -198,7 +225,9 @@ export function ResetPasswordPage({
               />
             </div>
             {fieldErrors.confirmPassword && (
-              <p className="mt-1.5 text-xs text-rose-300">{fieldErrors.confirmPassword}</p>
+              <p id="reset-confirm-password-error" className="mt-1.5 text-xs text-rose-300">
+                {fieldErrors.confirmPassword}
+              </p>
             )}
           </div>
 

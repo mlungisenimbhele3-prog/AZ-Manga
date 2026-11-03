@@ -588,12 +588,24 @@ export default function App() {
   });
   // Creator Studio access is strictly derived from authenticated Creator Account state
 
+  const legalReturnTabRef = useRef<AppRouteTab>('readers');
+  const activeTabRef = useRef<AppRouteTab>(activeTab);
+  activeTabRef.current = activeTab;
+
   const handleTabChange = useCallback(
     (tab: AppRouteTab) => {
       let targetTab: AppRouteTab = tab === 'canvas' ? 'backdrop' : tab;
       // Security RBAC: Wallet page is only available and visible to the admin
       if (targetTab === 'wallet' && !isAdmin) {
         targetTab = 'readers';
+      }
+
+      if (
+        (targetTab === 'terms' || targetTab === 'privacy') &&
+        activeTabRef.current !== 'terms' &&
+        activeTabRef.current !== 'privacy'
+      ) {
+        legalReturnTabRef.current = activeTabRef.current;
       }
 
       try {
@@ -662,6 +674,13 @@ export default function App() {
       // Gated: Wallet is only accessible to Admin
       if (matched === 'wallet' && !isAdmin) {
         matched = 'readers';
+      }
+      if (
+        (matched === 'terms' || matched === 'privacy') &&
+        activeTabRef.current !== 'terms' &&
+        activeTabRef.current !== 'privacy'
+      ) {
+        legalReturnTabRef.current = activeTabRef.current;
       }
       setActiveTab(matched);
     };
@@ -1749,6 +1768,8 @@ export default function App() {
                 <RegisterPage
                   onNavigateAuthRoute={handleNavigateAuthRoute}
                   onBackToHome={() => handleTabChange('readers')}
+                  onNavigateToTerms={() => handleTabChange('terms')}
+                  onNavigateToPrivacy={() => handleTabChange('privacy')}
                 />
               </Suspense>
             )}
@@ -1802,13 +1823,17 @@ export default function App() {
             {/* Route: /privacy */}
             {activeTab === 'privacy' && (
               <Suspense fallback={<RouteLoadingFallback />}>
-                <PrivacyPolicy onClose={() => handleTabChange('readers')} />
+                <PrivacyPolicy
+                  onClose={() => handleTabChange(legalReturnTabRef.current || 'readers')}
+                />
               </Suspense>
             )}
             {/* Route: /terms */}
             {activeTab === 'terms' && (
               <Suspense fallback={<RouteLoadingFallback />}>
-                <TermsOfService onClose={() => handleTabChange('readers')} />
+                <TermsOfService
+                  onClose={() => handleTabChange(legalReturnTabRef.current || 'readers')}
+                />
               </Suspense>
             )}
             {/* Route: /settings */}
@@ -1922,6 +1947,8 @@ export default function App() {
                       authState={creatorAuthState}
                       onBackToReader={() => handleTabChange('readers')}
                       onNavigateAuthRoute={handleNavigateAuthRoute}
+                      onNavigateToTerms={() => handleTabChange('terms')}
+                      onNavigateToPrivacy={() => handleTabChange('privacy')}
                     />
                   ) : (
                     <>
@@ -2434,6 +2461,8 @@ export default function App() {
             onOpenMangakaDashboard={handleOpenMangakaStudio}
             onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
             onSwitchUserEmail={handleSwitchUserEmail}
+            onNavigateToTerms={() => handleTabChange('terms')}
+            onNavigateToPrivacy={() => handleTabChange('privacy')}
             onStartReading={(m, chapId) => {
               const targetManga = m || mangaList[0];
               if (targetManga) {

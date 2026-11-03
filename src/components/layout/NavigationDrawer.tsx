@@ -980,7 +980,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     <Smartphone className="w-4 h-4 text-cyan-400 shrink-0" />
                     <span>AZ OVERVERSE Play Store Hub</span>
                   </div>
-                  <span className="text-[10px] font-mono text-cyan-300">com.azoververse.app</span>
+                  <span className="text-[10px] font-mono text-cyan-300">com.azoververse.oververse</span>
                 </button>
               )}
 

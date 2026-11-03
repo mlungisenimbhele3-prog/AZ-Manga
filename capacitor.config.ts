@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.azoververse.app',
+  appId: 'com.azoververse.oververse',
   appName: 'AZ OVERVERSE',
   webDir: 'dist',
   backgroundColor: '#000000',

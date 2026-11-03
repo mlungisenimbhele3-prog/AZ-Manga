@@ -1,4 +1,4 @@
-package com.azoververse.app
+package com.azoververse.oververse
 
 import android.annotation.SuppressLint
 import android.graphics.Color

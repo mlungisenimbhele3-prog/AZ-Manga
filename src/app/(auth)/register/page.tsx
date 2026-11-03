@@ -12,6 +12,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { registerOververseUser } from '../../../services/oververseAuth';
+import { PasswordStrengthIndicator } from '../../../components/common/PasswordStrengthIndicator';
 import { AuthSplitFrame } from '../layout';
 import {
   AuthRoutePath,
@@ -19,17 +20,22 @@ import {
   registerFormSchema,
   extractZodFieldErrors,
   navigateAuthRoute,
+  navigateLegalRoute,
   navigateToVerificationOrResetUrl,
 } from '../schemas';
 
 export interface RegisterPageProps {
   onNavigateAuthRoute?: (route: AuthRoutePath, querySearch?: string) => void;
   onBackToHome?: () => void;
+  onNavigateToTerms?: () => void;
+  onNavigateToPrivacy?: () => void;
 }
 
 export function RegisterPage({
   onNavigateAuthRoute,
   onBackToHome,
+  onNavigateToTerms,
+  onNavigateToPrivacy,
 }: RegisterPageProps = {}) {
   const [values, setValues] = useState<RegisterFormValues>({
     pen_name: '',
@@ -37,6 +43,7 @@ export function RegisterPage({
     role: 'creator',
     password: '',
     confirmPassword: '',
+    agreeToTerms: false,
   });
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<keyof RegisterFormValues, string>>
@@ -91,6 +98,7 @@ export function RegisterPage({
       role: true,
       password: true,
       confirmPassword: true,
+      agreeToTerms: true,
     });
 
     const parsed = registerFormSchema.safeParse(values);
@@ -309,7 +317,7 @@ export function RegisterPage({
           </div>
 
           {/* Password & Confirm Password */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="space-y-4">
             <div>
               <label
                 htmlFor="register-password"
@@ -330,8 +338,8 @@ export function RegisterPage({
                   aria-invalid={Boolean(touched.password && fieldErrors.password)}
                   aria-describedby={
                     touched.password && fieldErrors.password
-                      ? 'register-password-error'
-                      : undefined
+                      ? 'register-password-error register-password-strength'
+                      : 'register-password-strength'
                   }
                   placeholder="Min. 8 chars (letter + number)"
                   className={`min-h-[46px] w-full rounded-xl border bg-slate-900/90 pl-10 pr-10 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none transition ${
@@ -354,6 +362,10 @@ export function RegisterPage({
                   {fieldErrors.password}
                 </p>
               )}
+              <PasswordStrengthIndicator
+                password={values.password}
+                id="register-password-strength"
+              />
             </div>
 
             <div>
@@ -409,11 +421,68 @@ export function RegisterPage({
             </div>
           </div>
 
+          {/* Terms of Service & Privacy Policy Agreement */}
+          <div className="pt-1">
+            <div className="flex items-start gap-3 py-1">
+              <input
+                id="register-agree-terms"
+                name="agreeToTerms"
+                type="checkbox"
+                required
+                aria-required="true"
+                checked={values.agreeToTerms}
+                onChange={(e) => handleFieldChange('agreeToTerms', e.target.checked)}
+                onBlur={() => handleBlur('agreeToTerms')}
+                aria-invalid={Boolean(touched.agreeToTerms && fieldErrors.agreeToTerms)}
+                aria-describedby={
+                  touched.agreeToTerms && fieldErrors.agreeToTerms
+                    ? 'register-agree-terms-error'
+                    : undefined
+                }
+                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-slate-600 bg-slate-900 text-amber-500 accent-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+              />
+              <label
+                htmlFor="register-agree-terms"
+                className="cursor-pointer select-none text-xs leading-relaxed text-slate-300"
+              >
+                I agree to the{' '}
+                <a
+                  href="/terms"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigateLegalRoute('terms', onNavigateToTerms);
+                  }}
+                  className="font-semibold text-amber-400 underline decoration-amber-400/50 underline-offset-2 hover:text-amber-300 hover:decoration-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-sm transition-colors"
+                >
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a
+                  href="/privacy"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigateLegalRoute('privacy', onNavigateToPrivacy);
+                  }}
+                  className="font-semibold text-amber-400 underline decoration-amber-400/50 underline-offset-2 hover:text-amber-300 hover:decoration-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-sm transition-colors"
+                >
+                  Privacy Policy
+                </a>
+              </label>
+            </div>
+            {touched.agreeToTerms && fieldErrors.agreeToTerms && (
+              <p id="register-agree-terms-error" className="mt-1 text-xs text-rose-300">
+                {fieldErrors.agreeToTerms}
+              </p>
+            )}
+          </div>
+
           <button
             id="register-submit-btn"
             type="submit"
-            disabled={isSubmitting}
-            className="min-h-[48px] w-full rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-bold text-sm px-5 py-3 transition flex items-center justify-center gap-2"
+            disabled={isSubmitting || !values.agreeToTerms}
+            className="min-h-[48px] w-full rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-amber-500 text-slate-950 font-bold text-sm px-5 py-3 transition-colors duration-150 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
           >
             <span>{isSubmitting ? 'Creating Account...' : 'Create Account'}</span>
             {!isSubmitting && <ArrowRight className="w-4 h-4" />}

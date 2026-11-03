@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   build-android-release:
-    name: Build Signed AZ-OVERVERSE-signed.aab (com.azoververse.app v1.0.2)
+    name: Build Signed AZ-OVERVERSE-signed.aab (com.azoververse.oververse v1.0.2)
     runs-on: ubuntu-latest
 
     steps:

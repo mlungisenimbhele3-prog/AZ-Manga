@@ -9,6 +9,8 @@ interface CreatorAccountGateProps {
   authState: CreatorAuthState;
   onBackToReader: () => void;
   onNavigateAuthRoute?: (route: AuthRoutePath, querySearch?: string) => void;
+  onNavigateToTerms?: () => void;
+  onNavigateToPrivacy?: () => void;
 }
 
 /**
@@ -18,6 +20,8 @@ interface CreatorAccountGateProps {
 export const CreatorAccountGate: React.FC<CreatorAccountGateProps> = ({
   onBackToReader,
   onNavigateAuthRoute,
+  onNavigateToTerms,
+  onNavigateToPrivacy,
 }) => {
   const [embeddedMode, setEmbeddedMode] = useState<'login' | 'register' | 'forgot'>('login');
 
@@ -40,6 +44,8 @@ export const CreatorAccountGate: React.FC<CreatorAccountGateProps> = ({
       <RegisterPage
         onNavigateAuthRoute={handleNavigate}
         onBackToHome={onBackToReader}
+        onNavigateToTerms={onNavigateToTerms}
+        onNavigateToPrivacy={onNavigateToPrivacy}
       />
     );
   }

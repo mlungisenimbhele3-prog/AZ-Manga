@@ -68,6 +68,8 @@ import {
   toggleFollowUser,
   ReadingPreferences,
 } from '../../services/userProfile';
+import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
+import { navigateLegalRoute } from '../../app/(auth)/schemas';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -81,6 +83,8 @@ interface UserProfileModalProps {
   onOpenMangakaDashboard?: () => void;
   onOpenAdminDashboard?: () => void;
   onSwitchUserEmail?: (email: string) => void;
+  onNavigateToTerms?: () => void;
+  onNavigateToPrivacy?: () => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -95,6 +99,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onOpenMangakaDashboard,
   onOpenAdminDashboard,
   onSwitchUserEmail,
+  onNavigateToTerms,
+  onNavigateToPrivacy,
 }) => {
   const [profile, setProfile] = useState<UserProfile>(() => getCurrentUserProfile());
   const [streakData, setStreakData] = useState<ReadingStreakData>(() => getReadingStreak());
@@ -110,6 +116,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const modalTotpInputRef = useRef<HTMLInputElement | null>(null);
   const modalEmailInputRef = useRef<HTMLInputElement | null>(null);
   const [authIsCreator, setAuthIsCreator] = useState(false);
+  const [authAgreeToTerms, setAuthAgreeToTerms] = useState(false);
   const [authMfaToken, setAuthMfaToken] = useState<string | null>(null);
   const [authStepDirection, setAuthStepDirection] = useState<1 | -1>(1);
   const [authTotpCode, setAuthTotpCode] = useState('');
@@ -185,6 +192,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       if (authMode === 'register') {
         if (!authEmail.trim() || !authPassword.trim()) {
           setAuthError('Please fill in email and password.');
+          setAuthLoading(false);
+          return;
+        }
+        if (!authAgreeToTerms) {
+          setAuthError('You must agree to the Terms of Service and Privacy Policy.');
           setAuthLoading(false);
           return;
         }
@@ -719,7 +731,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                           </div>
                         )}
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div
+                          className={`grid grid-cols-1 ${
+                            authMode === 'login' ? 'sm:grid-cols-2' : ''
+                          } gap-3`}
+                        >
                           <div>
                             <label className="text-[11px] font-bold text-slate-400 block mb-1">
                               Email Address
@@ -741,24 +757,83 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                               type="password"
                               value={authPassword}
                               onChange={(e) => setAuthPassword(e.target.value)}
+                              aria-describedby={
+                                authMode === 'register'
+                                  ? 'modal-register-password-strength'
+                                  : undefined
+                              }
                               placeholder="••••••••••••"
                               className="w-full rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
                             />
+                            {authMode === 'register' && (
+                              <PasswordStrengthIndicator
+                                password={authPassword}
+                                id="modal-register-password-strength"
+                              />
+                            )}
                           </div>
                         </div>
 
                         {authMode === 'register' && (
-                          <label className="flex items-center gap-2 cursor-pointer pt-1">
-                            <input
-                              type="checkbox"
-                              checked={authIsCreator}
-                              onChange={(e) => setAuthIsCreator(e.target.checked)}
-                              className="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0"
-                            />
-                            <span className="text-xs text-slate-300 font-medium">
-                              I am a Manga Creator / Artist (enable Mangaka Publisher tools)
-                            </span>
-                          </label>
+                          <div className="space-y-2.5 pt-1">
+                            <label className="flex items-center gap-2.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={authIsCreator}
+                                onChange={(e) => setAuthIsCreator(e.target.checked)}
+                                className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-700 bg-slate-900 text-amber-500 accent-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                              />
+                              <span className="text-xs text-slate-300 font-medium">
+                                I am a Manga Creator / Artist (enable Mangaka Publisher tools)
+                              </span>
+                            </label>
+
+                            <div className="flex items-start gap-2.5">
+                              <input
+                                id="modal-register-agree-terms"
+                                type="checkbox"
+                                required
+                                aria-required="true"
+                                checked={authAgreeToTerms}
+                                onChange={(e) => {
+                                  setAuthAgreeToTerms(e.target.checked);
+                                  setAuthError(null);
+                                }}
+                                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-slate-700 bg-slate-900 text-amber-500 accent-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                              />
+                              <label
+                                htmlFor="modal-register-agree-terms"
+                                className="cursor-pointer select-none text-xs leading-relaxed text-slate-300"
+                              >
+                                I agree to the{' '}
+                                <a
+                                  href="/terms"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onClose();
+                                    navigateLegalRoute('terms', onNavigateToTerms);
+                                  }}
+                                  className="font-semibold text-amber-400 underline decoration-amber-400/50 underline-offset-2 hover:text-amber-300 hover:decoration-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-sm transition-colors"
+                                >
+                                  Terms of Service
+                                </a>{' '}
+                                and{' '}
+                                <a
+                                  href="/privacy"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onClose();
+                                    navigateLegalRoute('privacy', onNavigateToPrivacy);
+                                  }}
+                                  className="font-semibold text-amber-400 underline decoration-amber-400/50 underline-offset-2 hover:text-amber-300 hover:decoration-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-sm transition-colors"
+                                >
+                                  Privacy Policy
+                                </a>
+                              </label>
+                            </div>
+                          </div>
                         )}
                       </motion.div>
                     )}
@@ -766,9 +841,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                   <button
                     type="submit"
-                    disabled={authLoading}
+                    disabled={authLoading || (authMode === 'register' && !authAgreeToTerms)}
                     aria-busy={authLoading}
-                    className="relative overflow-hidden w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black font-black text-xs hover:brightness-110 transition shadow flex items-center justify-center gap-2"
+                    className="relative overflow-hidden w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black font-black text-xs hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100 transition shadow flex items-center justify-center gap-2"
                   >
                     {authLoading ? (
                       <>

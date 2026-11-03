@@ -1,5 +1,5 @@
 {
-  "appId": "com.azoververse.app",
+  "appId": "com.azoververse.oververse",
   "appName": "AZ OVERVERSE",
   "webDir": "dist",
   "backgroundColor": "#000000",
@@ -18,6 +18,10 @@
   "plugins": {
     "AdMob": {
       "appId": "ca-app-pub-7570164094154420~3142297870"
+    },
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["phone"]
     }
   },
   "android": {

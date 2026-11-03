@@ -8,6 +8,8 @@ export type AuthRoutePath =
   | 'reset'
   | 'dashboard';
 
+export type LegalRoutePath = 'terms' | 'privacy';
+
 /**
  * Zod schema for /register form inputs
  */
@@ -36,6 +38,9 @@ export const registerFormSchema = z
       .regex(/[A-Za-z]/, 'Password must include at least one letter.')
       .regex(/[0-9]/, 'Password must include at least one number.'),
     confirmPassword: z.string().min(1, 'Please confirm your password.'),
+    agreeToTerms: z.boolean().refine((val) => val === true, {
+      message: 'You must agree to the Terms of Service and Privacy Policy.',
+    }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     path: ['confirmPassword'],
@@ -232,6 +237,24 @@ export function navigateHomeCatalog(onBack?: () => void): void {
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch {
       window.location.href = '/';
+    }
+  }
+}
+
+export function navigateLegalRoute(
+  route: LegalRoutePath,
+  onNavigate?: () => void
+): void {
+  if (onNavigate) {
+    onNavigate();
+    return;
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      window.history.pushState(null, '', `/${route}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    } catch {
+      window.location.hash = route;
     }
   }
 }

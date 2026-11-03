@@ -1,4 +1,4 @@
-package com.azoververse.app;
+package com.azoververse.oververse;
 
 /**
  * Main launcher activity inheriting native Google CredentialManager sign-in

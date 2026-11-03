@@ -84,8 +84,8 @@ export default defineConfig(() => {
           related_applications: [
             {
               platform: 'play',
-              id: 'com.azoververse.app',
-              url: 'https://play.google.com/store/apps/details?id=com.azoververse.app',
+              id: 'com.azoververse.oververse',
+              url: 'https://play.google.com/store/apps/details?id=com.azoververse.oververse',
             },
           ],
           icons: [

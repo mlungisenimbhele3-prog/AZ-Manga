@@ -302,7 +302,7 @@ const NavbarComponent: React.FC<NavbarProps> = ({
                         AZ OVERVERSE Play Store Hub
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono text-cyan-400">com.azoververse.app</span>
+                    <span className="text-[10px] font-mono text-cyan-400">com.azoververse.oververse</span>
                   </button>
                 )}
 
