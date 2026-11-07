@@ -513,7 +513,7 @@ export const MangaOfTheYearAwardsPage: React.FC<MangaOfTheYearAwardsPageProps> =
               Building the Future of African Manga Publishing
             </h4>
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              "KA Plus: Africa Pulse was founded to elevate independent creators from South Africa, Nigeria, Kenya, Ghana and across the continent. By honoring these creators at the Manga of the Year Gala and guaranteeing 70% creator revenue shares through Google AdMob and Google Play Billing, we ensure the next generation of storytellers thrive."
+              "AZ OVERVERSE was founded to elevate independent creators from South Africa, Nigeria, Kenya, Ghana and across the continent. By honoring these creators at the Manga of the Year Gala and guaranteeing 70% creator revenue shares through Google AdMob and Google Play Billing, we ensure the next generation of storytellers thrive."
             </p>
           </div>
 

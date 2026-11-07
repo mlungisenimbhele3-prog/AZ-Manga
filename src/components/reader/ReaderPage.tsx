@@ -31,6 +31,7 @@ export interface ReaderPageProps {
   onNavigateToStudio?: () => void;
   onNavigateToChats?: () => void;
   onNavigateToCanvas?: () => void;
+  onNavigateToFollowing?: () => void;
   activeTab?: string;
   onOpenTasteProfileModal?: () => void;
   userTasteProfile?: UserTasteProfile;
@@ -68,6 +69,7 @@ const ReaderPageComponent: React.FC<ReaderPageProps> = (props) => {
             onOpenTasteProfileModal={props.onOpenTasteProfileModal}
             userTasteProfile={props.userTasteProfile}
             onNavigateToCanvas={props.onNavigateToCanvas}
+            onNavigateToFollowing={props.onNavigateToFollowing}
           />
         )}
         renderDesktop={() => (
@@ -94,6 +96,7 @@ const ReaderPageComponent: React.FC<ReaderPageProps> = (props) => {
             onNavigateToStudio={props.onNavigateToStudio || NOOP}
             onNavigateToChats={props.onNavigateToChats || NOOP}
             onNavigateToCanvas={props.onNavigateToCanvas}
+            onNavigateToFollowing={props.onNavigateToFollowing}
             onOpenAiReport={props.onOpenAiReport}
             onRunAiScanCatalog={props.onRunAiScanCatalog}
             isScanningAi={props.isScanningAi}

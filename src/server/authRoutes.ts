@@ -1016,6 +1016,15 @@ authRouter.patch(
         return res.status(404).json({ error: 'User not found.' });
       }
 
+      if (
+        parsed.data.backup_email &&
+        parsed.data.backup_email.trim().toLowerCase() === existing.email.toLowerCase()
+      ) {
+        return res.status(400).json({
+          error: 'Backup recovery email cannot be identical to your primary account email.',
+        });
+      }
+
       const resolvedRole = ADMIN_EMAILS.has(existing.email)
         ? 'admin'
         : parsed.data.role || (existing.role as 'reader' | 'creator');
@@ -1026,6 +1035,10 @@ authRouter.patch(
         bio: parsed.data.bio,
         avatarUrl: parsed.data.avatar_url,
         role: resolvedRole,
+        backupEmail:
+          parsed.data.backup_email === ''
+            ? null
+            : parsed.data.backup_email ?? undefined,
       });
 
       if (!updated) {

@@ -1,6 +1,6 @@
-// Push Notifications Service Stub (OneSignal) for KA Plus: Africa Pulse
+// Push Notifications Service Stub (OneSignal) for AZ OVERVERSE
 export const initOneSignalPush = () => {
-  console.log("OneSignal Push Notifications initialized for KA Plus: Africa Pulse.");
+  console.log("OneSignal Push Notifications initialized for AZ OVERVERSE.");
 };
 
 export const sendPushNotification = (title: string, message: string) => {

@@ -5,6 +5,7 @@
 export interface OververseAuthUser {
   id: string;
   email: string;
+  backup_email?: string | null;
   pen_name: string;
   studio_name: string;
   bio: string;
@@ -655,6 +656,7 @@ export async function patchOververseCreatorProfile(updates: {
   bio?: string;
   avatar_url?: string | null;
   role?: 'reader' | 'creator';
+  backup_email?: string | null;
 }): Promise<{
   success: boolean;
   user?: OververseAuthUser;

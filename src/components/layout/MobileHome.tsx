@@ -42,6 +42,7 @@ export interface MobileHomeProps {
   onOpenTasteProfileModal?: () => void;
   userTasteProfile?: UserTasteProfile;
   onNavigateToCanvas?: () => void;
+  onNavigateToFollowing?: () => void;
 }
 
 const MobileHomeComponent: React.FC<MobileHomeProps> = ({
@@ -61,6 +62,7 @@ const MobileHomeComponent: React.FC<MobileHomeProps> = ({
   onOpenTasteProfileModal,
   userTasteProfile,
   onNavigateToCanvas,
+  onNavigateToFollowing,
 }) => {
   const osReducedMotion = useReducedMotion();
   const skipMotionOverhead = Boolean(osReducedMotion) || isLowEndOrReducedMotion();
@@ -161,7 +163,7 @@ const MobileHomeComponent: React.FC<MobileHomeProps> = ({
       )}
 
       {/* AZ Vertical-Style Separation on Mobile:
-          1. KA+ ORIGINALS 👑 (Top horizontal scroll)
+          1. AZ OVERVERSE ORIGINALS 👑 (Top horizontal scroll)
           2. BACKDROP - Rising Creators (2-column mobile grid below) */}
       {filteredManga.length === 0 ? (
         <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-8 text-center space-y-2.5">
@@ -226,7 +228,11 @@ const MobileHomeComponent: React.FC<MobileHomeProps> = ({
             ) : skipMotionOverhead ? (
               <div className="flex items-stretch gap-3 overflow-x-auto pb-2 scrollbar-none overscroll-x-contain smooth-scroll-container">
                 {originalSeries.map((manga, idx) => (
-                  <div key={`mobile-orig-${manga.id}-${idx}`} className="w-40 shrink-0">
+                  <div
+                    key={`mobile-orig-${manga.id}-${idx}`}
+                    className="w-40 shrink-0"
+                    style={{ contentVisibility: 'auto', containIntrinsicSize: '160px 240px' }}
+                  >
                     <MangaCard
                       manga={manga}
                       priority={idx < 2}
@@ -265,6 +271,7 @@ const MobileHomeComponent: React.FC<MobileHomeProps> = ({
                       },
                     }}
                     className="w-40 shrink-0"
+                    style={{ contentVisibility: 'auto', containIntrinsicSize: '160px 240px' }}
                   >
                     <MangaCard
                       manga={manga}

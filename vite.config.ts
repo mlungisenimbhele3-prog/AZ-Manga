@@ -144,7 +144,7 @@ export default defineConfig(() => {
           type: 'module',
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,woff,woff2,json}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,json}'],
           globIgnores: ['**/*.aab', '**/*.apk', '**/*.keystore', '**/AZ-OVERVERSE-signed.aab'],
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           cleanupOutdatedCaches: true,

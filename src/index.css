@@ -398,5 +398,28 @@ html.lite-mode-active {
   animation: oververseSparkleFloat 1.8s ease-in-out infinite;
 }
 
+/* Subtle click & pulse animation on the Follow Button for immediate visual feedback */
+.follow-button {
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  will-change: transform;
+}
 
+.follow-button:active {
+  transform: scale(0.94);
+}
 
+.follow-button.pulsing,
+.follow-button.animate-pulse {
+  animation: followButtonPulse 0.45s cubic-bezier(0.4, 0, 0.6, 1) 2;
+}
+
+@keyframes followButtonPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0);
+  }
+}

@@ -1,4 +1,4 @@
-// Firebase Cloud Messaging Background Service Worker for KA Plus: Africa Pulse
+// Firebase Cloud Messaging Background Service Worker for AZ OVERVERSE
 // Handles background chapter drop push notifications
 
 self.addEventListener('push', (event) => {
@@ -13,7 +13,7 @@ self.addEventListener('push', (event) => {
 
   const notificationTitle = data.notification?.title || data.title || '🔥 New Manga Chapter Released!';
   const notificationOptions = {
-    body: data.notification?.body || data.body || 'A brand new chapter has dropped on KA Plus: Africa Pulse. Click to read now!',
+    body: data.notification?.body || data.body || 'A brand new chapter has dropped on AZ OVERVERSE. Click to read now!',
     icon: data.notification?.icon || data.coverImage || '/pwa-192x192.png',
     badge: '/icon.svg',
     tag: data.tag || 'chapter-drop',

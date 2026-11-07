@@ -152,7 +152,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       bannerImage: coverImageUrl || SAMPLE_PAGE_IMAGES[1],
       genres: newGenres.split(',').map((g) => g.trim()),
       status: 'ONGOING',
-      synopsis: newSynopsis || 'A newly published manga journey on KA Plus: Africa Pulse.',
+      synopsis: newSynopsis || 'A newly published manga journey on AZ OVERVERSE.',
       rating: 0,
       views: 0,
       bookmarksCount: 0,
@@ -314,7 +314,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 <CheckCircle2 className="w-16 h-16 text-emerald-400 mb-1 animate-bounce" />
                 <h4 className="text-xl font-bold text-white">Artisan Series Launched Successfully!</h4>
                 <p className="text-xs text-emerald-300">
-                  Passed KA Plus: Africa Pulse Human Artisan integrity audit without synthetic strikes.
+                  Passed AZ OVERVERSE Human Artisan integrity audit without synthetic strikes.
                 </p>
               </>
             )}
@@ -530,7 +530,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </div>
                   <div>
                     <h5 className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span>KA Plus: Africa Pulse AI Auto-Detect & Artisan Integrity Engine</span>
+                      <span>AZ OVERVERSE AI Auto-Detect & Artisan Integrity Engine</span>
                       <span className="rounded bg-cyan-500/20 text-cyan-300 text-[9px] px-1.5 py-0.2 font-mono">
                         Active
                       </span>

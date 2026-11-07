@@ -18,6 +18,11 @@ import { uploadCoverFile } from '../../services/coverStorage';
 import { publishMangaToSupabase } from '../../services/supabase';
 import { isMangaBookmarked, toggleMangaBookmark } from '../../services/userProfile';
 import {
+  isFollowingCreator,
+  toggleFollowCreator,
+  subscribeToFollowedCreators,
+} from '../../services/creatorFollowService';
+import {
   X,
   Star,
   Eye,
@@ -35,6 +40,9 @@ import {
   Send,
   ThumbsUp,
   User,
+  UserPlus,
+  UserCheck,
+  Bell,
   Clock,
   Filter,
   Bot,
@@ -144,6 +152,52 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
   const ratingRevision = useRatingRevision();
 
   const activeManga = manga || cachedManga;
+
+  // Author Follow System
+  const [isFollowingAuthor, setIsFollowingAuthor] = useState(() => {
+    return activeManga?.author ? isFollowingCreator(activeManga.author) : false;
+  });
+  const [isFollowPulsing, setIsFollowPulsing] = useState(false);
+  const [followFeedback, setFollowFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeManga?.author) {
+      setIsFollowingAuthor(isFollowingCreator(activeManga.author));
+    }
+  }, [activeManga?.author]);
+
+  useEffect(() => {
+    return subscribeToFollowedCreators(() => {
+      if (activeManga?.author) {
+        setIsFollowingAuthor(isFollowingCreator(activeManga.author));
+      }
+    });
+  }, [activeManga?.author]);
+
+  const handleToggleFollowAuthor = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!activeManga?.author) return;
+    setIsFollowPulsing(true);
+    setTimeout(() => setIsFollowPulsing(false), 500);
+
+    const nextState = await toggleFollowCreator({
+      name: activeManga.author,
+      role: 'Author',
+      mangaContext: {
+        title: activeManga.title,
+        coverImage: activeManga.coverImage,
+        mangaId: activeManga.id,
+      },
+    });
+
+    setIsFollowingAuthor(nextState);
+    setFollowFeedback(
+      nextState
+        ? `Following ${activeManga.author}! You'll receive instant push alerts for new releases.`
+        : `Unfollowed ${activeManga.author}.`
+    );
+    setTimeout(() => setFollowFeedback(null), 3500);
+  };
 
   const mangaRatingStats = useMemo(() => {
     if (!activeManga) {
@@ -529,6 +583,14 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
               </div>
             )}
 
+            {/* Follow Author Feedback Toast */}
+            {followFeedback && (
+              <div className="absolute top-4 left-4 right-16 z-30 rounded-xl bg-amber-950/95 border border-amber-500/80 p-3 text-xs text-amber-200 shadow-2xl flex items-center gap-2.5 backdrop-blur-md animate-fadeIn">
+                <Bell className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="font-bold">{followFeedback}</span>
+              </div>
+            )}
+
             {/* Close Button */}
             <button
               onClick={onClose}
@@ -626,9 +688,38 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                     <h2 className="text-xl sm:text-2xl font-black text-white truncate drop-shadow">
                       {activeManga.title}
                     </h2>
-                    <p className="text-xs text-slate-300 truncate">
-                      By {activeManga.author} • Art by {activeManga.artist}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                      <p className="text-xs text-slate-300 truncate">
+                        By <span className="font-semibold text-white">{activeManga.author}</span> • Art by {activeManga.artist}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleToggleFollowAuthor}
+                        className={`follow-button inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all duration-200 select-none shadow-sm cursor-pointer ${
+                          isFollowPulsing
+                            ? 'scale-95 animate-pulse ring-2 ring-amber-400 bg-amber-500/30'
+                            : 'hover:scale-[1.03] active:scale-95'
+                        } ${
+                          isFollowingAuthor
+                            ? 'border-amber-500/70 bg-amber-500/20 text-amber-300'
+                            : 'border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white'
+                        }`}
+                        title={isFollowingAuthor ? `Unfollow ${activeManga.author}` : `Follow ${activeManga.author} for new releases`}
+                      >
+                        {isFollowingAuthor ? (
+                          <>
+                            <UserCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span>Following</span>
+                            <Bell className="w-3 h-3 text-amber-400 fill-amber-400/30 shrink-0 ml-0.5" />
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span>Follow Author</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                     <p className="text-[11px] text-amber-400/90 font-semibold mt-0.5">
                       Executive Producer: Mlungiseni Mbhele
                     </p>
@@ -776,6 +867,34 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                     >
                       <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-amber-400' : ''}`} />
                       <span>{isBookmarked ? 'In Library' : 'Add to Library'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      id="detail-follow-author-action-btn"
+                      onClick={handleToggleFollowAuthor}
+                      className={`follow-button flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                        isFollowPulsing
+                          ? 'scale-95 animate-pulse ring-2 ring-amber-400 bg-amber-500/30'
+                          : 'hover:scale-[1.02] active:scale-95'
+                      } ${
+                        isFollowingAuthor
+                          ? 'border-amber-500 bg-amber-500/20 text-amber-300 shadow-sm'
+                          : 'border-slate-700 hover:bg-slate-800 text-slate-300 hover:text-white'
+                      }`}
+                      title={isFollowingAuthor ? `Unfollow ${activeManga.author}` : `Follow ${activeManga.author} for new chapter push notifications`}
+                    >
+                      {isFollowingAuthor ? (
+                        <>
+                          <UserCheck className="w-4 h-4 text-amber-400" />
+                          <span>Following</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="w-4 h-4 text-slate-400" />
+                          <span>Follow Author</span>
+                        </>
+                      )}
                     </button>
 
                     {isMangaComingSoon(activeManga) ? (

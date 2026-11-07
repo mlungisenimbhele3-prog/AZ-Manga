@@ -11,6 +11,7 @@ import {
   Sparkles,
   RefreshCw,
   MessageSquare,
+  Timer,
 } from 'lucide-react';
 import { Chapter, Manga, UserSubscription } from '../../types';
 import {
@@ -24,11 +25,23 @@ import {
   trimInactiveReaderBitmaps,
   DEFAULT_READER_CONFIG,
 } from './ReaderConfig';
+import {
+  ReadingSessionTimerPill,
+  ReadingSessionSummaryCard,
+  ReadingSessionSummaryModal,
+  ChapterReadingSessionSummary,
+  calculatePaceCategory,
+  calculateSessionRewards,
+  saveReadingSessionToHistory,
+  formatDigitalTimer,
+  formatHumanDuration,
+} from './ReadingSessionTimer';
 import { AdMobBanner } from '../ads/AdMobBanner';
 import { safeStorage } from '../../utils/safeStorage';
 import { getProfileConfig, scheduleIdleTask } from '../../utils/devicePerformance';
 import { recordChapterRead } from '../../utils/readingStreak';
 import { saveReadingProgress } from '../../services/userProfile';
+import { logChapterReadingTime } from '../../services/creatorChapterStatsService';
 import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 import { RatingAverageDisplay, StarRatingInput } from '../common/StarRating';
 import {
@@ -243,6 +256,16 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const [showOverlay, setShowOverlay] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isCommentsOpen, setIsCommentsOpen] = useState<boolean>(false);
+
+  // Reading session timer state & completion tracking
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(true);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
+  const hasAutoShownSummaryRef = useRef<boolean>(false);
+  const hasSavedSessionRef = useRef<boolean>(false);
+  const sessionStartTimeRef = useRef<number>(Date.now());
+  const lastLoggedSecondsRef = useRef<number>(0);
+  const sessionStartedRef = useRef<boolean>(false);
 
   // Compositor & scroll measurement refs (zero synchronous layout reads or hidden-overlay React re-renders during scroll)
   const touchStartXRef = useRef<number | null>(null);
@@ -653,18 +676,176 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     };
   }, [hasPages, readingMode, chapter?.id, totalPages, recomputeVerticalLayoutMetrics]);
 
-  // Reset scroll and page index when switching chapter
+  // Reset scroll, page index, and session timer when switching chapter
   useEffect(() => {
+    // Flush remaining unlogged seconds for previous chapter
+    if (sessionStartedRef.current && manga?.id && chapter?.id) {
+      const remainingDelta = elapsedSeconds - lastLoggedSecondsRef.current;
+      if (remainingDelta > 0) {
+        logChapterReadingTime({
+          chapterId: chapter.id,
+          chapterNumber: chapter.number || 1,
+          chapterTitle: chapter.title || `Chapter ${chapter.number || 1}`,
+          mangaId: manga.id,
+          mangaTitle: manga.title,
+          mangaCover: manga.coverImage || (manga as any)?.cover || '',
+          deltaSeconds: remainingDelta,
+        });
+      }
+    }
+
     pageImageRefs.current = {};
     pageMidpointsRef.current = [];
     maxScrollCachedRef.current = 0;
     setCurrentPageIndex(0);
     setScrollProgress(0);
     setIsCommentsOpen(false);
+    setElapsedSeconds(0);
+    lastLoggedSecondsRef.current = 0;
+    sessionStartedRef.current = true;
+    setIsTimerRunning(true);
+    setIsSummaryModalOpen(false);
+    hasAutoShownSummaryRef.current = false;
+    hasSavedSessionRef.current = false;
+    sessionStartTimeRef.current = Date.now();
     if (verticalContainerRef.current) {
       verticalContainerRef.current.scrollTop = 0;
     }
+
+    // Register active reading session in CreatorDashboard statistics
+    if (manga?.id && chapter?.id) {
+      logChapterReadingTime({
+        chapterId: chapter.id,
+        chapterNumber: chapter.number || 1,
+        chapterTitle: chapter.title || `Chapter ${chapter.number || 1}`,
+        mangaId: manga.id,
+        mangaTitle: manga.title,
+        mangaCover: manga.coverImage || (manga as any)?.cover || '',
+        deltaSeconds: 0,
+        isNewSession: true,
+      });
+    }
   }, [chapter?.id]);
+
+  // Active reading timer (pauses when tab is backgrounded or reader manually pauses)
+  // Streams real-time cumulative duration to CreatorDashboard statistics
+  useEffect(() => {
+    if (!isTimerRunning) return;
+
+    const interval = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      setElapsedSeconds((prev) => {
+        const nextSec = prev + 1;
+        // Batch real-time duration updates every 5 seconds to CreatorDashboard
+        if (nextSec - lastLoggedSecondsRef.current >= 5 && manga?.id && chapter?.id) {
+          const delta = nextSec - lastLoggedSecondsRef.current;
+          lastLoggedSecondsRef.current = nextSec;
+          logChapterReadingTime({
+            chapterId: chapter.id,
+            chapterNumber: chapter.number || 1,
+            chapterTitle: chapter.title || `Chapter ${chapter.number || 1}`,
+            mangaId: manga.id,
+            mangaTitle: manga.title,
+            mangaCover: manga.coverImage || (manga as any)?.cover || '',
+            deltaSeconds: delta,
+          });
+        }
+        return nextSec;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [isTimerRunning, manga?.id, chapter?.id]);
+
+  // Real-time computed reading session summary
+  const currentSessionSummary: ChapterReadingSessionSummary = useMemo(() => {
+    const pagesRead = Math.min(totalPages, Math.max(1, currentPageIndex + 1));
+    const paceInfo = calculatePaceCategory(elapsedSeconds, pagesRead);
+    const rewards = calculateSessionRewards(elapsedSeconds, pagesRead);
+
+    return {
+      chapterId: chapter?.id || '',
+      chapterNumber: chapter?.number || 1,
+      chapterTitle: chapter?.title || `Chapter ${chapter?.number || 1}`,
+      mangaId: manga?.id || '',
+      mangaTitle: manga?.title || '',
+      mangaCover: manga?.coverImage || (manga as any)?.cover || '',
+      durationSeconds: Math.max(1, elapsedSeconds),
+      totalPages: Math.max(1, totalPages),
+      pagesRead,
+      secondsPerPage: paceInfo.secondsPerPage,
+      pagesPerMinute: paceInfo.pagesPerMinute,
+      paceLabel: paceInfo.paceLabel,
+      paceDescription: paceInfo.paceDescription,
+      badgeColor: paceInfo.badgeColor,
+      coinsEarned: rewards.coins,
+      xpEarned: rewards.xp,
+      completed: currentPageIndex >= totalPages - 1 || scrollProgress >= 95,
+      finishedAt: new Date().toISOString(),
+    };
+  }, [
+    chapter?.id,
+    chapter?.number,
+    chapter?.title,
+    manga?.id,
+    manga?.title,
+    manga?.coverImage,
+    elapsedSeconds,
+    currentPageIndex,
+    totalPages,
+    scrollProgress,
+  ]);
+
+  // Auto-detect chapter completion: trigger reward calculation, save history & launch summary modal
+  useEffect(() => {
+    if (!hasPages || totalPages === 0) return;
+
+    const isFinished =
+      readingMode === 'vertical'
+        ? scrollProgress >= 96 || (currentPageIndex >= totalPages - 1 && scrollProgress >= 70)
+        : currentPageIndex >= totalPages - 1;
+
+    if (isFinished && !hasSavedSessionRef.current && elapsedSeconds >= 3) {
+      hasSavedSessionRef.current = true;
+      saveReadingSessionToHistory(currentSessionSummary);
+
+      // Log chapter completion to CreatorDashboard statistics
+      if (manga?.id && chapter?.id) {
+        const remainingDelta = Math.max(0, elapsedSeconds - lastLoggedSecondsRef.current);
+        lastLoggedSecondsRef.current = elapsedSeconds;
+        logChapterReadingTime({
+          chapterId: chapter.id,
+          chapterNumber: chapter.number || 1,
+          chapterTitle: chapter.title || `Chapter ${chapter.number || 1}`,
+          mangaId: manga.id,
+          mangaTitle: manga.title,
+          mangaCover: manga.coverImage || (manga as any)?.cover || '',
+          deltaSeconds: remainingDelta,
+          isCompleted: true,
+        });
+      }
+
+      if (!hasAutoShownSummaryRef.current) {
+        hasAutoShownSummaryRef.current = true;
+        const timer = window.setTimeout(() => {
+          setIsSummaryModalOpen(true);
+        }, 400);
+        return () => window.clearTimeout(timer);
+      }
+    }
+  }, [
+    hasPages,
+    totalPages,
+    scrollProgress,
+    currentPageIndex,
+    readingMode,
+    elapsedSeconds,
+    currentSessionSummary,
+    manga?.id,
+    chapter?.id,
+  ]);
 
   // Record daily reading streak cleanly in idle time when a chapter opens
   useEffect(() => {
@@ -730,13 +911,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             totalPages: Math.max(1, totalPages),
             progressPercent: Math.round(((currentPageIndex + 1) / Math.max(1, totalPages)) * 100),
             completed: currentPageIndex >= totalPages - 1,
+            durationSeconds: Math.max(1, elapsedSeconds),
           });
         } catch {}
       }, 2000);
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [manga, chapter, hasPages, currentPageIndex, totalPages]);
+  }, [manga, chapter, hasPages, currentPageIndex, totalPages, elapsedSeconds]);
 
   // Safe empty-chapter guard AFTER all hooks
   if (!hasPages) {
@@ -855,6 +1037,15 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <ReadingSessionTimerPill
+            elapsedSeconds={elapsedSeconds}
+            isRunning={isTimerRunning}
+            onTogglePause={() => setIsTimerRunning((prev) => !prev)}
+            onOpenSummary={() => setIsSummaryModalOpen(true)}
+            currentPage={currentPageIndex + 1}
+            totalPages={totalPages}
+          />
+
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-mono tabular-nums font-bold text-amber-300">
             <span>{Math.round(currentProgress)}%</span>
             <span className="text-slate-600">·</span>
@@ -946,6 +1137,16 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-2xl mx-auto px-4 pt-12 pb-32 text-center bg-black space-y-6"
           >
+            {/* Reading Session Live Summary Card */}
+            <ReadingSessionSummaryCard
+              summary={currentSessionSummary}
+              onViewModal={() => setIsSummaryModalOpen(true)}
+              onReadNextChapter={
+                nextChapter && onChapterChange ? () => onChapterChange(nextChapter.id) : undefined
+              }
+              hasNextChapter={Boolean(nextChapter)}
+            />
+
             <div className="rounded-2xl border border-slate-800 bg-slate-950/90 p-6 space-y-5">
               {/* Chapter & Volume 1–5 Star Rating Card */}
               <div
@@ -1152,6 +1353,18 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               <div className="flex flex-wrap items-center justify-center gap-2.5 w-full">
                 <button
                   type="button"
+                  onClick={() => setIsSummaryModalOpen(true)}
+                  className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 backdrop-blur-md text-amber-300 font-semibold px-4 py-3 text-xs shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
+                >
+                  <Timer className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Session Summary</span>
+                  <span className="font-mono tabular-nums text-amber-300">
+                    ({formatDigitalTimer(elapsedSeconds)})
+                  </span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setIsCommentsOpen(true)}
                   className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-black/85 hover:bg-slate-900 backdrop-blur-md text-white font-semibold px-4 py-3 text-xs shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
                 >
@@ -1327,6 +1540,30 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Chapter Completed Reading Session Summary Celebration Modal */}
+      <ReadingSessionSummaryModal
+        isOpen={isSummaryModalOpen}
+        onClose={() => setIsSummaryModalOpen(false)}
+        summary={currentSessionSummary}
+        manga={manga}
+        chapter={chapter}
+        onReadNextChapter={
+          nextChapter && onChapterChange ? () => onChapterChange(nextChapter.id) : undefined
+        }
+        hasNextChapter={Boolean(nextChapter)}
+        onRestartChapter={() => {
+          setElapsedSeconds(0);
+          setIsTimerRunning(true);
+          handleJumpToPage(0);
+          sessionStartTimeRef.current = Date.now();
+          hasAutoShownSummaryRef.current = false;
+          hasSavedSessionRef.current = false;
+        }}
+        onRateChapter={handleRateCurrentChapter}
+        userChapterRating={chapterRatingStats.userScore}
+        averageChapterRating={chapterRatingStats.averageRating}
+      />
     </div>
   );
 };

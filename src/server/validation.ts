@@ -120,4 +120,13 @@ export const updateProfileSchema = z.object({
   bio: z.string().trim().max(500).optional(),
   avatar_url: z.string().trim().url('Avatar URL must be a valid URL.').nullable().optional(),
   role: z.enum(['reader', 'creator']).optional(),
+  backup_email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email('Enter a valid backup recovery email address.')
+    .max(120, 'Email address must be 120 characters or fewer.')
+    .nullable()
+    .optional()
+    .or(z.literal('')),
 });

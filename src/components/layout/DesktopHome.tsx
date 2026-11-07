@@ -29,6 +29,7 @@ import {
   RefreshCw,
   Crown,
   Layers,
+  Users,
   X,
   Plus,
 } from 'lucide-react';
@@ -56,6 +57,7 @@ export interface DesktopHomeProps {
   onNavigateToStudio: () => void;
   onNavigateToChats: () => void;
   onNavigateToCanvas?: () => void;
+  onNavigateToFollowing?: () => void;
   onOpenAiReport?: (manga: Manga) => void;
   onRunAiScanCatalog?: () => void;
   isScanningAi?: boolean;
@@ -87,6 +89,7 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
   onNavigateToStudio,
   onNavigateToChats,
   onNavigateToCanvas,
+  onNavigateToFollowing,
   onOpenAiReport,
   onRunAiScanCatalog,
   isScanningAi = false,
@@ -229,6 +232,30 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
                 70% REV
               </span>
             </button>
+
+            {/* Followed Creators */}
+            {onNavigateToFollowing && (
+              <button
+                onClick={onNavigateToFollowing}
+                className={`w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-bold transition group ${
+                  activeTab === 'following'
+                    ? 'bg-amber-500 text-black shadow-md'
+                    : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Users className={`w-4 h-4 ${activeTab === 'following' ? 'text-black' : 'text-amber-400'} group-hover:scale-110 transition-transform`} />
+                  <span>Followed Creators</span>
+                </div>
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                  activeTab === 'following'
+                    ? 'bg-black/20 text-black'
+                    : 'bg-amber-500/20 text-amber-300'
+                }`}>
+                  FOLLOW
+                </span>
+              </button>
+            )}
 
             {/* Community Chats */}
             <button
@@ -427,7 +454,7 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
         )}
 
         {/* AZ Vertical-Style Separation on Homepage:
-            1. KA+ ORIGINALS 👑 (Top horizontal scroll)
+            1. AZ OVERVERSE ORIGINALS 👑 (Top horizontal scroll)
             2. BACKDROP - Rising Creators (4-column grid below)
             Fallback to filtered grid if a genre filter or search is active */}
         {filteredManga.length === 0 ? (
@@ -507,7 +534,11 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
               ) : skipMotionOverhead ? (
                 <div className="flex items-stretch gap-4 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-amber-500/30 overscroll-x-contain smooth-scroll-container">
                   {originalSeries.map((manga, idx) => (
-                    <div key={`desktop-orig-${manga.id}-${idx}`} className="w-56 shrink-0">
+                    <div
+                      key={`desktop-orig-${manga.id}-${idx}`}
+                      className="w-56 shrink-0"
+                      style={{ contentVisibility: 'auto', containIntrinsicSize: '224px 340px' }}
+                    >
                       <MangaCard
                         manga={manga}
                         priority={idx < 2}
@@ -546,6 +577,7 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
                         },
                       }}
                       className="w-56 shrink-0"
+                      style={{ contentVisibility: 'auto', containIntrinsicSize: '224px 340px' }}
                     >
                       <MangaCard
                         manga={manga}

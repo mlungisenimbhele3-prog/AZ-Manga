@@ -34,7 +34,6 @@ import { AdMobBanner } from './components/ads/AdMobBanner';
 import { ReaderPage } from './components/reader/ReaderPage';
 import { SouthAfricaFlameLogo } from './components/common/SouthAfricaFlameLogo';
 import { APP_LOGO_SRC } from './components/common/KAAfricaLogo';
-import { detectAiContent, scanMangaList } from './utils/aiDetector';
 import { BottomNav } from './components/layout/BottomNav';
 import { OfflineIndicator } from './components/layout/OfflineIndicator';
 import type { MilestoneCelebrationData } from './components/common/MilestoneCelebrationModal';
@@ -50,6 +49,8 @@ import {
 } from './services/userProfile';
 import { syncOfflineProgressWithServer } from './services/offlineCache';
 import { ResumeReadingBanner, LastReadProgress } from './components/common/ResumeReadingBanner';
+import { FollowedCreatorsView } from './components/creators/FollowedCreatorsView';
+import { isFollowingCreator } from './services/creatorFollowService';
 import {
   PlayUploadKeyCard,
   ADMIN_UNLOCK_STORAGE_KEY,
@@ -78,11 +79,11 @@ import {
 import {
   initFcmMessaging,
   dispatchChapterDropPush,
+  dispatchNewSeriesPush,
   getNotificationsHistory,
   subscribeToMangaChapterDrops,
 } from './services/fcm';
 import { sanitizeInput } from './utils/securitySanitizer';
-import { FcmNotificationBanner } from './components/common/FcmNotificationBanner';
 import { DailyRewardNotification } from './components/common/DailyRewardNotification';
 import { isUserApprovedMangaka } from './utils/mangakaManager';
 import {
@@ -214,6 +215,11 @@ const ProductivityCommandPalette = lazy(() =>
 const SecurityDefenseModal = lazy(() =>
   import('./components/common/SecurityDefenseModal').then((m) => ({
     default: m.SecurityDefenseModal,
+  }))
+);
+const FcmNotificationBanner = lazy(() =>
+  import('./components/common/FcmNotificationBanner').then((m) => ({
+    default: m.FcmNotificationBanner,
   }))
 );
 const FcmNotificationsModal = lazy(() =>
@@ -577,6 +583,7 @@ export default function App() {
   type AppRouteTab =
     | 'readers'
     | 'creators'
+    | 'following'
     | 'chats'
     | 'wallet'
     | 'privacy'
@@ -596,6 +603,7 @@ export default function App() {
     'privacy',
     'terms',
     'creators',
+    'following',
     'chats',
     'wallet',
     'awards',
@@ -806,14 +814,29 @@ export default function App() {
   const [performanceTier, setPerformanceTier] = useState<DeviceTier>(() => getActivePerformanceTier());
   const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [lastReadProgress, setLastReadProgress] = useState<LastReadProgress | null>(() => {
+  const [lastReadProgress, setLastReadProgress] = useState<LastReadProgress>(() => {
     const saved = safeStorage.getJSON<LastReadProgress | null>('ka_pulse_last_read', null);
-    if (saved && saved.mangaId === 'nkosi-the-tale-of-myths' && saved.coverImage !== NKOSI_COVER_SRC) {
-      const updated = { ...saved, coverImage: NKOSI_COVER_SRC };
-      safeStorage.setJSON('ka_pulse_last_read', updated);
-      return updated;
+    if (saved) {
+      if (saved.mangaId === 'nkosi-the-tale-of-myths' && saved.coverImage !== NKOSI_COVER_SRC) {
+        const updated = { ...saved, coverImage: NKOSI_COVER_SRC };
+        safeStorage.setJSON('ka_pulse_last_read', updated);
+        return updated;
+      }
+      return saved;
     }
-    return saved;
+    const defaultProgress: LastReadProgress = {
+      mangaId: 'manga-1',
+      mangaTitle: 'The Spear of Shaka: Origins',
+      coverImage: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80',
+      chapterId: 'chap-shaka-1',
+      chapterNumber: 1,
+      chapterTitle: 'The Awakening Spear',
+      pageIndex: 7,
+      totalPages: 28,
+      timestamp: new Date().toISOString(),
+    };
+    safeStorage.setJSON('ka_pulse_last_read', defaultProgress);
+    return defaultProgress;
   });
 
   // Apply device performance classes immediately on mount or tier change, prewarm chunks on High/Ultra, and subscribe to live network/battery shifts
@@ -1111,10 +1134,14 @@ export default function App() {
     // 1. Sync to Supabase Core Relational DB (chapters table)
     publishChapterToSupabase(sanitizedChapter);
 
-    // 2. Dispatch Firebase Cloud Messaging (FCM) Push Notification
+    // 2. Dispatch Firebase Cloud Messaging (FCM) Push Notification with followed creator recognition
     const targetManga = mangaList.find((m) => m.id === mangaId);
     if (targetManga) {
-      dispatchChapterDropPush(targetManga, sanitizedChapter).then(() => {
+      const isFollowed = isFollowingCreator(targetManga.author) || isFollowingCreator(targetManga.artist);
+      dispatchChapterDropPush(targetManga, sanitizedChapter, {
+        isFromFollowedCreator: isFollowed,
+        creatorName: targetManga.author,
+      }).then(() => {
         setUnreadNotificationsCount((c) => c + 1);
       });
     }
@@ -1135,8 +1162,13 @@ export default function App() {
     // 1. Sync to Supabase Core Relational DB (mangas table)
     publishMangaToSupabase(sanitizedManga);
 
-    // 2. If new series includes a launch chapter, dispatch FCM chapter drop
-    if (sanitizedManga.chapters && sanitizedManga.chapters.length > 0) {
+    // 2. If new series is released by a followed creator, dispatch new series push alert!
+    const isFollowed = isFollowingCreator(sanitizedManga.author) || isFollowingCreator(sanitizedManga.artist);
+    if (isFollowed) {
+      dispatchNewSeriesPush(sanitizedManga, sanitizedManga.author).then(() => {
+        setUnreadNotificationsCount((c) => c + 1);
+      });
+    } else if (sanitizedManga.chapters && sanitizedManga.chapters.length > 0) {
       dispatchChapterDropPush(sanitizedManga, sanitizedManga.chapters[0]).then(() => {
         setUnreadNotificationsCount((c) => c + 1);
       });
@@ -1406,9 +1438,10 @@ export default function App() {
     );
   };
 
-  const handleReScanManga = (mangaId: string) => {
+  const handleReScanManga = async (mangaId: string) => {
     const target = mangaList.find((m) => m.id === mangaId);
     if (!target) return;
+    const { detectAiContent } = await import('./utils/aiDetector');
     const scan = detectAiContent({
       title: target.title,
       synopsis: target.synopsis,
@@ -1443,8 +1476,9 @@ export default function App() {
     );
   };
 
-  const handleRunCatalogAiScan = useCallback(() => {
+  const handleRunCatalogAiScan = useCallback(async () => {
     setIsScanningCatalogAi(true);
+    const { scanMangaList } = await import('./utils/aiDetector');
     scheduleIdleTask(() => {
       const { updatedList, newlyBannedCount, aiLabeledCount } = scanMangaList(
         mangaListRef.current,
@@ -1787,7 +1821,7 @@ export default function App() {
         </Suspense>
       )}
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-6 space-y-6">
+      <main id="main-container" className="main-container mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-6 space-y-6">
         {isAdmin && showPlayUploadKeyCard && !activeRatedReaderManga && (
           <PlayUploadKeyCard
             isAdmin={isAdmin}
@@ -1944,6 +1978,7 @@ export default function App() {
                   onNavigateToStudio={handleNavigateToStudio}
                   onNavigateToChats={handleNavigateToChats}
                   onNavigateToCanvas={handleNavigateToCanvas}
+                  onNavigateToFollowing={() => handleTabChange('following')}
                   onOpenAiReport={handleOpenAiReport}
                   onRunAiScanCatalog={handleRunCatalogAiScan}
                   isScanningAi={isScanningCatalogAi}
@@ -1953,6 +1988,23 @@ export default function App() {
                   isAdmin={isAdmin}
                 />
               </div>
+            )}
+
+            {/* Route: /following (Dedicated Followed Authors & Artists Section) */}
+            {activeTab === 'following' && (
+              <FollowedCreatorsView
+                mangaList={ratedMangaList}
+                onSelectDetailManga={handleSelectDetailManga}
+                onStartReading={(chId) => {
+                  const target =
+                    ratedMangaList.find((m) => m.chapters.some((c) => c.id === chId)) ||
+                    ratedMangaList[0];
+                  if (target) {
+                    handleStartReading(target, chId);
+                  }
+                }}
+                onBackToCatalog={() => handleTabChange('readers')}
+              />
             )}
 
             {/* Route: /backdrop or /canvas (Backdrop Series & Creators) */}
@@ -2620,7 +2672,9 @@ export default function App() {
       </Suspense>
 
       {/* FCM FOREGROUND CHAPTER DROP PUSH BANNER */}
-      <FcmNotificationBanner onReadChapter={handleResumeReading} />
+      <Suspense fallback={null}>
+        <FcmNotificationBanner onReadChapter={handleResumeReading} />
+      </Suspense>
 
       {/* DAILY READING GOAL REWARD NOTIFICATION */}
       <DailyRewardNotification onOpenProfileModal={() => setIsProfileModalOpen(true)} />

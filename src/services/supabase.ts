@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { Manga, Chapter } from '../types';
 import { INITIAL_MANGA_LIST, NKOSI_COVER_SRC } from '../data/mockData';
 import { safeStorage } from '../utils/safeStorage';
@@ -14,12 +14,85 @@ export const isSupabaseLiveConfigured = Boolean(
   !import.meta?.env?.VITE_SUPABASE_URL.includes('kaplus-pulse.supabase.co')
 );
 
-// Initialize Supabase Client with Supabase Auth strictly disabled (AZ OVERVERSE uses its own PostgreSQL + JWT Auth)
-export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
+let _supabaseClientInstance: SupabaseClient | null = null;
+let _supabaseClientPromise: Promise<SupabaseClient> | null = null;
+
+/**
+ * Lazy, on-demand loader for the Supabase client.
+ * Keeps @supabase/supabase-js (214KB) off the critical home bundle path.
+ */
+export async function getSupabaseClient(): Promise<SupabaseClient> {
+  if (_supabaseClientInstance) return _supabaseClientInstance;
+  if (!_supabaseClientPromise) {
+    _supabaseClientPromise = import('@supabase/supabase-js').then(({ createClient }) => {
+      _supabaseClientInstance = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      });
+      return _supabaseClientInstance;
+    });
+  }
+  return _supabaseClientPromise;
+}
+
+/**
+ * Backward-compatible proxy to delegate to the lazily-loaded client instance.
+ */
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    if (prop === 'from') {
+      return (table: string) => {
+        const createQueryProxy = (chainFn: (client: SupabaseClient) => any) => {
+          return new Proxy(
+            {},
+            {
+              get(_sub, method) {
+                if (method === 'then') {
+                  return (resolve: any, reject: any) =>
+                    getSupabaseClient()
+                      .then((client) => chainFn(client))
+                      .then(resolve, reject);
+                }
+                return (...args: any[]) =>
+                  createQueryProxy((client) => {
+                    const base = chainFn(client);
+                    return typeof base[method] === 'function' ? base[method](...args) : base[method];
+                  });
+              },
+            }
+          );
+        };
+        return createQueryProxy((client) => client.from(table));
+      };
+    }
+    if (prop === 'storage') {
+      return {
+        from: (bucket: string) => ({
+          upload: async (...args: any[]) => {
+            const client = await getSupabaseClient();
+            return client.storage.from(bucket).upload(args[0], args[1], args[2]);
+          },
+          getPublicUrl: (path: string, options?: any) => {
+            if (_supabaseClientInstance) {
+              return _supabaseClientInstance.storage.from(bucket).getPublicUrl(path, options);
+            }
+            return {
+              data: {
+                publicUrl: `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`,
+              },
+            };
+          },
+        }),
+      };
+    }
+    return async (...args: any[]) => {
+      const client = await getSupabaseClient();
+      const val = (client as any)[prop];
+      return typeof val === 'function' ? val.apply(client, args) : val;
+    };
   },
 });
 

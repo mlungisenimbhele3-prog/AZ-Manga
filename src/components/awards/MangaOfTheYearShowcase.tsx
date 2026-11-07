@@ -40,7 +40,7 @@ export const MangaOfTheYearShowcase: React.FC<MangaOfTheYearShowcaseProps> = ({
               <span className="text-xs text-slate-400 font-mono">{new Date().getFullYear()} EDITION</span>
             </div>
             <h2 className="font-['Bebas_Neue',sans-serif] text-2xl sm:text-3xl tracking-wide text-white">
-              KA PLUS MANGA OF THE YEAR <span className="text-amber-400">AWARDS</span>
+              AZ OVERVERSE MANGA OF THE YEAR <span className="text-amber-400">AWARDS</span>
             </h2>
           </div>
         </div>

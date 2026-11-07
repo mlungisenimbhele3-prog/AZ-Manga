@@ -114,6 +114,21 @@ export const dashboardProfileFormSchema = z.object({
 export type DashboardProfileFormValues = z.infer<typeof dashboardProfileFormSchema>;
 
 /**
+ * Zod schema for secondary backup recovery email configuration
+ */
+export const backupEmailFormSchema = z.object({
+  backup_email: z
+    .string()
+    .trim()
+    .min(1, 'Secondary recovery email is required.')
+    .toLowerCase()
+    .email('Enter a valid email address (e.g. author.recovery@example.com).')
+    .max(120, 'Email address must be 120 characters or fewer.'),
+});
+
+export type BackupEmailFormValues = z.infer<typeof backupEmailFormSchema>;
+
+/**
  * Zod schemas for /forgot and /reset password forms
  */
 export const forgotPasswordFormSchema = z.object({

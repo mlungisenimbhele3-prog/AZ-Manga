@@ -18,6 +18,8 @@ export interface ChapterDropNotificationPayload {
   timestamp: string;
   readUrl: string;
   isRead?: boolean;
+  isFromFollowedCreator?: boolean;
+  creatorName?: string;
 }
 
 type NotificationCallback = (payload: ChapterDropNotificationPayload) => void;
@@ -108,7 +110,7 @@ function saveNotificationToHistory(payload: ChapterDropNotificationPayload) {
     PUSH_NOTIFICATIONS_HISTORY_KEY,
     []
   );
-  const updated = [payload, ...history.filter((n) => n.id !== payload.id)].slice(0, 20);
+  const updated = [payload, ...history.filter((n) => n.id !== payload.id)].slice(0, 25);
   safeStorage.setJSON(PUSH_NOTIFICATIONS_HISTORY_KEY, updated);
 }
 
@@ -125,8 +127,16 @@ export function clearNotificationsHistory(): void {
 
 export async function dispatchChapterDropPush(
   manga: Manga,
-  chapter: Chapter
+  chapter: Chapter,
+  options?: {
+    isFromFollowedCreator?: boolean;
+    creatorName?: string;
+    creatorRole?: string;
+  }
 ): Promise<{ success: boolean; deliveredCount: number }> {
+  const isFollowed = Boolean(options?.isFromFollowedCreator);
+  const creatorDisplay = options?.creatorName || manga.author || 'Author';
+
   const payload: ChapterDropNotificationPayload = {
     id: `notif-${Date.now()}`,
     mangaId: manga.id,
@@ -137,6 +147,8 @@ export async function dispatchChapterDropPush(
     timestamp: new Date().toISOString(),
     readUrl: `/?manga=${manga.id}&chapter=${chapter.id}`,
     isRead: false,
+    isFromFollowedCreator: isFollowed,
+    creatorName: creatorDisplay,
   };
 
   saveNotificationToHistory(payload);
@@ -147,9 +159,13 @@ export async function dispatchChapterDropPush(
     Notification.permission === 'granted'
   ) {
     try {
-      const title = `New Chapter Drop: ${manga.title}`;
-      const options: NotificationOptions = {
-        body: `Chapter ${chapter.number}: "${chapter.title}" is out now on AZ OVERVERSE.`,
+      const title = isFollowed
+        ? `🔔 Followed Creator Alert: ${creatorDisplay} dropped ${manga.title}!`
+        : `New Chapter Drop: ${manga.title}`;
+      const notificationOptions: NotificationOptions = {
+        body: isFollowed
+          ? `Creator you follow released Chapter ${chapter.number}: "${chapter.title}"! Tap to read now on AZ OVERVERSE.`
+          : `Chapter ${chapter.number}: "${chapter.title}" is out now on AZ OVERVERSE.`,
         icon: manga.coverImage || APP_LOGO_SRC,
         badge: '/pwa-192x192.png',
         tag: `chapter-drop-${manga.id}-${chapter.number}`,
@@ -160,12 +176,68 @@ export async function dispatchChapterDropPush(
 
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.ready
-          .then((reg) => reg.showNotification(title, options))
+          .then((reg) => reg.showNotification(title, notificationOptions))
           .catch(() => {
-            new Notification(title, options);
+            new Notification(title, notificationOptions);
           });
       } else {
-        new Notification(title, options);
+        new Notification(title, notificationOptions);
+      }
+    } catch {
+      // Ignore native notification restriction inside sandboxed iframes
+    }
+  }
+
+  broadcastNotification(payload);
+  return { success: true, deliveredCount: 1 };
+}
+
+export async function dispatchNewSeriesPush(
+  manga: Manga,
+  creatorName?: string
+): Promise<{ success: boolean; deliveredCount: number }> {
+  const creatorDisplay = creatorName || manga.author || 'Author';
+  const payload: ChapterDropNotificationPayload = {
+    id: `notif-series-${Date.now()}`,
+    mangaId: manga.id,
+    mangaTitle: manga.title,
+    coverImage: manga.coverImage,
+    chapterNumber: 1,
+    chapterTitle: 'Series Premiere',
+    timestamp: new Date().toISOString(),
+    readUrl: `/?manga=${manga.id}`,
+    isRead: false,
+    isFromFollowedCreator: true,
+    creatorName: creatorDisplay,
+  };
+
+  saveNotificationToHistory(payload);
+
+  if (
+    typeof window !== 'undefined' &&
+    'Notification' in window &&
+    Notification.permission === 'granted'
+  ) {
+    try {
+      const title = `✨ New Series Premiere by ${creatorDisplay}!`;
+      const notificationOptions: NotificationOptions = {
+        body: `"${manga.title}" has just launched on AZ OVERVERSE! Tap to explore.`,
+        icon: manga.coverImage || APP_LOGO_SRC,
+        badge: '/pwa-192x192.png',
+        tag: `series-launch-${manga.id}`,
+        data: {
+          url: `/?manga=${manga.id}`,
+        },
+      };
+
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready
+          .then((reg) => reg.showNotification(title, notificationOptions))
+          .catch(() => {
+            new Notification(title, notificationOptions);
+          });
+      } else {
+        new Notification(title, notificationOptions);
       }
     } catch {
       // Ignore native notification restriction inside sandboxed iframes

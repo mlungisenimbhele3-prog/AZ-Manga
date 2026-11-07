@@ -1,5 +1,5 @@
 // =========================================================================
-// KA Plus: Africa Pulse - Security Engine & Defense x5 Architecture
+// AZ OVERVERSE - Security Engine & Defense x5 Architecture
 // Author & Architect: Produced by Mlungiseni Mbhele
 // Defense Layers:
 // 1. Hardened CSP & Clickjacking/Frame Shield

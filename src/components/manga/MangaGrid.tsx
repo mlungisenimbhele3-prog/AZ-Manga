@@ -96,7 +96,11 @@ const MangaGridComponent: React.FC<MangaGridProps> = ({
     return (
       <div className={resolvedGridClass}>
         {mangaList.map((manga, idx) => (
-          <div key={`grid-manga-${manga.id}-${idx}`} className="flex flex-col h-full">
+          <div
+            key={`grid-manga-${manga.id}-${idx}`}
+            className="flex flex-col h-full"
+            style={{ contentVisibility: 'auto', containIntrinsicSize: '0 320px' }}
+          >
             <MangaCard
               manga={manga}
               isFavorite={favoriteSet.has(manga.id)}
@@ -123,6 +127,7 @@ const MangaGridComponent: React.FC<MangaGridProps> = ({
           key={`grid-manga-${manga.id}-${idx}`}
           variants={itemVariants}
           className="flex flex-col h-full"
+          style={{ contentVisibility: 'auto', containIntrinsicSize: '0 320px' }}
         >
           <MangaCard
             manga={manga}

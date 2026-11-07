@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { CreatorPayoutManager } from './CreatorPayoutManager';
 import { ChapterUploadManager } from './ChapterUploadManager';
+import { CreatorChapterStatsCard } from './CreatorChapterStatsCard';
 import { INITIAL_CREATOR_PAYOUT_SETTINGS, INITIAL_PAYOUT_HISTORY, USD_TO_ZAR_RATE } from '../../data/paymentData';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -503,6 +504,9 @@ export const CreatorDashboardModal: React.FC<CreatorDashboardModalProps> = ({
                       </div>
                     </div>
                   </div>
+
+                  {/* Real-Time Chapter Reading Duration & Cumulative Engagement Statistics */}
+                  <CreatorChapterStatsCard />
 
                   {/* Series Breakdown Table */}
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden">

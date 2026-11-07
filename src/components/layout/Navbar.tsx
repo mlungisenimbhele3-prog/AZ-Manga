@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Crown,
   Smartphone,
+  Users,
   X,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -276,6 +277,30 @@ const NavbarComponent: React.FC<NavbarProps> = ({
                     </div>
                   </div>
                   <span className="text-amber-400 text-xs font-bold">Open →</span>
+                </button>
+
+                {/* [Followed Creators] */}
+                <button
+                  onClick={() => {
+                    onTabChange?.('following');
+                    setIsMoreMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between rounded-xl p-2.5 bg-slate-900/80 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/50 text-left transition group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white group-hover:text-amber-400 transition">
+                        Followed Creators
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        Authors & artists with push alerts
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-amber-400 text-xs font-bold">View →</span>
                 </button>
 
                 {/* PWA Install Button & App Hub */}

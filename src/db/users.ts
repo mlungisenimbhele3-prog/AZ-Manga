@@ -5,6 +5,7 @@ import { users, DbUser, NewDbUser } from './schema.ts';
 export interface PublicUser {
   id: string;
   email: string;
+  backup_email: string | null;
   pen_name: string;
   studio_name: string;
   bio: string;
@@ -40,6 +41,7 @@ export function toPublicUser(row: DbUser): PublicUser {
   return {
     id: row.id,
     email: row.email,
+    backup_email: row.backupEmail ?? null,
     pen_name: row.penName,
     studio_name: row.studioName || `${row.penName} Studio`,
     bio: row.bio || '',
@@ -197,6 +199,7 @@ export async function updateUserCreatorProfile(
     bio?: string;
     avatarUrl?: string | null;
     role?: 'reader' | 'creator' | 'admin';
+    backupEmail?: string | null;
   }
 ): Promise<DbUser | null> {
   try {
@@ -217,6 +220,9 @@ export async function updateUserCreatorProfile(
     }
     if (updates.role) {
       patch.role = updates.role;
+    }
+    if (updates.backupEmail !== undefined) {
+      patch.backupEmail = updates.backupEmail ? updates.backupEmail.trim().toLowerCase() : null;
     }
 
     const updated = await db.update(users).set(patch).where(eq(users.id, id)).returning();

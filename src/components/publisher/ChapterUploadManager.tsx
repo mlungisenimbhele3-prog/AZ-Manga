@@ -913,7 +913,7 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
         {isSubmitting && (
           <div className="rounded-2xl border border-amber-500/30 bg-slate-950 p-4 space-y-2">
             <div className="flex items-center justify-between text-xs font-bold text-amber-300">
-              <span>Publishing Chapter to KA Plus: Africa Pulse CDN...</span>
+              <span>Publishing Chapter to AZ OVERVERSE CDN...</span>
               <span>{uploadProgress}%</span>
             </div>
             <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">

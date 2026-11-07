@@ -27,6 +27,7 @@ import {
   CreditCard,
   Settings,
   Layers,
+  Users,
 } from 'lucide-react';
 import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 import { LanguageSwitcher } from '../common/LanguageSwitcher';
@@ -155,6 +156,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
     tab:
       | 'readers'
       | 'creators'
+      | 'following'
       | 'chats'
       | 'wallet'
       | 'privacy'
@@ -538,6 +540,32 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   <div className="text-left">
                     <span className="text-sm font-semibold">Reader Hub</span>
                     <p className="text-[11px] text-slate-400">Catalog, Chapters & Trending Manga</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition" />
+              </a>
+
+              {/* Followed Creators Page */}
+              <a
+                id="drawer-link-following"
+                href="/following"
+                onClick={(e) => handleLinkClick(e, 'following')}
+                className={`w-full flex items-center justify-between p-3 rounded-xl transition group ${
+                  activeTab === 'following'
+                    ? 'bg-amber-500/15 border border-amber-500/40 text-amber-300 font-bold'
+                    : 'bg-slate-900/60 hover:bg-slate-800/90 text-slate-300 border border-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-sm font-semibold flex items-center gap-1.5">
+                      <span>Followed Creators</span>
+                      <span className="text-[10px] font-mono text-slate-400">/following</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">Authors & artists you follow with push alerts</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition" />

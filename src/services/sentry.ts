@@ -1,6 +1,6 @@
-// Sentry Uptime & Crash Reporting Service Stub for KA Plus: Africa Pulse
+// Sentry Uptime & Crash Reporting Service Stub for AZ OVERVERSE
 export const initSentry = () => {
-  console.log("Sentry Crash & Uptime Monitoring initialized for KA Plus: Africa Pulse.");
+  console.log("Sentry Crash & Uptime Monitoring initialized for AZ OVERVERSE.");
 };
 
 export const captureException = (error: Error, context?: Record<string, any>) => {

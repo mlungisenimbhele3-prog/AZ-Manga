@@ -8,6 +8,7 @@ export const users = pgTable('users', {
   studioName: text('studio_name').default('Mlungiseni NM Studio'),
   bio: text('bio').default(''),
   avatarUrl: text('avatar_url'),
+  backupEmail: text('backup_email'),
   emailVerified: boolean('email_verified').notNull().default(false),
   verificationToken: text('verification_token'),
   resetToken: text('reset_token'),

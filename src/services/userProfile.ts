@@ -28,6 +28,7 @@ export interface ReadingProgressItem {
   progressPercent: number;
   updatedAt: string;
   completed?: boolean;
+  durationSeconds?: number;
 }
 
 export interface ReadingPreferences {
@@ -43,6 +44,7 @@ export interface ReadingPreferences {
 export interface UserProfile {
   uid: string;
   email: string;
+  backupEmail?: string | null;
   phone?: string;
   displayName: string;
   avatarUrl: string;
@@ -304,6 +306,7 @@ function mapOververseUserToProfile(user: OververseAuthUser): UserProfile {
     ...activeProfile,
     uid: user.id,
     email: user.email,
+    backupEmail: user.backup_email !== undefined ? user.backup_email : activeProfile.backupEmail ?? null,
     displayName: user.pen_name || user.email.split('@')[0] || 'OVERVERSE Creator',
     avatarUrl: user.avatar_url || activeProfile.avatarUrl || DEFAULT_USER_PROFILE.avatarUrl,
     bio: user.bio || `Creator at ${user.studio_name || DEFAULT_CREATOR_STUDIO_NAME}.`,

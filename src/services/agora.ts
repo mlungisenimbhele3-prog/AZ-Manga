@@ -1,4 +1,4 @@
-// Agora Live Audio/Video Service Stub for KA Plus: Africa Pulse
+// Agora Live Audio/Video Service Stub for AZ OVERVERSE
 export const initAgoraChannel = (channelName: string) => {
   console.log(`[Agora Live Stream]: Initializing voice/video channel "${channelName}"`);
 };

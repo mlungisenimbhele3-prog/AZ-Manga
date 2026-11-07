@@ -13,12 +13,14 @@ import {
   KeyRound,
   Lock,
   LogOut,
+  Mail,
   QrCode,
   RefreshCw,
   Save,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UploadCloud,
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
@@ -33,11 +35,14 @@ import {
   setupOververseTwoFactor,
 } from '../../../services/oververseAuth';
 import { APP_LOGO_SRC } from '../../../components/common/KAAfricaLogo';
+import { CreatorChapterStatsCard } from '../../../components/publisher/CreatorChapterStatsCard';
 import AuthGroupLayout from '../layout';
 import {
   AuthRoutePath,
+  BackupEmailFormValues,
   DashboardProfileFormValues,
   DisableTwoFactorFormValues,
+  backupEmailFormSchema,
   dashboardProfileFormSchema,
   disableTwoFactorFormSchema,
   extractZodFieldErrors,
@@ -88,6 +93,16 @@ export function CreatorDashboardPage({
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Backup Recovery Email configuration states
+  const [backupEmailInput, setBackupEmailInput] = useState('');
+  const [backupEmailError, setBackupEmailError] = useState<string | null>(null);
+  const [backupEmailTouched, setBackupEmailTouched] = useState(false);
+  const [isSavingBackupEmail, setIsSavingBackupEmail] = useState(false);
+  const [isRemovingBackupEmail, setIsRemovingBackupEmail] = useState(false);
+  const [backupEmailBannerMessage, setBackupEmailBannerMessage] = useState<string | null>(null);
+  const [backupEmailBannerError, setBackupEmailBannerError] = useState<string | null>(null);
+  const [showRemoveBackupConfirm, setShowRemoveBackupConfirm] = useState(false);
 
   // Two-Factor Authentication (TOTP) Account Settings states
   const [totpSetup, setTotpSetup] = useState<TotpSetupPayload | null>(null);
@@ -170,6 +185,7 @@ export function CreatorDashboardPage({
         return;
       }
       setUser(me);
+      setBackupEmailInput(me.backup_email || '');
       setValues({
         pen_name: me.pen_name,
         studio_name: me.studio_name || `${me.pen_name} Studio`,
@@ -183,6 +199,12 @@ export function CreatorDashboardPage({
       cancelled = true;
     };
   }, [onNavigateAuthRoute]);
+
+  useEffect(() => {
+    if (user?.backup_email !== undefined) {
+      setBackupEmailInput(user.backup_email || '');
+    }
+  }, [user?.backup_email]);
 
   const validateDraft = (nextValues: DashboardProfileFormValues) => {
     const parsed = dashboardProfileFormSchema.safeParse(nextValues);
@@ -231,13 +253,35 @@ export function CreatorDashboardPage({
     }
     setFieldErrors({});
 
+    let backupEmailParam: string | null | undefined = undefined;
+    if (backupEmailInput.trim()) {
+      const valid = validateBackupEmailDraft(backupEmailInput);
+      if (!valid) {
+        return;
+      }
+      backupEmailParam = valid;
+    } else if (user?.backup_email && backupEmailInput === '') {
+      backupEmailParam = null;
+    }
+
     setIsSaving(true);
-    const res = await patchOververseCreatorProfile({
+    const patchPayload: {
+      pen_name: string;
+      studio_name: string;
+      bio: string;
+      role: 'creator' | 'reader';
+      backup_email?: string | null;
+    } = {
       pen_name: parsed.data.pen_name,
       studio_name: parsed.data.studio_name,
       bio: parsed.data.bio,
       role: parsed.data.role,
-    });
+    };
+    if (backupEmailParam !== undefined) {
+      patchPayload.backup_email = backupEmailParam;
+    }
+
+    const res = await patchOververseCreatorProfile(patchPayload);
     setIsSaving(false);
 
     if (!res.success || !res.user) {
@@ -246,7 +290,81 @@ export function CreatorDashboardPage({
     }
 
     setUser(res.user);
-    setSaveMessage('Creator profile saved.');
+    if (res.user.backup_email !== undefined) {
+      setBackupEmailInput(res.user.backup_email || '');
+    }
+    setSaveMessage('Creator profile and secondary recovery settings saved.');
+  };
+
+  const validateBackupEmailDraft = (input: string) => {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      setBackupEmailError('Enter a secondary recovery email address.');
+      return null;
+    }
+    if (user && trimmed.toLowerCase() === user.email.toLowerCase()) {
+      setBackupEmailError('Backup recovery email cannot be identical to your primary account email.');
+      return null;
+    }
+    const parsed = backupEmailFormSchema.safeParse({ backup_email: trimmed });
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message || 'Enter a valid email address.';
+      setBackupEmailError(msg);
+      return null;
+    }
+    setBackupEmailError(null);
+    return parsed.data.backup_email;
+  };
+
+  const handleSaveBackupEmail = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setBackupEmailBannerError(null);
+    setBackupEmailBannerMessage(null);
+    setBackupEmailTouched(true);
+
+    const validEmail = validateBackupEmailDraft(backupEmailInput);
+    if (!validEmail) return;
+
+    setIsSavingBackupEmail(true);
+    const res = await patchOververseCreatorProfile({
+      backup_email: validEmail,
+    });
+    setIsSavingBackupEmail(false);
+
+    if (!res.success || !res.user) {
+      setBackupEmailBannerError(res.error || 'Could not save backup email.');
+      return;
+    }
+
+    setUser(res.user);
+    setBackupEmailInput(res.user.backup_email || validEmail);
+    setShowRemoveBackupConfirm(false);
+    setBackupEmailBannerMessage(
+      `Backup recovery email updated to ${res.user.backup_email || validEmail}. Emergency access and security recovery alerts will be sent here.`
+    );
+  };
+
+  const handleRemoveBackupEmail = async () => {
+    setBackupEmailBannerError(null);
+    setBackupEmailBannerMessage(null);
+
+    setIsRemovingBackupEmail(true);
+    const res = await patchOververseCreatorProfile({
+      backup_email: null,
+    });
+    setIsRemovingBackupEmail(false);
+
+    if (!res.success || !res.user) {
+      setBackupEmailBannerError(res.error || 'Could not remove backup email.');
+      return;
+    }
+
+    setUser(res.user);
+    setBackupEmailInput('');
+    setBackupEmailTouched(false);
+    setBackupEmailError(null);
+    setShowRemoveBackupConfirm(false);
+    setBackupEmailBannerMessage('Secondary recovery email address has been removed.');
   };
 
   const handleStartTotpSetup = async () => {
@@ -617,6 +735,9 @@ export function CreatorDashboardPage({
           </div>
         </div>
 
+        {/* Real-time Chapter Reading Duration & Reader Engagement Statistics */}
+        <CreatorChapterStatsCard />
+
         {/* Profile Form + Security & Session Details */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <div className="lg:col-span-8 space-y-6">
@@ -766,6 +887,214 @@ export function CreatorDashboardPage({
                 )}
               </div>
 
+              {/* Profile Settings: Secondary Backup Email Configuration (Clean Two-Column Layout) */}
+              <div
+                id="profile-settings-backup-email-section"
+                className="rounded-2xl border border-amber-500/30 bg-slate-900/60 p-5 sm:p-6 space-y-4 pt-4"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-amber-400 shrink-0" />
+                      <h3 className="text-sm font-bold text-white">
+                        Secondary Recovery Email Configuration
+                      </h3>
+                      {user.backup_email ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Configured</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-semibold">
+                          <AlertCircle className="w-3 h-3" />
+                          <span>Not Configured</span>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Maintain a dedicated emergency recovery email address to protect your creator account access, ongoing manga series, and royalty statements.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Clean Two-Column Layout: Current Primary Email vs Secondary Recovery Email */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+                  {/* Column 1: Current Primary Email Status */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4 flex flex-col justify-between space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                          <Mail className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Current Primary Email</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-bold font-mono">
+                          Primary
+                        </span>
+                      </div>
+                      <p className="font-mono text-xs sm:text-sm font-bold text-white break-all" title={user.email}>
+                        {user.email}
+                      </p>
+                      <div className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Verified Account Login Identifier</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 pt-2 border-t border-slate-850 leading-relaxed">
+                      Main login credential. Platform notices and revenue reports are routed here.
+                    </p>
+                  </div>
+
+                  {/* Column 2: Secondary Recovery Email Status & Input */}
+                  <div className="rounded-xl border border-amber-500/30 bg-slate-950/80 p-4 flex flex-col justify-between space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Secondary Recovery Email</span>
+                        </span>
+                        {user.backup_email ? (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold">
+                            Missing
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className={`font-mono text-xs sm:text-sm font-bold break-all ${
+                          user.backup_email ? 'text-amber-300' : 'text-slate-500 italic'
+                        }`}
+                        title={user.backup_email || 'No secondary recovery address configured'}
+                      >
+                        {user.backup_email || 'No recovery address configured'}
+                      </p>
+                      <span className="text-[10px] text-slate-400 block">
+                        Emergency recovery inbox for password resets and security alerts.
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1 border-t border-slate-850">
+                      <div className="relative">
+                        <Mail className="w-3.5 h-3.5 text-amber-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          id="dashboard-profile-backup-email"
+                          name="backup_email"
+                          type="email"
+                          autoComplete="email"
+                          disabled={isSavingBackupEmail || isRemovingBackupEmail || isSaving}
+                          value={backupEmailInput}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            setBackupEmailInput(next);
+                            setBackupEmailBannerError(null);
+                            if (backupEmailTouched) {
+                              validateBackupEmailDraft(next);
+                            }
+                          }}
+                          onBlur={() => {
+                            setBackupEmailTouched(true);
+                            validateBackupEmailDraft(backupEmailInput);
+                          }}
+                          aria-invalid={Boolean(backupEmailTouched && backupEmailError)}
+                          placeholder="e.g. author.recovery@example.com"
+                          className={`min-h-[40px] w-full rounded-lg border bg-slate-900 pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none transition ${
+                            backupEmailTouched && backupEmailError
+                              ? 'border-rose-500/70 focus:border-rose-400'
+                              : 'border-slate-800 focus:border-amber-500'
+                          }`}
+                        />
+                      </div>
+                      {backupEmailTouched && backupEmailError && (
+                        <p className="text-[11px] text-rose-300">{backupEmailError}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Secondary Save & Remove Actions */}
+                <div className="flex items-center gap-2.5 flex-wrap pt-1">
+                  <button
+                    id="profile-save-backup-email-btn"
+                    type="button"
+                    disabled={isSavingBackupEmail || isRemovingBackupEmail || isSaving}
+                    onClick={async () => {
+                      setBackupEmailBannerError(null);
+                      setBackupEmailBannerMessage(null);
+                      setBackupEmailTouched(true);
+                      const validEmail = validateBackupEmailDraft(backupEmailInput);
+                      if (!validEmail) return;
+
+                      setIsSavingBackupEmail(true);
+                      const res = await patchOververseCreatorProfile({
+                        backup_email: validEmail,
+                      });
+                      setIsSavingBackupEmail(false);
+
+                      if (!res.success || !res.user) {
+                        setBackupEmailBannerError(res.error || 'Could not save backup email.');
+                        return;
+                      }
+
+                      setUser(res.user);
+                      setBackupEmailInput(res.user.backup_email || validEmail);
+                      setShowRemoveBackupConfirm(false);
+                      setBackupEmailBannerMessage(
+                        `Secondary recovery email updated to ${res.user.backup_email || validEmail}. Emergency access alerts will be sent here.`
+                      );
+                    }}
+                    className="min-h-[40px] inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-bold text-xs px-4 py-2 transition shadow"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>
+                      {isSavingBackupEmail
+                        ? 'Saving Recovery Email...'
+                        : user.backup_email
+                        ? 'Update Secondary Email'
+                        : 'Save Secondary Email'}
+                    </span>
+                  </button>
+
+                  {user.backup_email && !showRemoveBackupConfirm && (
+                    <button
+                      id="profile-remove-backup-email-btn"
+                      type="button"
+                      disabled={isSavingBackupEmail || isRemovingBackupEmail || isSaving}
+                      onClick={() => setShowRemoveBackupConfirm(true)}
+                      className="min-h-[40px] inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 hover:bg-rose-950/40 hover:border-rose-500/40 text-slate-300 hover:text-rose-200 text-xs font-semibold px-3.5 py-2 transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Remove</span>
+                    </button>
+                  )}
+
+                  {showRemoveBackupConfirm && (
+                    <div className="flex items-center gap-2 p-1 rounded-xl bg-rose-950/40 border border-rose-500/40 animate-fadeIn">
+                      <span className="text-[11px] text-rose-200 font-semibold px-2">
+                        Remove secondary recovery email?
+                      </span>
+                      <button
+                        id="profile-confirm-remove-backup-email-btn"
+                        type="button"
+                        disabled={isRemovingBackupEmail}
+                        onClick={handleRemoveBackupEmail}
+                        className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition"
+                      >
+                        {isRemovingBackupEmail ? '...' : 'Yes, Remove'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowRemoveBackupConfirm(false)}
+                        className="px-2 py-1 text-slate-400 hover:text-white text-xs transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={isSaving}
@@ -775,6 +1104,346 @@ export function CreatorDashboardPage({
                 <span>{isSaving ? 'Saving...' : 'Save Profile Changes'}</span>
               </button>
             </form>
+
+            {/* Account Settings: Backup Email & Recovery Configuration */}
+            <div
+              id="dashboard-backup-email-section"
+              className="rounded-2xl border border-slate-800/90 bg-slate-950 p-6 sm:p-8 space-y-5"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-amber-400 shrink-0" />
+                    <h2 className="text-lg font-bold text-white">
+                      Backup Recovery Email
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
+                    Add a secondary recovery email address for your creator account to ensure
+                    uninterrupted access to your series, royalties, and studio settings if you ever
+                    lose access to your primary email address or authenticator device.
+                  </p>
+                </div>
+
+                <div className="text-xs font-semibold shrink-0">
+                  {user.backup_email ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Recovery Active</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px] font-medium">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>Not Configured</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {backupEmailBannerMessage && (
+                <div className="rounded-xl border border-emerald-500/35 bg-emerald-950/25 p-3.5 flex items-center justify-between gap-2.5 text-xs text-emerald-200">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{backupEmailBannerMessage}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBackupEmailBannerMessage(null)}
+                    className="text-emerald-400 hover:text-white transition text-xs font-bold px-1"
+                    aria-label="Dismiss message"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {backupEmailBannerError && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-3.5 flex items-center justify-between gap-2.5 text-xs text-rose-200"
+                >
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{backupEmailBannerError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBackupEmailBannerError(null)}
+                    className="text-rose-400 hover:text-white transition text-xs font-bold px-1"
+                    aria-label="Dismiss error"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* Clean Two-Column Layout: Current Primary Email vs Secondary Recovery Email */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+                {/* Column 1: Current Primary Email Status Card */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 sm:p-6 flex flex-col justify-between space-y-4">
+                  <div className="space-y-4">
+                    {/* Primary Header */}
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-white">Current Primary Email</h3>
+                          <span className="text-[11px] text-slate-400">Account Owner Credential</span>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Active Login</span>
+                      </span>
+                    </div>
+
+                    {/* Primary Email Address Display */}
+                    <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Primary Account Address
+                      </span>
+                      <p className="font-mono text-sm sm:text-base font-bold text-white break-all" title={user.email}>
+                        {user.email}
+                      </p>
+                      <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-400">
+                        <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>{user.email_verified ? 'Verified Email' : 'Verification Pending'}</span>
+                        </span>
+                        <span className="text-slate-600">·</span>
+                        <span>Fixed Account Identity</span>
+                      </div>
+                    </div>
+
+                    {/* Primary Email Roles & Purpose List */}
+                    <div className="space-y-2 text-xs text-slate-300">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Account Responsibilities
+                      </span>
+                      <ul className="space-y-2 text-xs text-slate-400">
+                        <li className="flex items-start gap-2">
+                          <span className="text-emerald-400 font-bold mt-0.5">•</span>
+                          <span>Used for primary web &amp; Android Play Console credentials.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-emerald-400 font-bold mt-0.5">•</span>
+                          <span>Receives 70% AdMob and Play Store royalty disbursement statements.</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-emerald-400 font-bold mt-0.5">•</span>
+                          <span>Main destination for reader reviews, comments, and series notices.</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-800/80 text-[11px] text-slate-500 flex items-center justify-between">
+                    <span>Guarded by OVERVERSE Custom Auth</span>
+                    <span className="font-mono text-[10px] text-slate-400">Primary ID</span>
+                  </div>
+                </div>
+
+                {/* Column 2: Secondary Recovery Email Status & Configuration Card */}
+                <div className="rounded-2xl border border-amber-500/35 bg-gradient-to-b from-amber-950/20 via-slate-900/80 to-slate-950 p-5 sm:p-6 flex flex-col justify-between space-y-4">
+                  <div className="space-y-4">
+                    {/* Secondary Header */}
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-white">Secondary Recovery Email</h3>
+                          <span className="text-[11px] text-slate-400">Emergency Account Access</span>
+                        </div>
+                      </div>
+
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                          user.backup_email
+                            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                            : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                        }`}
+                      >
+                        {user.backup_email ? (
+                          <>
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Recovery Active</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-3 h-3" />
+                            <span>Not Configured</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Current Recovery Status Box */}
+                    <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Designated Recovery Inbox
+                        </span>
+                        {user.backup_email && (
+                          <span className="text-[10px] text-emerald-400 font-semibold">Active &amp; Guarded</span>
+                        )}
+                      </div>
+                      <p
+                        className={`font-mono text-sm sm:text-base font-bold break-all ${
+                          user.backup_email ? 'text-amber-300' : 'text-slate-500 italic'
+                        }`}
+                        title={user.backup_email || 'No secondary recovery address configured'}
+                      >
+                        {user.backup_email || 'No recovery address configured'}
+                      </p>
+                      <span className="text-[11px] text-slate-400 block">
+                        {user.backup_email
+                          ? 'Emergency access, password reset tokens, and 2FA lockout overrides are routed here.'
+                          : 'Configure a secondary address below to guarantee account recovery if you lose access to your primary email.'}
+                      </span>
+                    </div>
+
+                    {/* Secondary Recovery Email Form */}
+                    <form onSubmit={handleSaveBackupEmail} noValidate className="space-y-3.5">
+                      <div className="space-y-1.5">
+                        <label
+                          htmlFor="dashboard-backup-email"
+                          className="block text-xs font-semibold text-slate-200"
+                        >
+                          {user.backup_email ? 'Update Secondary Recovery Address' : 'Add Secondary Recovery Address'}
+                        </label>
+                        <div className="relative">
+                          <Mail className="w-4 h-4 text-amber-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            id="dashboard-backup-email"
+                            name="backup_email"
+                            type="email"
+                            autoComplete="email"
+                            disabled={isSavingBackupEmail || isRemovingBackupEmail}
+                            value={backupEmailInput}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              setBackupEmailInput(next);
+                              setBackupEmailBannerError(null);
+                              if (backupEmailTouched) {
+                                validateBackupEmailDraft(next);
+                              }
+                            }}
+                            onBlur={() => {
+                              setBackupEmailTouched(true);
+                              validateBackupEmailDraft(backupEmailInput);
+                            }}
+                            aria-invalid={Boolean(backupEmailTouched && backupEmailError)}
+                            placeholder="e.g. author.recovery@example.com"
+                            className={`min-h-[44px] w-full rounded-xl border bg-slate-950 pl-10 pr-3.5 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition ${
+                              backupEmailTouched && backupEmailError
+                                ? 'border-rose-500/70 focus:border-rose-400'
+                                : 'border-slate-800 focus:border-amber-500'
+                            }`}
+                          />
+                        </div>
+                        {backupEmailTouched && backupEmailError && (
+                          <p className="text-xs text-rose-300">{backupEmailError}</p>
+                        )}
+                        <p className="text-[11px] text-slate-400">
+                          Must be distinct from primary address (<span className="text-slate-300 font-mono">{user.email}</span>).
+                        </p>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2.5 flex-wrap pt-1">
+                        <button
+                          id="dashboard-save-backup-email-btn"
+                          type="submit"
+                          disabled={isSavingBackupEmail || isRemovingBackupEmail}
+                          className="min-h-[42px] inline-flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-bold text-xs px-4 py-2 transition shadow"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>
+                            {isSavingBackupEmail
+                              ? 'Saving Recovery Email...'
+                              : user.backup_email
+                              ? 'Update Recovery Email'
+                              : 'Save Recovery Email'}
+                          </span>
+                        </button>
+
+                        {user.backup_email && !showRemoveBackupConfirm && (
+                          <button
+                            id="dashboard-open-remove-backup-email-btn"
+                            type="button"
+                            disabled={isSavingBackupEmail || isRemovingBackupEmail}
+                            onClick={() => setShowRemoveBackupConfirm(true)}
+                            className="min-h-[42px] inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900 hover:bg-rose-950/40 hover:border-rose-500/40 text-slate-300 hover:text-rose-200 text-xs font-semibold px-3.5 py-2 transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Remove</span>
+                          </button>
+                        )}
+
+                        {showRemoveBackupConfirm && (
+                          <div className="flex items-center gap-2 p-1.5 rounded-xl bg-rose-950/40 border border-rose-500/40 animate-fadeIn">
+                            <span className="text-[11px] text-rose-200 font-semibold px-2">
+                              Remove secondary email?
+                            </span>
+                            <button
+                              id="dashboard-confirm-remove-backup-email-btn"
+                              type="button"
+                              disabled={isRemovingBackupEmail}
+                              onClick={handleRemoveBackupEmail}
+                              className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition"
+                            >
+                              {isRemovingBackupEmail ? '...' : 'Yes, Remove'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowRemoveBackupConfirm(false)}
+                              className="px-2 py-1 text-slate-400 hover:text-white text-xs transition"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+              {/* Security Benefits & Account Access Guarantees */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-800/80 text-[11px]">
+                <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/60 flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-slate-200 block">Account Lockout Safety</span>
+                    <span className="text-slate-400">
+                      Regain studio access if your primary inbox is compromised or unavailable.
+                    </span>
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/60 flex items-start gap-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-slate-200 block">Emergency Alerts</span>
+                    <span className="text-slate-400">
+                      Notified immediately when sensitive security or 2FA updates occur.
+                    </span>
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-800/60 flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-slate-200 block">Creator Rights Guard</span>
+                    <span className="text-slate-400">
+                      Protects your publishing catalog, pen name ownership, and revenue payouts.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Account Settings: Two-Factor Authentication (TOTP + Recovery Codes) */}
             <div
@@ -797,11 +1466,33 @@ export function CreatorDashboardPage({
                 </div>
 
                 <div className="text-xs font-semibold shrink-0">
-                  {user.totp_enabled ? (
-                    <span className="text-emerald-400">Enabled · TOTP Active</span>
-                  ) : (
-                    <span className="text-slate-400">Disabled</span>
-                  )}
+                  <AnimatePresence mode="wait" initial={false}>
+                    {user.totp_enabled ? (
+                      <motion.span
+                        key="2fa-header-badge-enabled"
+                        initial={{ opacity: 0, scale: 0.88, y: 3 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.88, y: -3 }}
+                        transition={{ duration: 0.25, ease: 'easeOut' }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-bold shadow-[0_0_12px_rgba(16,185,129,0.25)]"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Enabled · TOTP Active</span>
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="2fa-header-badge-disabled"
+                        initial={{ opacity: 0, scale: 0.88, y: 3 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.88, y: -3 }}
+                        transition={{ duration: 0.25, ease: 'easeOut' }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-xs font-medium"
+                      >
+                        <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Disabled</span>
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
 
@@ -912,58 +1603,112 @@ export function CreatorDashboardPage({
                   <span className="font-semibold text-amber-400">Creator</span> above and save
                   profile changes to enable authenticator app protection.
                 </div>
-              ) : user.totp_enabled ? (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1 text-xs">
-                      <p className="font-semibold text-white">
-                        Authenticator App Verification Required at Sign-In
-                      </p>
-                      <p className="text-slate-400">
-                        Every sign-in to <span className="text-slate-200">{user.email}</span>{' '}
-                        requires your password plus a 6-digit code. Unused recovery codes:{' '}
-                        <span className="font-mono font-semibold text-amber-300 tabular-nums">
-                          {remainingRecoveryCodesCount}/8
-                        </span>
-                        .
-                      </p>
-                    </div>
+              ) : (
+                <AnimatePresence mode="wait" initial={false}>
+                  {user.totp_enabled ? (
+                    <motion.div
+                      key="dashboard-2fa-status-card-enabled"
+                      id="dashboard-2fa-status-card"
+                      initial={{
+                        opacity: 0,
+                        scale: prefersReducedMotion ? 1 : 0.98,
+                        y: prefersReducedMotion ? 0 : 8,
+                      }}
+                      animate={{
+                        opacity: 1,
+                        scale: 1,
+                        y: 0,
+                      }}
+                      exit={{
+                        opacity: 0,
+                        scale: prefersReducedMotion ? 1 : 0.98,
+                        y: prefersReducedMotion ? 0 : -8,
+                      }}
+                      transition={{
+                        duration: prefersReducedMotion ? 0.12 : 0.32,
+                        ease: [0.16, 1, 0.3, 1],
+                      }}
+                      className="space-y-4"
+                    >
+                      <div className="rounded-2xl border border-emerald-500/35 bg-gradient-to-r from-emerald-950/30 via-slate-900/80 to-slate-950 p-5 sm:p-6 shadow-[0_0_24px_rgba(16,185,129,0.12)] transition-all">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="flex items-start gap-3.5">
+                            <div className="relative shrink-0 mt-0.5">
+                              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.35)]">
+                                <ShieldCheck className="w-5 h-5" />
+                              </div>
+                              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                              </span>
+                            </div>
 
-                    <div className="flex items-center gap-2.5 flex-wrap shrink-0">
-                      {!showRegenerateCodesForm && (
-                        <button
-                          id="dashboard-2fa-open-regenerate-btn"
-                          type="button"
-                          onClick={() => {
-                            setShowRegenerateCodesForm(true);
-                            setShowDisableTotpForm(false);
-                            setTotpBannerError(null);
-                            setTotpBannerMessage(null);
-                          }}
-                          className="min-h-[42px] inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 text-slate-200 text-xs font-semibold px-3.5 py-2 transition"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                          <span>New Recovery Codes</span>
-                        </button>
-                      )}
+                            <div className="space-y-1 text-xs">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-sm font-bold text-white">
+                                  Two-Factor Authentication is Active &amp; Enforced
+                                </h3>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold tracking-wide">
+                                  <Check className="w-3 h-3" />
+                                  <span>Guarded</span>
+                                </span>
+                              </div>
+                              <p className="text-slate-300 leading-relaxed">
+                                Every sign-in to <span className="text-white font-medium">{user.email}</span>{' '}
+                                requires your primary password plus a 6-digit TOTP code.
+                              </p>
+                              <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-400">
+                                <span>
+                                  Active Recovery Codes:{' '}
+                                  <strong className="font-mono text-amber-300 tabular-nums">
+                                    {remainingRecoveryCodesCount}/8
+                                  </strong>{' '}
+                                  remaining
+                                </span>
+                                <span className="text-slate-600">·</span>
+                                <span className="text-emerald-400 font-semibold">
+                                  Publisher Shield On
+                                </span>
+                              </div>
+                            </div>
+                          </div>
 
-                      {!showDisableTotpForm && (
-                        <button
-                          id="dashboard-2fa-open-disable-btn"
-                          type="button"
-                          onClick={() => {
-                            setShowDisableTotpForm(true);
-                            setShowRegenerateCodesForm(false);
-                            setTotpBannerError(null);
-                            setTotpBannerMessage(null);
-                          }}
-                          className="min-h-[42px] rounded-xl border border-slate-700 bg-slate-900 hover:bg-rose-950/40 hover:border-rose-500/40 text-slate-200 hover:text-rose-200 text-xs font-semibold px-4 py-2 transition"
-                        >
-                          Disable 2FA
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                          <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+                            {!showRegenerateCodesForm && (
+                              <button
+                                id="dashboard-2fa-open-regenerate-btn"
+                                type="button"
+                                onClick={() => {
+                                  setShowRegenerateCodesForm(true);
+                                  setShowDisableTotpForm(false);
+                                  setTotpBannerError(null);
+                                  setTotpBannerMessage(null);
+                                }}
+                                className="min-h-[42px] inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 text-slate-200 text-xs font-semibold px-3.5 py-2 transition"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                                <span>New Recovery Codes</span>
+                              </button>
+                            )}
+
+                            {!showDisableTotpForm && (
+                              <button
+                                id="dashboard-2fa-open-disable-btn"
+                                type="button"
+                                onClick={() => {
+                                  setShowDisableTotpForm(true);
+                                  setShowRegenerateCodesForm(false);
+                                  setTotpBannerError(null);
+                                  setTotpBannerMessage(null);
+                                }}
+                                className="min-h-[42px] rounded-xl border border-slate-700 bg-slate-900 hover:bg-rose-950/40 hover:border-rose-500/40 text-slate-200 hover:text-rose-200 text-xs font-semibold px-4 py-2 transition"
+                              >
+                                Disable 2FA
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
 
                   <AnimatePresence initial={false}>
                     {showRegenerateCodesForm && (
@@ -1194,251 +1939,290 @@ export function CreatorDashboardPage({
                       </div>
                     </form>
                   )}
-                </div>
+                </motion.div>
               ) : (
-                <AnimatePresence mode="wait" initial={false}>
-                  {!totpSetup ? (
-                    <motion.div
-                      key="dashboard-totp-idle"
-                      initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -8 }}
-                      transition={{
-                        duration: prefersReducedMotion ? 0.1 : 0.2,
-                        ease: [0.22, 1, 0.36, 1],
-                      }}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4"
-                    >
-                      <div className="space-y-1 text-xs">
-                        <p className="font-semibold text-white">
-                          Add an Authenticator App to Your Creator Account
-                        </p>
-                        <p className="text-slate-400">
-                          Generate a QR code, copyable TOTP URL, and 8 one-time recovery codes
-                          compatible with any standard authenticator app.
-                        </p>
-                      </div>
-
-                      <button
-                        id="dashboard-2fa-setup-btn"
-                        type="button"
-                        disabled={isStartingTotpSetup}
-                        onClick={handleStartTotpSetup}
-                        className="min-h-[44px] shrink-0 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-bold text-xs px-4 py-2.5 transition"
+                <motion.div
+                  key="dashboard-2fa-status-card-disabled"
+                  id="dashboard-2fa-status-card"
+                  initial={{
+                    opacity: 0,
+                    scale: prefersReducedMotion ? 1 : 0.98,
+                    y: prefersReducedMotion ? 0 : 8,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    scale: 1,
+                    y: 0,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    scale: prefersReducedMotion ? 1 : 0.98,
+                    y: prefersReducedMotion ? 0 : -8,
+                  }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0.12 : 0.32,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  className="space-y-4"
+                >
+                  <AnimatePresence mode="wait" initial={false}>
+                    {!totpSetup ? (
+                      <motion.div
+                        key="dashboard-totp-idle"
+                        initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -8 }}
+                        transition={{
+                          duration: prefersReducedMotion ? 0.1 : 0.2,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        className="rounded-2xl border border-amber-500/25 bg-gradient-to-r from-amber-950/15 via-slate-900/70 to-slate-950 p-5 sm:p-6 shadow-[0_0_20px_rgba(245,158,11,0.06)] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                       >
-                        <QrCode className="w-4 h-4" />
-                        <span>
-                          {isStartingTotpSetup ? 'Generating Key...' : 'Set Up Authenticator App'}
-                        </span>
-                      </button>
-                    </motion.div>
-                  ) : (
-                    <motion.form
-                      key="dashboard-totp-setup-form"
-                      initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -8 }}
-                      transition={{
-                        duration: prefersReducedMotion ? 0.12 : 0.24,
-                        ease: [0.22, 1, 0.36, 1],
-                      }}
-                      onAnimationComplete={() => {
-                        if (totpSetupActiveRef.current) {
-                          enableTotpInputRef.current?.focus({ preventScroll: true });
-                        }
-                      }}
-                      onSubmit={handleEnableTotpSubmit}
-                      noValidate
-                      className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-5"
-                    >
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
-                    {/* QR Code + Adjacent Copy TOTP URL Action */}
-                    <div className="md:col-span-5 flex flex-col items-center justify-center space-y-3">
-                      <div className="rounded-xl bg-white p-3 border border-slate-200">
-                        <img
-                          src={totpSetup.qrCodeDataUrl}
-                          alt="Scan this QR code in your authenticator app"
-                          width={184}
-                          height={184}
-                          className="h-44 w-44 object-contain"
-                        />
-                      </div>
-
-                      <div className="w-full max-w-[230px] space-y-1.5 text-center">
-                        <span className="block text-[11px] text-slate-400">
-                          Scan QR code or paste the TOTP URL directly:
-                        </span>
-                        <button
-                          id="dashboard-2fa-copy-totp-url-btn"
-                          type="button"
-                          onClick={handleCopyTotpUrl}
-                          aria-label="Copy TOTP URL to clipboard"
-                          className="min-h-[40px] w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-100 transition"
-                        >
-                          {copiedTotpUrl ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <span className="text-emerald-400">TOTP URL Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <ClipboardCopy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                              <span>Copy to clipboard</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-7 space-y-4">
-                      <div className="space-y-1">
-                        <p className="text-xs font-bold text-white">
-                          01. Scan QR Code or Enter Setup Details
-                        </p>
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                          Scan the QR code with your authenticator app, click{' '}
-                          <strong className="text-slate-200">Copy to clipboard</strong> beside the
-                          QR code to paste the <code className="text-slate-300">otpauth://</code>{' '}
-                          URL, or enter this Base32 key manually:
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="rounded-xl border border-slate-800 bg-slate-950 p-2.5 flex items-center justify-between gap-2">
-                          <code
-                            title={totpSetup.otpauthUrl}
-                            className="font-mono text-[11px] text-slate-300 truncate"
-                          >
-                            {totpSetup.otpauthUrl}
-                          </code>
-                          <button
-                            type="button"
-                            onClick={handleCopyTotpUrl}
-                            className="min-h-[32px] shrink-0 inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-amber-400 transition"
-                          >
-                            {copiedTotpUrl ? 'Copied' : 'Copy URL'}
-                          </button>
+                        <div className="flex items-start gap-3.5">
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                            <ShieldAlert className="w-5 h-5" />
+                          </div>
+                          <div className="space-y-1 text-xs">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-sm font-bold text-white">
+                                Two-Factor Authentication is Inactive
+                              </h3>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                                <AlertCircle className="w-3 h-3" />
+                                <span>Action Recommended</span>
+                              </span>
+                            </div>
+                            <p className="text-slate-400 leading-relaxed">
+                              Add an authenticator app (Google Authenticator, Authy, 1Password)
+                              to protect your creator studio, chapters, and payout credentials
+                              against unauthorized access.
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 flex items-center justify-between gap-2">
-                          <code className="font-mono text-xs text-amber-300 tracking-wider break-all">
-                            {totpSetup.manualEntryKey}
-                          </code>
+                        <button
+                          id="dashboard-2fa-setup-btn"
+                          type="button"
+                          disabled={isStartingTotpSetup}
+                          onClick={handleStartTotpSetup}
+                          className="min-h-[44px] shrink-0 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-bold text-xs px-5 py-2.5 shadow-lg shadow-amber-500/20 transition"
+                        >
+                          <QrCode className="w-4 h-4" />
+                          <span>
+                            {isStartingTotpSetup ? 'Generating Key...' : 'Set Up Authenticator App'}
+                          </span>
+                        </button>
+                      </motion.div>
+                    ) : (
+                      <motion.form
+                        key="dashboard-totp-setup-form"
+                        initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -8 }}
+                        transition={{
+                          duration: prefersReducedMotion ? 0.12 : 0.24,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        onAnimationComplete={() => {
+                          if (totpSetupActiveRef.current) {
+                            enableTotpInputRef.current?.focus({ preventScroll: true });
+                          }
+                        }}
+                        onSubmit={handleEnableTotpSubmit}
+                        noValidate
+                        className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-5"
+                      >
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+                      {/* QR Code + Adjacent Copy TOTP URL Action */}
+                      <div className="md:col-span-5 flex flex-col items-center justify-center space-y-3">
+                        <div className="rounded-xl bg-white p-3 border border-slate-200">
+                          <img
+                            src={totpSetup.qrCodeDataUrl}
+                            alt="Scan this QR code in your authenticator app"
+                            width={184}
+                            height={184}
+                            className="h-44 w-44 object-contain"
+                          />
+                        </div>
+
+                        <div className="w-full max-w-[230px] space-y-1.5 text-center">
+                          <span className="block text-[11px] text-slate-400">
+                            Scan QR code or paste the TOTP URL directly:
+                          </span>
                           <button
+                            id="dashboard-2fa-copy-totp-url-btn"
                             type="button"
-                            onClick={handleCopyManualKey}
-                            className="min-h-[36px] shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition"
+                            onClick={handleCopyTotpUrl}
+                            aria-label="Copy TOTP URL to clipboard"
+                            className="min-h-[40px] w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-100 transition"
                           >
-                            {copiedManualKey ? (
+                            {copiedTotpUrl ? (
                               <>
-                                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                <span className="text-emerald-400">Copied</span>
+                                <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span className="text-emerald-400">TOTP URL Copied!</span>
                               </>
                             ) : (
                               <>
-                                <Copy className="w-3.5 h-3.5 text-slate-400" />
-                                <span>Copy Key</span>
+                                <ClipboardCopy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <span>Copy to clipboard</span>
                               </>
                             )}
                           </button>
                         </div>
                       </div>
 
-                      <div className="space-y-1.5">
-                        <label
-                          htmlFor="dashboard-2fa-enable-code"
-                          className="block text-xs font-bold text-white"
-                        >
-                          02. Enter 6-Digit Verification Code to Activate &amp; Generate Recovery
-                          Codes
-                        </label>
-                        <div className="relative">
-                          <KeyRound className="w-4 h-4 text-amber-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                          <input
-                            ref={enableTotpInputRef}
-                            id="dashboard-2fa-enable-code"
-                            name="code"
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            autoComplete="one-time-code"
-                            maxLength={6}
-                            disabled={isEnablingTotp}
-                            value={enableCode}
-                            onChange={(e) => {
-                              const clean = e.target.value.replace(/\D/g, '').slice(0, 6);
-                              setEnableCode(clean);
-                              setTotpBannerError(null);
-                              if (enableCodeTouched) {
-                                const parsed = totpCodeFormSchema.safeParse({ code: clean });
+                      <div className="md:col-span-7 space-y-4">
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold text-white">
+                            01. Scan QR Code or Enter Setup Details
+                          </p>
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            Scan the QR code with your authenticator app, click{' '}
+                            <strong className="text-slate-200">Copy to clipboard</strong> beside the
+                            QR code to paste the <code className="text-slate-300">otpauth://</code>{' '}
+                            URL, or enter this Base32 key manually:
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="rounded-xl border border-slate-800 bg-slate-950 p-2.5 flex items-center justify-between gap-2">
+                            <code
+                              title={totpSetup.otpauthUrl}
+                              className="font-mono text-[11px] text-slate-300 truncate"
+                            >
+                              {totpSetup.otpauthUrl}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={handleCopyTotpUrl}
+                              className="min-h-[32px] shrink-0 inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-amber-400 transition"
+                            >
+                              {copiedTotpUrl ? 'Copied' : 'Copy URL'}
+                            </button>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 flex items-center justify-between gap-2">
+                            <code className="font-mono text-xs text-amber-300 tracking-wider break-all">
+                              {totpSetup.manualEntryKey}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={handleCopyManualKey}
+                              className="min-h-[36px] shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition"
+                            >
+                              {copiedManualKey ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span className="text-emerald-400">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>Copy Key</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label
+                            htmlFor="dashboard-2fa-enable-code"
+                            className="block text-xs font-bold text-white"
+                          >
+                            02. Enter 6-Digit Verification Code to Activate &amp; Generate Recovery
+                            Codes
+                          </label>
+                          <div className="relative">
+                            <KeyRound className="w-4 h-4 text-amber-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <input
+                              ref={enableTotpInputRef}
+                              id="dashboard-2fa-enable-code"
+                              name="code"
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              autoComplete="one-time-code"
+                              maxLength={6}
+                              disabled={isEnablingTotp}
+                              value={enableCode}
+                              onChange={(e) => {
+                                const clean = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                setEnableCode(clean);
+                                setTotpBannerError(null);
+                                if (enableCodeTouched) {
+                                  const parsed = totpCodeFormSchema.safeParse({ code: clean });
+                                  setEnableCodeError(
+                                    parsed.success
+                                      ? null
+                                      : parsed.error.issues[0]?.message ||
+                                          'Enter a 6-digit numeric code.'
+                                  );
+                                }
+                              }}
+                              onBlur={() => {
+                                setEnableCodeTouched(true);
+                                const parsed = totpCodeFormSchema.safeParse({ code: enableCode });
                                 setEnableCodeError(
                                   parsed.success
                                     ? null
                                     : parsed.error.issues[0]?.message ||
                                         'Enter a 6-digit numeric code.'
                                 );
-                              }
-                            }}
-                            onBlur={() => {
-                              setEnableCodeTouched(true);
-                              const parsed = totpCodeFormSchema.safeParse({ code: enableCode });
-                              setEnableCodeError(
-                                parsed.success
-                                  ? null
-                                  : parsed.error.issues[0]?.message ||
-                                      'Enter a 6-digit numeric code.'
-                              );
-                            }}
-                            aria-invalid={Boolean(enableCodeTouched && enableCodeError)}
-                            placeholder="000000"
-                            className={`min-h-[48px] w-full rounded-xl border bg-slate-950 pl-10 pr-4 py-2.5 text-center font-mono text-lg tracking-[0.35em] tabular-nums text-white placeholder:text-slate-600 focus:outline-none transition ${
-                              enableCodeTouched && enableCodeError
-                                ? 'border-rose-500/70 focus:border-rose-400'
-                                : 'border-slate-800 focus:border-amber-500'
-                            }`}
-                          />
+                              }}
+                              aria-invalid={Boolean(enableCodeTouched && enableCodeError)}
+                              placeholder="000000"
+                              className={`min-h-[48px] w-full rounded-xl border bg-slate-950 pl-10 pr-4 py-2.5 text-center font-mono text-lg tracking-[0.35em] tabular-nums text-white placeholder:text-slate-600 focus:outline-none transition ${
+                                enableCodeTouched && enableCodeError
+                                  ? 'border-rose-500/70 focus:border-rose-400'
+                                  : 'border-slate-800 focus:border-amber-500'
+                              }`}
+                            />
+                          </div>
+                          {enableCodeTouched && enableCodeError && (
+                            <p className="text-xs text-rose-300">{enableCodeError}</p>
+                          )}
                         </div>
-                        {enableCodeTouched && enableCodeError && (
-                          <p className="text-xs text-rose-300">{enableCodeError}</p>
-                        )}
                       </div>
                     </div>
-                  </div>
 
-                  <div className="pt-2 border-t border-slate-800/80 flex items-center gap-3 flex-wrap">
-                    <button
-                      id="dashboard-2fa-enable-btn"
-                      type="submit"
-                      disabled={isEnablingTotp}
-                      className="min-h-[46px] inline-flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-bold text-xs sm:text-sm px-5 py-2.5 transition"
-                    >
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>
-                        {isEnablingTotp
-                          ? 'Verifying & Generating Recovery Codes...'
-                          : 'Enable Two-Factor Authentication'}
-                      </span>
-                    </button>
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center gap-3 flex-wrap">
+                      <button
+                        id="dashboard-2fa-enable-btn"
+                        type="submit"
+                        disabled={isEnablingTotp}
+                        className="min-h-[46px] inline-flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-bold text-xs sm:text-sm px-5 py-2.5 transition"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>
+                          {isEnablingTotp
+                            ? 'Verifying & Generating Recovery Codes...'
+                            : 'Enable Two-Factor Authentication'}
+                        </span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTotpSetup(null);
-                        setEnableCode('');
-                        setEnableCodeError(null);
-                        setEnableCodeTouched(false);
-                      }}
-                      className="min-h-[46px] rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300 text-xs font-semibold px-4 py-2.5 transition"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                    </motion.form>
-                  )}
-                </AnimatePresence>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTotpSetup(null);
+                          setEnableCode('');
+                          setEnableCodeError(null);
+                          setEnableCodeTouched(false);
+                        }}
+                        className="min-h-[46px] rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300 text-xs font-semibold px-4 py-2.5 transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                      </motion.form>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
               )}
-            </div>
-          </div>
+            </AnimatePresence>
+          )}
+        </div>
+      </div>
 
           {/* Session & Account Summary */}
           <div className="lg:col-span-4 rounded-2xl border border-slate-800/90 bg-slate-950 p-6 space-y-5">
@@ -1452,14 +2236,47 @@ export function CreatorDashboardPage({
                 </span>
               </div>
               <div className="flex items-center justify-between py-2 border-b border-slate-800/80">
-                <span className="text-slate-400">Two-Factor Auth</span>
+                <span className="text-slate-400">Backup Email</span>
                 <span
-                  className={`font-semibold ${
-                    user.totp_enabled ? 'text-emerald-400' : 'text-slate-400'
+                  className={`font-semibold text-right truncate max-w-[170px] ${
+                    user.backup_email
+                      ? 'text-emerald-400 font-mono text-[11px]'
+                      : 'text-slate-500'
                   }`}
+                  title={user.backup_email || 'Not configured'}
                 >
-                  {user.totp_enabled ? 'Enabled (TOTP)' : 'Disabled'}
+                  {user.backup_email || 'Not configured'}
                 </span>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-slate-800/80">
+                <span className="text-slate-400">Two-Factor Auth</span>
+                <AnimatePresence mode="wait" initial={false}>
+                  {user.totp_enabled ? (
+                    <motion.span
+                      key="summary-totp-active"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.2 }}
+                      className="font-semibold text-emerald-400 inline-flex items-center gap-1"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Enabled (TOTP)</span>
+                    </motion.span>
+                  ) : (
+                    <motion.span
+                      key="summary-totp-disabled"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.2 }}
+                      className="font-semibold text-slate-400 inline-flex items-center gap-1"
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Disabled</span>
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </div>
               {user.totp_enabled && (
                 <div className="flex items-center justify-between py-2 border-b border-slate-800/80">

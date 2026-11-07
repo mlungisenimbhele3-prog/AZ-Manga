@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BookOpen, Trophy, Sparkles, MessageSquare, Wallet, Layers } from 'lucide-react';
+import { BookOpen, Trophy, Sparkles, MessageSquare, Wallet, Layers, Users } from 'lucide-react';
 
 interface BottomNavProps {
   activeTab: string;
@@ -19,6 +19,13 @@ const BottomNavComponent: React.FC<BottomNavProps> = ({
         id: 'readers',
         label: 'Reader',
         icon: BookOpen,
+        activeClass: 'text-amber-400 bg-amber-500/15 font-bold',
+        inactiveClass: 'text-slate-400 hover:text-slate-200',
+      },
+      {
+        id: 'following',
+        label: 'Following',
+        icon: Users,
         activeClass: 'text-amber-400 bg-amber-500/15 font-bold',
         inactiveClass: 'text-slate-400 hover:text-slate-200',
       },

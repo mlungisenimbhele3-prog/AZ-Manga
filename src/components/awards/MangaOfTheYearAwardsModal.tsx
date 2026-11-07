@@ -127,7 +127,7 @@ export const MangaOfTheYearAwardsModal: React.FC<MangaOfTheYearAwardsModalProps>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="rounded bg-amber-500/20 border border-amber-500/50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-300">
-                        KA PLUS ANNUAL HONORS
+                        AZ OVERVERSE ANNUAL HONORS
                       </span>
                       <span className="text-xs text-slate-400">• Official 2026 Selections</span>
                     </div>
@@ -409,7 +409,7 @@ export const MangaOfTheYearAwardsModal: React.FC<MangaOfTheYearAwardsModalProps>
               <div className="flex items-center gap-2">
                 <Crown className="w-4 h-4 text-amber-400" />
                 <span>
-                  KA Plus: Africa Pulse Annual Awards recognize original storytelling excellence and community engagement.
+                  AZ OVERVERSE Annual Awards recognize original storytelling excellence and community engagement.
                 </span>
               </div>
               <button
