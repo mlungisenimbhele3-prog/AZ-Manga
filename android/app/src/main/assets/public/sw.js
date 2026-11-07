@@ -105,13 +105,13 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "revision": "3aa826474b5c96b32066bc0bc2fab78e"
   }, {
     "url": "index.html",
-    "revision": "7dbed18c16c325142b1d84a991a961f3"
+    "revision": "d5872baafe8557b40d5a91614b6168fe"
   }, {
     "url": "icon.svg",
     "revision": "229523a767ca4505775c29c724dc8fa1"
   }, {
     "url": "firebase-messaging-sw.js",
-    "revision": "c0202eec0889a732a298b9edb3488a2b"
+    "revision": "09a0f379c2ddbea4cc454bce4f8d4bd3"
   }, {
     "url": "favicon.png",
     "revision": "475b1f48653f5cd50312a151414f3a92"
@@ -122,10 +122,10 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "url": "assets/workbox-window.prod.es5-Bd17z0YL.js",
     "revision": null
   }, {
-    "url": "assets/web-C1g6PURT.js",
+    "url": "assets/web-C2Nfu9vR.js",
     "revision": null
   }, {
-    "url": "assets/vendor-supabase-Bcwuvg3K.js",
+    "url": "assets/vendor-supabase-BN79N3Si.js",
     "revision": null
   }, {
     "url": "assets/vendor-react-mDCvsGiD.js",
@@ -134,7 +134,7 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "url": "assets/vendor-motion-DV0bViKr.js",
     "revision": null
   }, {
-    "url": "assets/vendor-icons-DUU8EZVq.js",
+    "url": "assets/vendor-icons-D4dbcAcb.js",
     "revision": null
   }, {
     "url": "assets/vendor-charts-BbCxPWep.js",
@@ -143,7 +143,7 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "url": "assets/vendor-auth-utils-CoYlvp1e.js",
     "revision": null
   }, {
-    "url": "assets/schemas-BkBiGV9V.js",
+    "url": "assets/schemas-CAZOdCfY.js",
     "revision": null
   }, {
     "url": "assets/safeStorage-B2nYKOjp.js",
@@ -152,151 +152,163 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "url": "assets/rolldown-runtime-B0Z9INg1.js",
     "revision": null
   }, {
-    "url": "assets/readingStreak-Bv_S8T4j.js",
+    "url": "assets/readingStreak-7XLJH5xQ.js",
     "revision": null
   }, {
     "url": "assets/preload-helper-B3nfOi5I.js",
     "revision": null
   }, {
-    "url": "assets/page-PqwDMhjJ.js",
+    "url": "assets/page-fvK4Q6Wd.js",
     "revision": null
   }, {
-    "url": "assets/page-DuqD0PgY.js",
+    "url": "assets/page-amVuyUfF.js",
     "revision": null
   }, {
-    "url": "assets/page-DuYnxN_U.js",
+    "url": "assets/page-DzGt8wW5.js",
     "revision": null
   }, {
-    "url": "assets/page-DlvkvUNK.js",
+    "url": "assets/page-D9atIzNL.js",
     "revision": null
   }, {
-    "url": "assets/page-DkrsliGA.js",
+    "url": "assets/page-BKFvIy_I.js",
     "revision": null
   }, {
-    "url": "assets/page-BPBYkt9R.js",
+    "url": "assets/page-B-9LpIZU.js",
     "revision": null
   }, {
-    "url": "assets/oververseAuth-iQz2EJJg.js",
+    "url": "assets/oververseAuth-omOeD9Dc.js",
     "revision": null
   }, {
     "url": "assets/mangakaManager-a8vQ-7Dw.js",
     "revision": null
   }, {
-    "url": "assets/layout-CJ6YxzV5.js",
+    "url": "assets/layout-BknjjHtV.js",
     "revision": null
   }, {
-    "url": "assets/index-LqGr755L.js",
+    "url": "assets/index-WJeghfQN.js",
     "revision": null
   }, {
-    "url": "assets/index-BhgO2Mym.css",
+    "url": "assets/index-BmmywGzn.css",
     "revision": null
   }, {
-    "url": "assets/esm-DZUycZ38.js",
+    "url": "assets/esm-CQNLOe09.js",
     "revision": null
   }, {
-    "url": "assets/coverStorage-q_z9AH74.js",
+    "url": "assets/creatorChapterStatsService-CO5GdbZY.js",
     "revision": null
   }, {
-    "url": "assets/WebViewerModal-B4phHPnt.js",
+    "url": "assets/coverStorage-CE7wRy4p.js",
     "revision": null
   }, {
-    "url": "assets/WalletPage-CciFRNzJ.js",
+    "url": "assets/aiDetector-VIheQF7w.js",
     "revision": null
   }, {
-    "url": "assets/UserProfileModal-BbUeDzhF.js",
+    "url": "assets/WebViewerModal-CxRnUv22.js",
     "revision": null
   }, {
-    "url": "assets/TermsOfService-Cr9JsolS.js",
+    "url": "assets/WalletPage-CjTNQ8tf.js",
     "revision": null
   }, {
-    "url": "assets/SubscriptionModal-DLXsHQz8.js",
+    "url": "assets/UserProfileModal-W2JmFuxs.js",
     "revision": null
   }, {
-    "url": "assets/SettingsPage-B30-D3HR.js",
+    "url": "assets/TermsOfService-DYuPh4xa.js",
     "revision": null
   }, {
-    "url": "assets/SecurityDefenseModal-PDBquPw1.js",
+    "url": "assets/SubscriptionModal-CYLgfTgO.js",
     "revision": null
   }, {
-    "url": "assets/RewardedAdModal-6vgJHwdD.js",
+    "url": "assets/SettingsPage-BydYznD-.js",
     "revision": null
   }, {
-    "url": "assets/RecommendationModal-DHxRon6r.js",
+    "url": "assets/SecurityDefenseModal-B9nwEfV3.js",
     "revision": null
   }, {
-    "url": "assets/ReaderView-BxakMEnY.js",
+    "url": "assets/RewardedAdModal-pu6V-pZ-.js",
     "revision": null
   }, {
-    "url": "assets/PublishModal-D3wka3cE.js",
+    "url": "assets/RecommendationModal-BFbmKS0H.js",
     "revision": null
   }, {
-    "url": "assets/ProductivityCommandPalette-8LElzupN.js",
+    "url": "assets/ReaderView-CAt52fp3.js",
     "revision": null
   }, {
-    "url": "assets/PrivacyPolicy-BeLYCe3W.js",
+    "url": "assets/PublishModal-MssdT204.js",
     "revision": null
   }, {
-    "url": "assets/PasswordStrengthIndicator-Cfd7FV-G.js",
+    "url": "assets/ProductivityCommandPalette-74TtSANA.js",
     "revision": null
   }, {
-    "url": "assets/NavigationDrawer-Goh5XSAv.js",
+    "url": "assets/PrivacyPolicy-TMaGa7vP.js",
     "revision": null
   }, {
-    "url": "assets/MilestoneCelebrationModal-CKi_-iB9.js",
+    "url": "assets/PasswordStrengthIndicator-CliEsIns.js",
     "revision": null
   }, {
-    "url": "assets/MangakaDashboardModal-B6vzrTlN.js",
+    "url": "assets/NavigationDrawer-Dqb27UVV.js",
     "revision": null
   }, {
-    "url": "assets/MangaOfTheYearAwardsPage-BxfcryKE.js",
+    "url": "assets/MilestoneCelebrationModal-DMGGvLTY.js",
     "revision": null
   }, {
-    "url": "assets/MangaOfTheYearAwardsModal-CohN20Ky.js",
+    "url": "assets/MangakaDashboardModal-I9AwHVIl.js",
     "revision": null
   }, {
-    "url": "assets/MangaDetailModal-DVE9AHME.js",
+    "url": "assets/MangaOfTheYearAwardsPage-D-rzzhVR.js",
     "revision": null
   }, {
-    "url": "assets/InterstitialAdModal-6nhiDKTm.js",
+    "url": "assets/MangaOfTheYearAwardsModal-BeNnrfeu.js",
     "revision": null
   }, {
-    "url": "assets/GlobalPublishShareModal-CMijg8Go.js",
+    "url": "assets/MangaDetailModal-DrXsQnmr.js",
     "revision": null
   }, {
-    "url": "assets/DevicePerformanceModal-CeRye4yj.js",
+    "url": "assets/InterstitialAdModal-DuKAXyXZ.js",
     "revision": null
   }, {
-    "url": "assets/CreatorEarningsView-CMz2WcWb.js",
+    "url": "assets/GlobalPublishShareModal-DE_LCzqS.js",
     "revision": null
   }, {
-    "url": "assets/CreatorDashboardModal-BLg2tpow.js",
+    "url": "assets/FcmNotificationBanner-BE1cneuA.js",
     "revision": null
   }, {
-    "url": "assets/CreatorAccountGate-C2K1h6pc.js",
+    "url": "assets/DevicePerformanceModal-B7UivD_e.js",
     "revision": null
   }, {
-    "url": "assets/ChatsPage-Bjd9RRc3.js",
+    "url": "assets/CreatorEarningsView-C1U_0-uf.js",
     "revision": null
   }, {
-    "url": "assets/ChapterUploadManager-CJvKOEqU.js",
+    "url": "assets/CreatorDashboardModal-KG3XhLwL.js",
     "revision": null
   }, {
-    "url": "assets/BackdropPage-BciGU-zu.js",
+    "url": "assets/CreatorChapterStatsCard-C5Hn11WK.js",
     "revision": null
   }, {
-    "url": "assets/ApplyAsMangakaModal-pkpPvVvD.js",
+    "url": "assets/CreatorAccountGate-Zjo_ULpn.js",
     "revision": null
   }, {
-    "url": "assets/AppStoreModal-BvEpD6oH.js",
+    "url": "assets/ChatsPage-BEn1gOcK.js",
     "revision": null
   }, {
-    "url": "assets/AppOpenAdModal-1g6SmmNw.js",
+    "url": "assets/ChapterUploadManager-CxHFlI1z.js",
     "revision": null
   }, {
-    "url": "assets/AiReportModal-D8kr59PQ.js",
+    "url": "assets/BackdropPage-DqJ6kWhl.js",
     "revision": null
   }, {
-    "url": "assets/AdminDashboardModal-CttjwiB-.js",
+    "url": "assets/ApplyAsMangakaModal-BiRv-RDA.js",
+    "revision": null
+  }, {
+    "url": "assets/AppStoreModal-CaJWl7iL.js",
+    "revision": null
+  }, {
+    "url": "assets/AppOpenAdModal-BBgdA8bG.js",
+    "revision": null
+  }, {
+    "url": "assets/AiReportModal-Ctbge4nx.js",
+    "revision": null
+  }, {
+    "url": "assets/AdminDashboardModal-OJPKDNRV.js",
     "revision": null
   }, {
     "url": "assets/aistudio/az_oververse_black_silver_transparent_29ae4c4c.png",

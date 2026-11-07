@@ -1,4 +1,4 @@
-name: Build & Publish Signed AZ-OVERVERSE-signed.aab (v1.0.2)
+name: Build & Publish Signed AZ-OVERVERSE-signed.aab (v1.0.3)
 
 on:
   push:
@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release Tag (defaults to v1.0.2)'
+        description: 'Release Tag (defaults to v1.0.3)'
         required: false
-        default: 'v1.0.2'
+        default: 'v1.0.3'
 
 concurrency:
   group: build-release-v1-${{ github.ref }}
@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   build-android-release:
-    name: Build Signed AZ-OVERVERSE-signed.aab (com.azoververse.oververse v1.0.2)
+    name: Build Signed AZ-OVERVERSE-signed.aab (com.azoververse.oververse v1.0.3)
     runs-on: ubuntu-latest
 
     steps:
@@ -110,7 +110,7 @@ jobs:
           STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          VERSION_CODE=$((102 + ${GITHUB_RUN_NUMBER:-0}))
+          VERSION_CODE=$((103 + ${GITHUB_RUN_NUMBER:-0}))
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
           export ANDROID_KEYSTORE_PATH="upload-keystore.jks"
@@ -118,7 +118,7 @@ jobs:
           export ANDROID_KEYSTORE_PASSWORD="${STORE_PASS:-AzOververse2026!}"
           export ANDROID_KEY_PASSWORD="${KEY_PASS:-AzOververse2026!}"
           export ANDROID_VERSION_CODE="$VERSION_CODE"
-          export ANDROID_VERSION_NAME="1.0.2"
+          export ANDROID_VERSION_NAME="1.0.3"
 
           cd android
           chmod +x gradlew
@@ -135,7 +135,7 @@ jobs:
       - name: Upload Signed AAB Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AZ-OVERVERSE-signed-v1.0.2
+          name: AZ-OVERVERSE-signed-v1.0.3
           path: |
             AZ-OVERVERSE-signed.aab
             SHA256SUMS.txt

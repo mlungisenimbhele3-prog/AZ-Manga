@@ -365,7 +365,7 @@ export const ProductivityCommandPalette: React.FC<ProductivityCommandPaletteProp
     },
     {
       id: 'download-release-aab',
-      title: 'Download AZ-OVERVERSE-signed.aab (Signed Play Store Bundle v1.0.2 · com.azoververse.oververse)',
+      title: 'Download AZ-OVERVERSE-signed.aab (Signed Play Store Bundle v1.0.3 · com.azoververse.oververse)',
       category: 'Developer & CI/CD',
       icon: <Smartphone className="w-4 h-4 text-cyan-400" />,
       action: () => {

@@ -89,7 +89,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                     AZ OVERVERSE Mobile App
                   </h3>
                   <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-extrabold text-emerald-400">
-                    Signed v1.0.2
+                    Signed v1.0.3
                   </span>
                 </div>
                 <p className="text-xs text-amber-400 font-semibold flex items-center gap-1.5 mt-0.5">
@@ -194,11 +194,11 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
 
               {isAdmin && (
                 <>
-                  {/* Signed Google Play Console Release Bundle v1.0.2 (Admin Only) */}
+                  {/* Signed Google Play Console Release Bundle v1.0.3 (Admin Only) */}
                   <div className="rounded-2xl border border-cyan-500/40 bg-cyan-950/25 p-4 sm:p-5 space-y-4">
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-cyan-300 font-semibold">
-                        <span>Release v1.0.2 (Code 102)</span>
+                        <span>Release v1.0.3 (Code 103)</span>
                         <span aria-hidden="true">·</span>
                         <span>com.azoververse.oververse</span>
                         <span aria-hidden="true">·</span>
@@ -208,7 +208,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                         Signed Google Play Store Release Bundle (AZ-OVERVERSE-signed.aab)
                       </h4>
                       <p className="text-xs text-slate-300 leading-relaxed">
-                        Ready for Google Play Console upload: cryptographically signed <code className="text-cyan-300 font-mono text-[11px]">AZ-OVERVERSE-signed.aab</code> built with package <code className="text-emerald-300 font-mono text-[11px]">com.azoververse.oververse</code>, version <code className="text-amber-300 font-mono text-[11px]">1.0.2</code> (versionCode 102), Target SDK 35, and the Black AZ launcher icon.
+                        Ready for Google Play Console upload: cryptographically signed <code className="text-cyan-300 font-mono text-[11px]">AZ-OVERVERSE-signed.aab</code> built with package <code className="text-emerald-300 font-mono text-[11px]">com.azoververse.oververse</code>, version <code className="text-amber-300 font-mono text-[11px]">1.0.3</code> (versionCode 103), Target SDK 35, and the Black AZ launcher icon.
                       </p>
                     </div>
 
@@ -244,7 +244,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                     <div>
                       <h5 className="text-xs font-bold text-white">Google Play Store Submission Profile</h5>
                       <p className="text-[11px] text-slate-400">
-                        Package: <code className="text-emerald-400">com.azoververse.oververse</code> · v1.0.2
+                        Package: <code className="text-emerald-400">com.azoververse.oververse</code> · v1.0.3
                       </p>
                     </div>
                   </div>

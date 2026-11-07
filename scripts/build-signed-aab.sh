@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Build and cryptographically sign AZ-OVERVERSE-signed.aab (com.azoververse.oververse v1.0.2)
+# Build and cryptographically sign AZ-OVERVERSE-signed.aab (com.azoververse.oververse v1.0.3)
 # Produced by Mlungiseni Mbhele - AZ OVERVERSE
 set -e
 
 echo "========================================================================="
-echo "  AZ OVERVERSE v1.0.2 (com.azoververse.oververse) - Signed Release AAB   "
+echo "  AZ OVERVERSE v1.0.3 (com.azoververse.oververse) - Signed Release AAB   "
 echo "========================================================================="
 
 KEYSTORE_FILE_NAME="upload-keystore.jks"
@@ -14,8 +14,8 @@ CERT_PEM_PATH="./upload_certificate.pem"
 KEY_ALIAS="${ANDROID_KEY_ALIAS:-upload}"
 KEY_PASS="${ANDROID_KEY_PASSWORD:-AzOververse2026!}"
 STORE_PASS="${ANDROID_KEYSTORE_PASSWORD:-AzOververse2026!}"
-VERSION_CODE="${ANDROID_VERSION_CODE:-102}"
-VERSION_NAME="${ANDROID_VERSION_NAME:-1.0.2}"
+VERSION_CODE="${ANDROID_VERSION_CODE:-103}"
+VERSION_NAME="${ANDROID_VERSION_NAME:-1.0.3}"
 
 # 1. Generate Black AZ launcher icons & splash screens
 echo "Generating Black AZ launcher icons and splash screens..."

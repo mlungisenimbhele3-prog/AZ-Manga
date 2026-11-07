@@ -62,6 +62,7 @@ var users = (0, import_pg_core.pgTable)("users", {
   studioName: (0, import_pg_core.text)("studio_name").default("Mlungiseni NM Studio"),
   bio: (0, import_pg_core.text)("bio").default(""),
   avatarUrl: (0, import_pg_core.text)("avatar_url"),
+  backupEmail: (0, import_pg_core.text)("backup_email"),
   emailVerified: (0, import_pg_core.boolean)("email_verified").notNull().default(false),
   verificationToken: (0, import_pg_core.text)("verification_token"),
   resetToken: (0, import_pg_core.text)("reset_token"),
@@ -114,6 +115,7 @@ function toPublicUser(row) {
   return {
     id: row.id,
     email: row.email,
+    backup_email: row.backupEmail ?? null,
     pen_name: row.penName,
     studio_name: row.studioName || `${row.penName} Studio`,
     bio: row.bio || "",
@@ -236,6 +238,9 @@ async function updateUserCreatorProfile(id, updates) {
     }
     if (updates.role) {
       patch.role = updates.role;
+    }
+    if (updates.backupEmail !== void 0) {
+      patch.backupEmail = updates.backupEmail ? updates.backupEmail.trim().toLowerCase() : null;
     }
     const updated = await db.update(users).set(patch).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
     return updated[0] ?? null;
@@ -447,7 +452,8 @@ var updateProfileSchema = import_zod.z.object({
   studio_name: import_zod.z.string().trim().max(80).optional(),
   bio: import_zod.z.string().trim().max(500).optional(),
   avatar_url: import_zod.z.string().trim().url("Avatar URL must be a valid URL.").nullable().optional(),
-  role: import_zod.z.enum(["reader", "creator"]).optional()
+  role: import_zod.z.enum(["reader", "creator"]).optional(),
+  backup_email: import_zod.z.string().trim().toLowerCase().email("Enter a valid backup recovery email address.").max(120, "Email address must be 120 characters or fewer.").nullable().optional().or(import_zod.z.literal(""))
 });
 
 // src/server/totp.ts
@@ -1530,13 +1536,19 @@ authRouter.patch(
       if (!existing) {
         return res.status(404).json({ error: "User not found." });
       }
+      if (parsed.data.backup_email && parsed.data.backup_email.trim().toLowerCase() === existing.email.toLowerCase()) {
+        return res.status(400).json({
+          error: "Backup recovery email cannot be identical to your primary account email."
+        });
+      }
       const resolvedRole = ADMIN_EMAILS.has(existing.email) ? "admin" : parsed.data.role || existing.role;
       const updated = await updateUserCreatorProfile(userId, {
         penName: parsed.data.pen_name,
         studioName: parsed.data.studio_name,
         bio: parsed.data.bio,
         avatarUrl: parsed.data.avatar_url,
-        role: resolvedRole
+        role: resolvedRole,
+        backupEmail: parsed.data.backup_email === "" ? null : parsed.data.backup_email ?? void 0
       });
       if (!updated) {
         return res.status(500).json({ error: "Failed to update profile." });
@@ -1735,6 +1747,84 @@ async function startServer() {
   };
   app.get("/AZ-OVERVERSE-signed.aab", serveSignedAab);
   app.get("/api/download-aab", serveSignedAab);
+  const ADMIN_MASTER_EMAIL = "mlungisenimbhele3@gmail.com";
+  const requireAdminSigningAccess = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.slice(7).trim();
+      try {
+        const claims = verifyPurposeToken(token, "access");
+        if (claims.email?.toLowerCase() === ADMIN_MASTER_EMAIL || claims.role === "admin") {
+          return next();
+        }
+      } catch {
+      }
+    }
+    const refreshCookie = req.cookies?.refreshToken;
+    if (typeof refreshCookie === "string" && refreshCookie.length > 0) {
+      try {
+        const claims = verifyPurposeToken(refreshCookie, "refresh");
+        if (claims.email?.toLowerCase() === ADMIN_MASTER_EMAIL) {
+          return next();
+        }
+      } catch {
+      }
+    }
+    const adminPassHeader = req.headers["x-az-admin-pass"];
+    const expectedPass = process.env.ADMIN_MASTER_PASSWORD || "OVER2026!";
+    if (typeof adminPassHeader === "string" && adminPassHeader === expectedPass) {
+      return next();
+    }
+    return res.status(403).json({
+      error: "Forbidden: Only Admin (mlungisenimbhele3@gmail.com) can access Google Play signing keys."
+    });
+  };
+  const serveUploadCertificatePem = async (_req, res) => {
+    try {
+      const certPath = import_path.default.join(process.cwd(), "upload_certificate.pem");
+      if (!import_fs.default.existsSync(certPath)) {
+        return res.status(404).json({ error: "upload_certificate.pem not found on server" });
+      }
+      const stat = await import_fs.default.promises.stat(certPath);
+      res.setHeader("Content-Type", "application/x-pem-file; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="upload_certificate.pem"');
+      res.setHeader("Content-Length", String(stat.size));
+      res.setHeader("Cache-Control", "no-store");
+      const content = await import_fs.default.promises.readFile(certPath);
+      res.end(content);
+    } catch (err) {
+      console.error("Failed to serve upload_certificate.pem:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to download upload_certificate.pem" });
+      }
+    }
+  };
+  const serveUploadKeystoreJks = async (_req, res) => {
+    try {
+      const primaryPath = import_path.default.join(process.cwd(), "upload-keystore.jks");
+      const fallbackPath = import_path.default.join(process.cwd(), "android", "app", "upload-keystore.jks");
+      const jksPath = import_fs.default.existsSync(primaryPath) ? primaryPath : fallbackPath;
+      if (!import_fs.default.existsSync(jksPath)) {
+        return res.status(404).json({ error: "upload-keystore.jks not found on server" });
+      }
+      const stat = await import_fs.default.promises.stat(jksPath);
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader("Content-Disposition", 'attachment; filename="upload-keystore.jks"');
+      res.setHeader("Content-Length", String(stat.size));
+      res.setHeader("Cache-Control", "no-store");
+      const content = await import_fs.default.promises.readFile(jksPath);
+      res.end(content);
+    } catch (err) {
+      console.error("Failed to serve upload-keystore.jks:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to download upload-keystore.jks" });
+      }
+    }
+  };
+  app.get("/upload_certificate.pem", requireAdminSigningAccess, serveUploadCertificatePem);
+  app.get("/api/download-upload-certificate", requireAdminSigningAccess, serveUploadCertificatePem);
+  app.get("/upload-keystore.jks", requireAdminSigningAccess, serveUploadKeystoreJks);
+  app.get("/api/download-upload-keystore", requireAdminSigningAccess, serveUploadKeystoreJks);
   app.use("/api/auth", authRouter);
   app.post("/api/upload-cover", async (req, res) => {
     try {
