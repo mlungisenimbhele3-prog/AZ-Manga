@@ -101,7 +101,11 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         id="persistent-bottom-admob-banner"
         role="region"
         aria-label="Google AdMob Sponsored Banner"
-        className={`fixed bottom-0 left-0 right-0 z-[115] h-[50px] bg-slate-950 border-t border-slate-800 px-3 sm:px-5 flex items-center justify-center shadow-2xl select-none ${className}`}
+        className={`fixed bottom-0 left-0 right-0 z-[115] bg-slate-950 border-t border-slate-800 px-3 sm:px-5 flex items-center justify-center shadow-2xl select-none ${className}`}
+        style={{
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          minHeight: 'calc(50px + env(safe-area-inset-bottom, 0px))',
+        }}
       >
         <div className="w-full max-w-5xl flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">

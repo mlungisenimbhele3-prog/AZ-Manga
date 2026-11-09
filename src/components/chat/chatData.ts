@@ -19,6 +19,9 @@ export interface ChatMessage {
   voiceDuration?: string;
   reactions?: Record<string, number>;
   userReaction?: string;
+  isDeleted?: boolean;
+  deletedForMe?: boolean;
+  senderId?: string;
 }
 
 export interface ChatContact {

@@ -496,31 +496,53 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              {/* Creator Dashboard (/dashboard) */}
-              <a
-                id="drawer-link-dashboard"
-                href="/dashboard"
-                onClick={(e) => handleLinkClick(e, 'dashboard')}
-                className={`w-full flex items-center justify-between p-3 rounded-xl transition group ${
-                  activeTab === 'dashboard'
-                    ? 'bg-[#00DC64]/15 border border-[#00DC64]/40 text-[#00DC64] font-bold'
-                    : 'bg-slate-900/60 hover:bg-slate-800/90 text-slate-300 border border-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-[#00DC64]/15 text-[#00DC64] border border-[#00DC64]/25">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-sm font-semibold flex items-center gap-1.5">
-                      <span>Creator Dashboard</span>
-                      <span className="text-[10px] font-mono text-slate-400">/dashboard</span>
+              {/* Creator Dashboard (/dashboard) - Only creators/admins see Creator Dashboard in menu */}
+              {isCreator || isAdmin ? (
+                <a
+                  id="drawer-link-dashboard"
+                  href="/dashboard"
+                  onClick={(e) => handleLinkClick(e, 'dashboard')}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl transition group ${
+                    activeTab === 'dashboard'
+                      ? 'bg-[#00DC64]/15 border border-[#00DC64]/40 text-[#00DC64] font-bold'
+                      : 'bg-slate-900/60 hover:bg-slate-800/90 text-slate-300 border border-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-[#00DC64]/15 text-[#00DC64] border border-[#00DC64]/25">
+                      <User className="w-4 h-4" />
                     </div>
-                    <p className="text-[11px] text-slate-400">Pen name, verified profile &amp; session</p>
+                    <div className="text-left">
+                      <div className="text-sm font-semibold flex items-center gap-1.5">
+                        <span>Creator Dashboard</span>
+                        <span className="text-[10px] font-mono text-slate-400">/dashboard</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">Upload manga, add chapters & status</p>
+                    </div>
                   </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-[#00DC64] transition" />
-              </a>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-[#00DC64] transition" />
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onNavigate('dashboard');
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-amber-500/10 border border-amber-500/30 text-amber-300 font-bold transition hover:border-amber-400"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <div className="text-sm font-semibold text-white">Become a Creator</div>
+                      <p className="text-[11px] text-amber-400/80">Start publishing original manga</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-amber-400" />
+                </button>
+              )}
 
               {/* Readers Page */}
               <a

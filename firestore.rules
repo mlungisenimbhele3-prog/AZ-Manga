@@ -103,6 +103,9 @@ service cloud.firestore {
           'primaryGenres',
           'followersCount',
           'followingCount',
+          'role',
+          'creatorStatus',
+          'blockedUsers',
           'createdAt',
           'updatedAt'
         ]) &&
@@ -118,6 +121,9 @@ service cloud.firestore {
         (!('primaryGenres' in data) || isValidGenreList(data.primaryGenres)) &&
         (!('followersCount' in data) || (data.followersCount is number && data.followersCount >= 0 && data.followersCount <= 100000000)) &&
         (!('followingCount' in data) || (data.followingCount is number && data.followingCount >= 0 && data.followingCount <= 100000)) &&
+        (!('role' in data) || (data.role is string && data.role in ['reader', 'creator', 'admin'])) &&
+        (!('creatorStatus' in data) || (data.creatorStatus is string && data.creatorStatus in ['none', 'pending', 'approved', 'rejected'])) &&
+        (!('blockedUsers' in data) || (data.blockedUsers is list && data.blockedUsers.size() <= 1000)) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -490,13 +496,14 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time && (
           isAdmin() ||
-          // Action 1: Owner updates reader bio/display/avatar/social counts
+          // Action 1: Owner updates reader bio/display/avatar/social counts/blocked users
           (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly([
             'displayName',
             'avatarUrl',
             'bio',
             'followersCount',
             'followingCount',
+            'blockedUsers',
             'updatedAt'
           ])) ||
           // Action 2: Owner activates or updates Creator Studio Account
@@ -508,6 +515,9 @@ service cloud.firestore {
             'penName',
             'studioName',
             'primaryGenres',
+            'role',
+            'creatorStatus',
+            'blockedUsers',
             'updatedAt'
           ]))
         );
@@ -994,6 +1004,46 @@ service cloud.firestore {
         isAdmin() ||
         (isVerifiedUser() && existing().uid == request.auth.uid)
       );
+    }
+
+    function isValidReport(data, reportId) {
+      return data.keys().hasAll(['id', 'reporterUserId', 'reportedUserId', 'reason', 'timestamp', 'status']) &&
+        data.keys().hasOnly([
+          'id',
+          'reporterUserId',
+          'reportedUserId',
+          'messageId',
+          'messageText',
+          'reason',
+          'details',
+          'timestamp',
+          'status'
+        ]) &&
+        isValidId(data.id) &&
+        data.id == reportId &&
+        isValidId(data.reporterUserId) &&
+        isValidId(data.reportedUserId) &&
+        (!('messageId' in data) || (data.messageId is string && data.messageId.size() <= 128)) &&
+        (!('messageText' in data) || (data.messageText is string && data.messageText.size() <= 1000)) &&
+        data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 80 &&
+        (!('details' in data) || (data.details is string && data.details.size() <= 1000)) &&
+        data.timestamp is string && data.timestamp.size() <= 80 &&
+        data.status is string && data.status in ['pending', 'resolved', 'dismissed'];
+    }
+
+    // 11. Safety and Moderation Reports
+    match /reports/{reportId} {
+      allow get: if isValidId(reportId) && (isAdmin() || (isSignedIn() && existing().reporterUserId == request.auth.uid));
+      allow list: if isAdmin();
+
+      allow create: if isSignedIn() &&
+        isValidId(reportId) &&
+        isValidReport(incoming(), reportId) &&
+        incoming().reporterUserId == request.auth.uid &&
+        incoming().status == 'pending';
+
+      allow update: if isValidId(reportId) && isAdmin();
+      allow delete: if isValidId(reportId) && isAdmin();
     }
   }
 }

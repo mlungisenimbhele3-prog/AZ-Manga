@@ -404,6 +404,41 @@ export const ChatsPage: React.FC<ChatsPageProps> = ({ onOpenUserProfile }) => {
     [persistThreads, updateConversationPreview]
   );
 
+  const handleDeleteMessageForEveryone = useCallback(
+    (conversationId: string, messageId: string) => {
+      setMessagesByConversation((prev) => {
+        const list = prev[conversationId] || [];
+        const updatedList = list.map((m) =>
+          m.id === messageId
+            ? { ...m, text: 'This message was deleted', isDeleted: true }
+            : m
+        );
+        const updated = { ...prev, [conversationId]: updatedList };
+        persistThreads(updated);
+        return updated;
+      });
+      updateConversationPreview(conversationId, {
+        lastMessage: 'This message was deleted',
+      });
+    },
+    [persistThreads, updateConversationPreview]
+  );
+
+  const handleDeleteMessageForMe = useCallback(
+    (conversationId: string, messageId: string) => {
+      setMessagesByConversation((prev) => {
+        const list = prev[conversationId] || [];
+        const updatedList = list.map((m) =>
+          m.id === messageId ? { ...m, deletedForMe: true } : m
+        );
+        const updated = { ...prev, [conversationId]: updatedList };
+        persistThreads(updated);
+        return updated;
+      });
+    },
+    [persistThreads]
+  );
+
   const handleCreateGroupSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = newGroupName.trim();
@@ -878,6 +913,8 @@ export const ChatsPage: React.FC<ChatsPageProps> = ({ onOpenUserProfile }) => {
             onSendMessage={handleSendMessageInRoom}
             onToggleReaction={handleToggleReaction}
             onClearConversation={handleClearConversation}
+            onDeleteMessageForEveryone={handleDeleteMessageForEveryone}
+            onDeleteMessageForMe={handleDeleteMessageForMe}
           />
         )}
       </AnimatePresence>

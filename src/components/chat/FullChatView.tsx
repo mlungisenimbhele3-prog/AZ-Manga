@@ -29,6 +29,10 @@ import {
   Check,
   Heart,
   ShieldCheck,
+  ShieldAlert,
+  Ban,
+  Copy,
+  AlertTriangle,
   Upload,
 } from 'lucide-react';
 import {
@@ -39,6 +43,8 @@ import {
   getFirstReaderName,
   isVerifiedVIPContact,
 } from './chatData';
+import { ReportModal } from './ReportModal';
+import { isUserBlocked, blockUser, unblockUser } from '../../services/safetyService';
 
 export interface MessageTicksProps {
   status?: MessageTickStatus;
@@ -320,6 +326,10 @@ export interface FullChatViewProps {
   ) => void;
   onToggleReaction: (conversationId: string, messageId: string, emoji: string) => void;
   onClearConversation: (conversationId: string) => void;
+  onDeleteMessageForEveryone?: (conversationId: string, messageId: string) => void;
+  onDeleteMessageForMe?: (conversationId: string, messageId: string) => void;
+  onBlockUser?: (contact: ChatContact) => void;
+  onUnblockUser?: (contactId: string) => void;
 }
 
 export const FullChatView: React.FC<FullChatViewProps> = ({
@@ -332,6 +342,10 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
   onSendMessage,
   onToggleReaction,
   onClearConversation,
+  onDeleteMessageForEveryone,
+  onDeleteMessageForMe,
+  onBlockUser,
+  onUnblockUser,
 }) => {
   const prefersReducedMotion = useReducedMotion();
   const isRecipientVIP = isVerifiedVIPContact(conversation);
@@ -365,6 +379,11 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
   const [isCallCameraOff, setIsCallCameraOff] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; caption?: string } | null>(null);
   const [activeReactionPickerMsgId, setActiveReactionPickerMsgId] = useState<string | null>(null);
+  const [activeMessageMenuId, setActiveMessageMenuId] = useState<string | null>(null);
+  const [messageToDelete, setMessageToDelete] = useState<{ id: string; type: 'everyone' | 'me' } | null>(null);
+  const [reportingMessage, setReportingMessage] = useState<ChatMessage | null>(null);
+  const [isReportingUser, setIsReportingUser] = useState(false);
+  const [isContactBlocked, setIsContactBlocked] = useState<boolean>(() => isUserBlocked(conversation.id));
   const [heartBurstMsgId, setHeartBurstMsgId] = useState<string | null>(null);
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
@@ -374,6 +393,27 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const typingSimulationTimeoutRef = useRef<number | null>(null);
+  const messageLongPressTimerRef = useRef<number | null>(null);
+
+  // Sync blocked state with global events
+  useEffect(() => {
+    const handleBlocked = (e: any) => {
+      if (e.detail?.userId === conversation.id) {
+        setIsContactBlocked(true);
+      }
+    };
+    const handleUnblocked = (e: any) => {
+      if (e.detail?.userId === conversation.id) {
+        setIsContactBlocked(false);
+      }
+    };
+    window.addEventListener('az_user_blocked', handleBlocked);
+    window.addEventListener('az_user_unblocked', handleUnblocked);
+    return () => {
+      window.removeEventListener('az_user_blocked', handleBlocked);
+      window.removeEventListener('az_user_unblocked', handleUnblocked);
+    };
+  }, [conversation.id]);
 
   // Lock background body scroll while full-screen chat view is mounted
   useEffect(() => {
@@ -388,7 +428,14 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (lightboxImage) {
+        if (messageToDelete) {
+          setMessageToDelete(null);
+        } else if (reportingMessage || isReportingUser) {
+          setReportingMessage(null);
+          setIsReportingUser(false);
+        } else if (activeMessageMenuId) {
+          setActiveMessageMenuId(null);
+        } else if (lightboxImage) {
           setLightboxImage(null);
         } else if (activeCallMode) {
           setActiveCallMode(null);
@@ -405,7 +452,7 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxImage, activeCallMode, showContactInfo, showMoreMenu, showAttachMenu, showEmojiPicker, onBack]);
+  }, [messageToDelete, reportingMessage, isReportingUser, activeMessageMenuId, lightboxImage, activeCallMode, showContactInfo, showMoreMenu, showAttachMenu, showEmojiPicker, onBack]);
 
   // Smooth auto-scroll to bottom when opening conversation or appending messages
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -494,6 +541,20 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
     }, 2600);
   }, []);
 
+  const handleToggleBlockContact = useCallback(() => {
+    if (isContactBlocked) {
+      unblockUser(conversation.id);
+      onUnblockUser?.(conversation.id);
+      setIsContactBlocked(false);
+      showTransientBanner('User unblocked.');
+    } else {
+      blockUser(conversation);
+      onBlockUser?.(conversation);
+      setIsContactBlocked(true);
+      showTransientBanner("User blocked. You won't see their messages anymore.");
+    }
+  }, [isContactBlocked, conversation, onBlockUser, onUnblockUser, showTransientBanner]);
+
   // Calculate dynamic rows (1 to 4 lines) for textarea without inline style height thrashing
   const computedTextareaRows = useMemo(() => {
     if (!inputText) return 1;
@@ -503,15 +564,19 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
   }, [inputText]);
 
   const visibleMessages = useMemo(() => {
-    if (!showSearchInChat || !inChatQuery.trim()) return messages;
+    let list = messages.filter((m) => !m.deletedForMe);
+    if (isContactBlocked) {
+      list = list.filter((m) => m.isMe);
+    }
+    if (!showSearchInChat || !inChatQuery.trim()) return list;
     const q = inChatQuery.toLowerCase();
-    return messages.filter(
+    return list.filter(
       (m) =>
         m.text.toLowerCase().includes(q) ||
         (m.imageCaption && m.imageCaption.toLowerCase().includes(q)) ||
         m.sender.toLowerCase().includes(q)
     );
-  }, [messages, showSearchInChat, inChatQuery]);
+  }, [messages, isContactBlocked, showSearchInChat, inChatQuery]);
 
   // Group consecutive messages under Date Separators ("Yesterday", "Today")
   const groupedMessages = useMemo(() => {
@@ -848,6 +913,36 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
 
                   <div className="my-1 border-t border-slate-800" />
 
+                  {/* Block / Unblock User */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleToggleBlockContact();
+                    }}
+                    className={`w-full px-4 py-2.5 text-left text-xs font-medium flex items-center gap-2.5 ${
+                      isContactBlocked
+                        ? 'text-emerald-400 hover:bg-emerald-500/10'
+                        : 'text-amber-400 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    <Ban className="w-4 h-4" />
+                    <span>{isContactBlocked ? 'Unblock User' : 'Block User'}</span>
+                  </button>
+
+                  {/* Report User */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      setIsReportingUser(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-xs font-medium text-rose-400 hover:bg-rose-500/10 flex items-center gap-2.5"
+                  >
+                    <ShieldAlert className="w-4 h-4" />
+                    <span>Report User</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1139,6 +1234,11 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
                                 </div>
                               </div>
                             </div>
+                          ) : msg.isDeleted || msg.text === 'This message was deleted' ? (
+                            <p className="text-[13px] italic text-slate-400 flex items-center gap-1.5 py-0.5">
+                              <Ban className="w-3.5 h-3.5 text-slate-500" />
+                              <span>This message was deleted</span>
+                            </p>
                           ) : (
                             <p
                               className={`text-[13.5px] leading-relaxed whitespace-pre-wrap break-words ${
@@ -1172,6 +1272,115 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
                           </div>
                         </div>
 
+                        {/* Message Action Menu Trigger (3 Dots) */}
+                        <div
+                          className={`absolute top-1 ${
+                            isMe ? '-left-8' : '-right-8'
+                          } flex items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition z-20`}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMessageMenuId((curr) => (curr === msg.id ? null : msg.id));
+                              setActiveReactionPickerMsgId(null);
+                            }}
+                            className="h-6 w-6 rounded-full bg-slate-900/90 border border-slate-700/80 text-slate-300 hover:text-amber-400 flex items-center justify-center shadow"
+                            aria-label="Message options"
+                            title="Message options"
+                          >
+                            <MoreVertical className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* WhatsApp-Style Message Context Menu */}
+                        <AnimatePresence>
+                          {activeMessageMenuId === msg.id && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.92, y: -4 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.92, y: -4 }}
+                              transition={{ duration: 0.12 }}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`absolute top-8 ${
+                                isMe ? 'right-0' : 'left-0'
+                              } z-40 w-44 rounded-2xl bg-slate-900/98 border border-slate-700 p-1.5 shadow-2xl space-y-1 text-xs`}
+                            >
+                              {/* Copy message text */}
+                              {!msg.isDeleted && msg.text !== 'This message was deleted' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(msg.text);
+                                    setActiveMessageMenuId(null);
+                                    showTransientBanner('Message text copied');
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left font-medium text-slate-200 hover:bg-slate-800 transition"
+                                >
+                                  <Copy className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>Copy</span>
+                                </button>
+                              )}
+
+                              {/* Own message: Delete for Everyone / Delete for Me */}
+                              {isMe ? (
+                                <>
+                                  {!msg.isDeleted && msg.text !== 'This message was deleted' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveMessageMenuId(null);
+                                        setMessageToDelete({ id: msg.id, type: 'everyone' });
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left font-medium text-red-300 hover:bg-red-500/15 transition"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                      <span>Delete for Everyone</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveMessageMenuId(null);
+                                      setMessageToDelete({ id: msg.id, type: 'me' });
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left font-medium text-slate-300 hover:bg-slate-800 transition"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>Delete for Me</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  {/* Other user's message: Report & Block */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveMessageMenuId(null);
+                                      setReportingMessage(msg);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left font-medium text-amber-300 hover:bg-amber-500/15 transition"
+                                  >
+                                    <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                                    <span>Report Message</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveMessageMenuId(null);
+                                      handleToggleBlockContact();
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left font-medium text-red-300 hover:bg-red-500/15 transition"
+                                  >
+                                    <Ban className="w-3.5 h-3.5 text-red-400" />
+                                    <span>{isContactBlocked ? 'Unblock User' : 'Block User'}</span>
+                                  </button>
+                                </>
+                              )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
                         {/* Quick Emoji Reaction Trigger Button */}
                         <button
                           type="button"
@@ -1180,9 +1389,10 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
                             setActiveReactionPickerMsgId((curr) =>
                               curr === msg.id ? null : msg.id
                             );
+                            setActiveMessageMenuId(null);
                           }}
                           className={`absolute top-1/2 -translate-y-1/2 ${
-                            isMe ? '-left-9' : '-right-9'
+                            isMe ? '-left-8' : '-right-8'
                           } h-7 w-7 rounded-full bg-slate-900/90 border border-slate-700/80 text-slate-400 hover:text-amber-400 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition`}
                           aria-label="React to message"
                           title="Add reaction"
@@ -1444,8 +1654,22 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Voice Recording Mode vs Standard Input Pill */}
-          {isRecordingVoice ? (
+          {/* If user is blocked, render Blocked Banner instead of text/voice input */}
+          {isContactBlocked ? (
+            <div className="py-2.5 px-4 rounded-2xl bg-slate-900 border border-red-500/30 flex items-center justify-between gap-3 mb-1">
+              <div className="flex items-center gap-2 text-xs text-red-300">
+                <Ban className="w-4 h-4 shrink-0 text-red-400" />
+                <span>You blocked this user. Unblock to send and receive messages.</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleBlockContact}
+                className="px-3 py-1.5 rounded-xl bg-red-500 text-slate-950 font-bold text-xs hover:bg-red-400 transition shrink-0"
+              >
+                Unblock
+              </button>
+            </div>
+          ) : isRecordingVoice ? (
             <div className="flex items-center justify-between gap-2 pb-1">
               <button
                 type="button"
@@ -1668,6 +1892,32 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
                     )}
                   </button>
                 )}
+
+                {/* Safety Actions: Block & Report */}
+                {!conversation.isGroup && (
+                  <div className="w-full flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleToggleBlockContact}
+                      className={`flex-1 min-h-[40px] px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
+                        isContactBlocked
+                          ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25'
+                          : 'bg-red-500/15 border-red-500/40 text-red-300 hover:bg-red-500/25'
+                      }`}
+                    >
+                      <Ban className="w-3.5 h-3.5" />
+                      <span>{isContactBlocked ? 'Unblock User' : 'Block User'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsReportingUser(true)}
+                      className="min-h-[40px] px-3.5 rounded-xl text-xs font-bold bg-amber-500/15 border border-amber-500/40 text-amber-300 hover:bg-amber-500/25 transition flex items-center justify-center gap-1.5"
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Report</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-1.5">
@@ -1853,6 +2103,83 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* DELETE MESSAGE CONFIRMATION DIALOG ("Are you sure?") */}
+      <AnimatePresence>
+        {messageToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMessageToDelete(null)}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-700 p-5 shadow-2xl space-y-4 text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-red-500/15 border border-red-500/40 text-red-400 mx-auto flex items-center justify-center">
+                <Trash2 className="w-6 h-6" />
+              </div>
+
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-white">Delete Message?</h4>
+                <p className="text-xs text-slate-300">
+                  {messageToDelete.type === 'everyone'
+                    ? 'Are you sure? This message will be deleted for everyone in this chat.'
+                    : 'Are you sure? This message will be removed from your chat history.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMessageToDelete(null)}
+                  className="flex-1 min-h-[42px] rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { id, type } = messageToDelete;
+                    if (type === 'everyone') {
+                      onDeleteMessageForEveryone?.(conversation.id, id);
+                      showTransientBanner('Message deleted for everyone.');
+                    } else {
+                      onDeleteMessageForMe?.(conversation.id, id);
+                      showTransientBanner('Message deleted for you.');
+                    }
+                    setMessageToDelete(null);
+                  }}
+                  className="flex-1 min-h-[42px] rounded-xl bg-red-600 text-white font-bold text-xs hover:bg-red-500 transition"
+                >
+                  Yes, Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* REPORT MESSAGE / USER MODAL */}
+      <ReportModal
+        isOpen={Boolean(reportingMessage || isReportingUser)}
+        onClose={() => {
+          setReportingMessage(null);
+          setIsReportingUser(false);
+        }}
+        reportedUserId={conversation.id}
+        reportedUserName={conversation.name}
+        messageId={reportingMessage?.id}
+        messageText={reportingMessage?.text}
+        onReportSubmitted={() => {
+          showTransientBanner('Thanks, we received your report. Our team will review it.');
+        }}
+      />
     </motion.div>
   );
 

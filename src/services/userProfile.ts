@@ -54,6 +54,8 @@ export interface UserProfile {
   studioName?: string;
   primaryGenres?: string[];
   role: 'reader' | 'creator' | 'admin';
+  creatorStatus?: 'none' | 'pending' | 'approved' | 'rejected';
+  blockedUsers?: string[];
   createdAt: string;
   lastLoginAt: string;
   bookmarks: string[];
@@ -429,6 +431,45 @@ export async function createCreatorAccount(
     success: true,
     profile: activeProfile,
   };
+}
+
+export function saveCurrentUserProfile(profile: UserProfile): void {
+  saveLocalProfile(profile);
+}
+
+export async function becomeCreatorAccount(input: {
+  penName: string;
+  bio: string;
+  avatarUrl?: string;
+  email?: string;
+}): Promise<UserProfile> {
+  const current = getCurrentUserProfile();
+  const updated: UserProfile = {
+    ...current,
+    penName: input.penName.trim(),
+    bio: input.bio.trim(),
+    avatarUrl: input.avatarUrl || current.avatarUrl,
+    email: input.email?.trim() || current.email,
+    displayName: input.penName.trim() || current.displayName,
+    role: 'creator',
+    creatorStatus: 'approved',
+    isCreator: true,
+  };
+
+  saveLocalProfile(updated);
+
+  // Sync with oververse backend if logged in
+  try {
+    await patchOververseCreatorProfile({
+      pen_name: input.penName.trim(),
+      bio: input.bio.trim(),
+      role: 'creator',
+    });
+  } catch (e) {
+    // ignore
+  }
+
+  return updated;
 }
 
 export async function signInWithGoogleCreator(): Promise<{

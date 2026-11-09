@@ -154,6 +154,16 @@ const VerifyEmailPage = lazy(() => import('./app/(auth)/verify/page'));
 const ForgotPasswordPage = lazy(() => import('./app/(auth)/forgot/page'));
 const ResetPasswordPage = lazy(() => import('./app/(auth)/reset/page'));
 const CreatorDashboardPage = lazy(() => import('./app/(auth)/dashboard/page'));
+const CreatorDashboardView = lazy(() =>
+  import('./components/creator/CreatorDashboardView').then((m) => ({
+    default: m.CreatorDashboardView,
+  }))
+);
+const AdminApprovalView = lazy(() =>
+  import('./components/admin/AdminApprovalView').then((m) => ({
+    default: m.AdminApprovalView,
+  }))
+);
 
 // Lazy-loaded Modals (mounted on demand only when opened)
 const MangaDetailModal = lazy(() =>
@@ -597,7 +607,8 @@ export default function App() {
     | 'verify'
     | 'forgot'
     | 'reset'
-    | 'dashboard';
+    | 'dashboard'
+    | 'admin';
 
   const VALID_ROUTE_TABS = new Set<string>([
     'privacy',
@@ -616,6 +627,7 @@ export default function App() {
     'forgot',
     'reset',
     'dashboard',
+    'admin',
   ]);
 
   const [activeTab, setActiveTab] = useState<AppRouteTab>(() => {
@@ -1551,18 +1563,9 @@ export default function App() {
     const normalizedEmail = currentUserEmail.toLowerCase();
 
     return ratedMangaList.filter((m) => {
-      if (m.approvalStatus === 'draft') {
-        return false;
-      }
-
-      if (
-        m.approvalStatus === 'pending_review' &&
-        m.submittedByEmail?.toLowerCase() !== normalizedEmail &&
-        !isAdmin
-      ) {
-        return false;
-      }
-      if (m.approvalStatus === 'rejected' && !isAdmin) {
+      // PART 3: APPROVAL SYSTEM - VERY IMPORTANT
+      // Public Home Page should ONLY show mangas where status = "approved". Test that a reader cannot see pending mangas.
+      if (m.approvalStatus && m.approvalStatus !== 'approved') {
         return false;
       }
 
@@ -1888,13 +1891,39 @@ export default function App() {
                 />
               </Suspense>
             )}
-            {/* Route: /dashboard (Protected JWT Creator & Reader Dashboard) */}
+            {/* Route: /dashboard (Part 2: Creator Dashboard - Become Creator, Upload Manga, Chapters, Status) */}
             {activeTab === 'dashboard' && (
               <Suspense fallback={<RouteLoadingFallback />}>
-                <CreatorDashboardPage
-                  onNavigateAuthRoute={handleNavigateAuthRoute}
-                  onOpenPublishingStudio={() => handleTabChange('creators')}
-                  onOpenUploadModal={() => handleOpenPublishStudio()}
+                <CreatorDashboardView
+                  currentUserEmail={currentUserEmail}
+                  mangaList={mangaList}
+                  onCreateManga={(newManga) => {
+                    setMangaList((prev) => [newManga, ...prev]);
+                    safeStorage.setJSON('ka_africa_manga_list', [newManga, ...mangaList]);
+                  }}
+                  onUpdateManga={(updated) => {
+                    setMangaList((prev) =>
+                      prev.map((m) => (m.id === updated.id ? updated : m))
+                    );
+                    safeStorage.setJSON(
+                      'ka_africa_manga_list',
+                      mangaList.map((m) => (m.id === updated.id ? updated : m))
+                    );
+                  }}
+                  onDeleteManga={handleDeleteManga}
+                  onBackToCatalog={() => handleTabChange('readers')}
+                />
+              </Suspense>
+            )}
+
+            {/* Route: /admin (Part 3: Admin Approval Portal for mlungisenimbhele3@gmail.com) */}
+            {activeTab === 'admin' && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <AdminApprovalView
+                  currentUserEmail={currentUserEmail}
+                  mangaList={mangaList}
+                  onApproveManga={handleApproveManga}
+                  onRejectManga={handleRejectManga}
                   onBackToCatalog={() => handleTabChange('readers')}
                 />
               </Suspense>

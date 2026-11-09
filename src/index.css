@@ -2,6 +2,8 @@
 
 /* Low-end, Mid-range & High-end Device Compatibility and Touch Handling */
 html, body {
+  margin: 0;
+  padding: 0;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
@@ -132,6 +134,14 @@ html.tier-high .manga-page-img {
 
 .safe-bottom-inset {
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+.safe-left-inset {
+  padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+}
+
+.safe-right-inset {
+  padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
 }
 
 /* LITE SAVER MODE (Low-End Phone / Budget Mali-Adreno GPU / Low RAM)

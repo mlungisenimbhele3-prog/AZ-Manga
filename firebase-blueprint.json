@@ -45,6 +45,18 @@
         "followingCount": {
           "type": "number"
         },
+        "role": {
+          "type": "string",
+          "enum": ["reader", "creator", "admin"]
+        },
+        "creatorStatus": {
+          "type": "string",
+          "enum": ["none", "pending", "approved", "rejected"]
+        },
+        "blockedUsers": {
+          "type": "array",
+          "description": "List of user IDs blocked by this user"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -744,6 +756,56 @@
         }
       },
       "required": ["id", "commentId", "chapterId", "mangaId", "uid", "createdAt"]
+    },
+    "report": {
+      "title": "Safety Report",
+      "description": "User moderation report for abusive messages and accounts",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reporterUserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reportedUserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "messageId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "messageText": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "details": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 20
+        }
+      },
+      "required": ["id", "reporterUserId", "reportedUserId", "reason", "timestamp", "status"]
     }
   },
   "firestore": {
@@ -802,6 +864,10 @@
     "/chapter_comment_likes/{likeId}": {
       "schema": "chapterCommentLike",
       "description": "Deterministic per-user likes on chapter comments and replies"
+    },
+    "/reports/{reportId}": {
+      "schema": "report",
+      "description": "User submitted safety and moderation reports reviewed by admin"
     }
   }
 }

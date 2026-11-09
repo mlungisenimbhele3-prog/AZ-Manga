@@ -34,12 +34,12 @@ const MangaGridComponent: React.FC<MangaGridProps> = ({
   const resolvedGridClass =
     className ||
     (columns === 2
-      ? 'grid grid-cols-2 gap-3'
+      ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4'
       : columns === 3
-      ? 'grid grid-cols-2 md:grid-cols-3 gap-4'
+      ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4'
       : columns === 4
-      ? 'grid grid-cols-4 gap-4'
-      : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4');
+      ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4'
+      : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-4');
 
   const animationTriggerKey = useMemo(
     () => `${filterKey ?? 'grid'}::${mangaList.map((m) => m.id).join('|')}`,

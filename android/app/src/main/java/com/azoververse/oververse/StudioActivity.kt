@@ -25,10 +25,18 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
+
 open class StudioActivity : BridgeActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Android 15/16 Edge-to-Edge compliance: draw behind status bar and navigation bar
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.isAppearanceLightStatusBars = false
+        insetsController.isAppearanceLightNavigationBars = false
         configureHighRefreshRateDisplay()
     }
 

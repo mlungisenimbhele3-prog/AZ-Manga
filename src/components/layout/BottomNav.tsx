@@ -75,9 +75,12 @@ const BottomNavComponent: React.FC<BottomNavProps> = ({
   return (
     <nav
       aria-label="Bottom Navigation"
-      className="fixed bottom-[50px] left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/80 px-2 py-1.5 shadow-2xl min-[801px]:hidden transform-gpu"
+      className="fixed left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/80 px-2 py-1.5 shadow-2xl transform-gpu"
+      style={{
+        bottom: 'calc(50px + env(safe-area-inset-bottom, 0px))',
+      }}
     >
-      <div className="mx-auto max-w-md flex items-center justify-around">
+      <div className="mx-auto max-w-md sm:max-w-lg md:max-w-xl flex items-center justify-around">
         {tabs.map((tab, index) => {
           const Icon = tab.icon;
           const isActive =

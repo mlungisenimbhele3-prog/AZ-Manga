@@ -26,8 +26,10 @@ import {
   Lock,
   KeyRound,
   EyeOff,
+  Ban,
   X
 } from 'lucide-react';
+import { getBlockedUsersList, unblockUser } from '../services/safetyService';
 import {
   PlayUploadKeyCard,
   ADMIN_UNLOCK_STORAGE_KEY,
@@ -88,6 +90,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [emailInput, setEmailInput] = useState(currentUserEmail);
   const [emailToast, setEmailToast] = useState<string | null>(null);
   const [cacheClearedToast, setCacheClearedToast] = useState<string | null>(null);
+  const [blockedUsers, setBlockedUsers] = useState<Array<{ id: string; name: string; handle?: string; avatar?: string }>>(() =>
+    getBlockedUsersList()
+  );
+
+  const handleUnblockContact = (userId: string) => {
+    unblockUser(userId);
+    setBlockedUsers(getBlockedUsersList());
+    setEmailToast('User unblocked.');
+    setTimeout(() => setEmailToast(null), 3000);
+  };
 
   // Live FPS Counter simulator / detector
   const [currentFps, setCurrentFps] = useState<number>(120);
@@ -576,6 +588,63 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{emailToast}</span>
+            </div>
+          )}
+        </section>
+
+        {/* SECTION 2.5: SAFETY & BLOCKED USERS */}
+        <section className="bg-slate-900/60 rounded-3xl border border-slate-800 p-5 sm:p-6 space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20">
+              <Ban className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-white">
+                BLOCKED USERS & CHAT SAFETY
+              </h2>
+              <p className="text-xs text-slate-400">
+                Manage users you have blocked from sending you direct messages or seeing your chats
+              </p>
+            </div>
+          </div>
+
+          {blockedUsers.length === 0 ? (
+            <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-center py-6">
+              <p className="text-xs text-slate-400">No blocked users.</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                When you block someone in chat or on their profile, they will appear here and cannot message you.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {blockedUsers.map((user) => (
+                <div
+                  key={user.id}
+                  className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id}`}
+                      alt={user.name}
+                      className="w-10 h-10 rounded-full object-cover border border-slate-700 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white truncate">{user.name}</p>
+                      {user.handle && (
+                        <p className="text-[11px] text-slate-400 truncate">{user.handle}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleUnblockContact(user.id)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 transition border border-slate-700 active:scale-95 shrink-0"
+                  >
+                    Unblock
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </section>

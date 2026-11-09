@@ -12,7 +12,9 @@ import {
   RefreshCw,
   MessageSquare,
   Timer,
+  MoreHorizontal,
 } from 'lucide-react';
+import { FullScreenMenu } from '../layout/FullScreenMenu';
 import { Chapter, Manga, UserSubscription } from '../../types';
 import {
   ReadingMode,
@@ -152,8 +154,8 @@ const ReaderPageSurface = React.memo<ReaderPageSurfaceProps>(
       <div
         className={
           mode === 'vertical'
-            ? 'relative w-full flex justify-center items-center bg-black m-0 p-0 border-0 manga-page-container min-h-[320px]'
-            : 'relative w-full h-full flex items-center justify-center bg-black m-0 p-0'
+            ? 'relative w-full max-w-[800px] mx-auto flex justify-center items-center bg-black m-0 p-0 border-0 manga-page-container min-h-[320px]'
+            : 'relative w-full max-w-[800px] mx-auto h-full flex items-center justify-center bg-black m-0 p-0'
         }
       >
         {status === 'loading' && (
@@ -209,10 +211,10 @@ const ReaderPageSurface = React.memo<ReaderPageSurfaceProps>(
             }}
             className={
               mode === 'vertical'
-                ? `max-h-screen w-auto max-w-full object-contain mx-auto select-none block m-0 p-0 manga-page-img reader-page-touch-vertical transition-opacity duration-150 ${
+                ? `max-h-screen w-auto max-w-[800px] object-contain mx-auto select-none block m-0 p-0 manga-page-img reader-page-touch-vertical transition-opacity duration-150 ${
                     status === 'loaded' ? 'opacity-100' : 'opacity-0'
                   }`
-                : `max-h-full h-full w-auto max-w-full object-contain mx-auto select-none block manga-page-img reader-page-touch-pinch transition-opacity duration-150 ${
+                : `max-h-full h-full w-auto max-w-[800px] object-contain mx-auto select-none block manga-page-img reader-page-touch-pinch transition-opacity duration-150 ${
                     status === 'loaded' ? 'opacity-100' : 'opacity-0'
                   }`
             }
@@ -256,6 +258,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const [showOverlay, setShowOverlay] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isCommentsOpen, setIsCommentsOpen] = useState<boolean>(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
 
   // Reading session timer state & completion tracking
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
@@ -1096,6 +1099,18 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
+
+          {/* 3-dots Menu Button */}
+          <button
+            id="reader-more-menu-btn"
+            type="button"
+            onClick={() => setIsMoreMenuOpen(true)}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition text-slate-200"
+            aria-label="More options"
+            title="Menu & Controls"
+          >
+            <MoreHorizontal className="w-5 h-5 text-amber-400" />
+          </button>
         </div>
       </div>
 
@@ -1563,6 +1578,38 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         onRateChapter={handleRateCurrentChapter}
         userChapterRating={chapterRatingStats.userScore}
         averageChapterRating={chapterRatingStats.averageRating}
+      />
+
+      {/* Reader Full-Screen Menu */}
+      <FullScreenMenu
+        isOpen={isMoreMenuOpen}
+        onClose={() => setIsMoreMenuOpen(false)}
+        userSubscription={
+          userSubscription || {
+            tier: 'free',
+            planName: 'Free Reader',
+            price: 'R0.00',
+            activeSince: '2026-09-01',
+            expiresAt: '2026-10-01',
+            autoRenew: false,
+            perks: [],
+            unlockedChapters: [],
+          }
+        }
+        searchQuery=""
+        onSearchChange={() => {}}
+        onTabChange={(tab) => {
+          setIsMoreMenuOpen(false);
+          onBack();
+        }}
+        onSelectFilter={() => {}}
+        onUpgradeClick={() => {
+          setIsMoreMenuOpen(false);
+          onUpgradeClick?.();
+        }}
+        onQuickToggleTier={() => {}}
+        currentLanguage="en"
+        setLanguage={() => {}}
       />
     </div>
   );
