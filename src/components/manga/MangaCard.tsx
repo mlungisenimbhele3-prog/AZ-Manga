@@ -425,16 +425,19 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
           ))}
         </div>
 
-        {/* Interactive 5-Star Reader Rating System */}
+        {/* Interactive 5-Star Reader Rating System (Clipped, Flexible, Compact) */}
         <div
           onClick={(e) => e.stopPropagation()}
-          className="mt-2.5 mb-1 flex items-center justify-between rounded-xl bg-slate-950/80 border border-slate-800/90 px-2.5 py-1.5 transition-colors hover:border-amber-500/40"
+          className="mt-2 mb-1 w-full max-w-full box-border overflow-hidden flex items-center justify-between rounded-xl bg-slate-950/80 border border-slate-800/90 px-2 py-1 transition-colors hover:border-amber-500/40 min-w-0"
           title={`Click any star to submit a 1–5 star rating for ${manga.title}`}
         >
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rate:</span>
+          {/* Left: RATE: label and 5 star icons in a flexible container with 1px gap */}
+          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-hidden">
+            <span className="text-[10px] leading-none font-bold text-slate-400 uppercase tracking-tight shrink-0">
+              Rate:
+            </span>
             <div
-              className="flex items-center gap-0.5"
+              className="inline-flex items-center gap-[1px] shrink-0"
               onMouseLeave={() => setHoverStarScore(null)}
             >
               {([1, 2, 3, 4, 5] as const).map((starVal) => {
@@ -445,13 +448,13 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
                     type="button"
                     onClick={(e) => handleRate(e, starVal)}
                     onMouseEnter={() => setHoverStarScore(starVal)}
-                    className="p-0.5 transition-transform hover:scale-125 focus:outline-none cursor-pointer"
+                    className="p-0 transition-transform hover:scale-110 active:scale-95 focus:outline-none cursor-pointer flex items-center justify-center shrink-0"
                     aria-label={`Rate ${starVal} out of 5 stars`}
                   >
                     <Star
-                      className={`w-3.5 h-3.5 ${
+                      className={`w-3 h-3 ${
                         isLit
-                          ? 'fill-amber-400 text-amber-400 drop-shadow-[0_0_4px_rgba(245,158,11,0.6)]'
+                          ? 'fill-amber-400 text-amber-400 drop-shadow-[0_0_3px_rgba(245,158,11,0.6)]'
                           : 'text-slate-600 hover:text-slate-400'
                       }`}
                     />
@@ -461,16 +464,25 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
             </div>
           </div>
 
-          {justRatedToast ? (
-            <span className="text-[10px] font-black text-amber-300 font-mono animate-fadeIn">
-              {justRatedToast}
-            </span>
-          ) : (
-            <span className="text-[10px] font-mono tabular-nums text-slate-300 flex items-center gap-1">
-              <span className="font-bold text-amber-400">{(manga.rating || 0).toFixed(1)}</span>
-              <span className="text-slate-500 text-[9px]">({manga.ratingCount || 0})</span>
-            </span>
-          )}
+          {/* Right: Numeric rating indicator ('0' or '4.8') */}
+          <div className="shrink-0 flex items-center ml-1 text-right">
+            {justRatedToast ? (
+              <span className="text-[10px] font-black text-amber-300 font-mono animate-fadeIn truncate">
+                {justRatedToast}
+              </span>
+            ) : (
+              <span className="text-[10px] font-mono tabular-nums text-slate-300 flex items-center gap-0.5">
+                <span className="font-bold text-amber-400">
+                  {manga.rating ? (manga.rating % 1 === 0 ? manga.rating : manga.rating.toFixed(1)) : '0'}
+                </span>
+                {manga.ratingCount ? (
+                  <span className="text-slate-500 text-[9px] hidden sm:inline">
+                    ({manga.ratingCount})
+                  </span>
+                ) : null}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-1.5 mt-auto pt-3 text-[11px] text-slate-400 border-t border-slate-800/80 tabular-nums">

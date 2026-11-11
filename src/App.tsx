@@ -592,6 +592,10 @@ export default function App() {
   const [activeReaderManga, setActiveReaderManga] = useState<Manga | null>(null);
   const [activeReaderChapterId, setActiveReaderChapterId] = useState<string>('');
 
+  // Fullscreen Bottom Navigation & Ad Banner Visibility (Single-tap hide / Double-tap show)
+  const [isBottomBarsVisible, setIsBottomBarsVisible] = useState<boolean>(true);
+  const [showTapHint, setShowTapHint] = useState<boolean>(false);
+
   // Tab & Route Navigation state
   type AppRouteTab =
     | 'readers'
@@ -759,6 +763,117 @@ export default function App() {
       setActiveTab('readers');
     }
   }, [activeTab, isAdmin]);
+
+  // Single-tap hide & double-tap show gesture listener for Bottom Navigation & Bottom Ad Banner
+  const singleTapTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const pointerStartRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const isDraggingRef = useRef<boolean>(false);
+
+  React.useEffect(() => {
+    const handlePointerDown = (e: PointerEvent) => {
+      // Only process primary pointer button / touch
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      pointerStartRef.current = { time: Date.now(), x: e.clientX, y: e.clientY };
+      isDraggingRef.current = false;
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!pointerStartRef.current) return;
+      const dist = Math.hypot(
+        e.clientX - pointerStartRef.current.x,
+        e.clientY - pointerStartRef.current.y
+      );
+      if (dist > 12) {
+        isDraggingRef.current = true;
+      }
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      if (!pointerStartRef.current) return;
+      const start = pointerStartRef.current;
+      pointerStartRef.current = null;
+
+      const duration = Date.now() - start.time;
+      const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+
+      // If user dragged/scrolled or long-pressed, do not treat as a tap
+      if (isDraggingRef.current || dist > 12 || duration > 500) {
+        return;
+      }
+
+      const now = Date.now();
+      const lastTap = lastTapRef.current;
+      const target = e.target as HTMLElement | null;
+
+      // Check if target is an interactive UI control or within persistent bars
+      const isInteractive = Boolean(
+        target?.closest(
+          'button, a, input, select, textarea, [role="button"], [role="menuitem"], [role="tab"], [role="dialog"], label, #persistent-bottom-admob-banner, #bottom-nav-bar, nav, header, [data-interactive="true"]'
+        )
+      );
+
+      // Double-tap detection: interval within 40ms - 300ms and within 60px distance
+      const isDoubleTap =
+        lastTap &&
+        now - lastTap.time > 40 &&
+        now - lastTap.time <= 300 &&
+        Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 60;
+
+      if (isDoubleTap) {
+        // Double-tap confirmed: cancel any pending single-tap hide timer (Rule 4)
+        if (singleTapTimerRef.current) {
+          clearTimeout(singleTapTimerRef.current);
+          singleTapTimerRef.current = null;
+        }
+        lastTapRef.current = null;
+
+        // Rule 2: Double tap anywhere on screen = show bottom navigation bar + show bottom ad bar
+        setIsBottomBarsVisible(true);
+        setShowTapHint(false);
+      } else {
+        // First tap: record for double-tap comparison
+        lastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
+
+        if (singleTapTimerRef.current) {
+          clearTimeout(singleTapTimerRef.current);
+          singleTapTimerRef.current = null;
+        }
+
+        // Rule 1: Single tap anywhere on the main content / reading area = hide bottom bars
+        if (!isInteractive) {
+          singleTapTimerRef.current = setTimeout(() => {
+            singleTapTimerRef.current = null;
+            setIsBottomBarsVisible(false);
+            setShowTapHint(true);
+            setTimeout(() => {
+              setShowTapHint(false);
+            }, 3000);
+          }, 300);
+        }
+      }
+    };
+
+    const handlePointerCancel = () => {
+      pointerStartRef.current = null;
+      isDraggingRef.current = false;
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    window.addEventListener('pointerup', handlePointerUp, { passive: true });
+    window.addEventListener('pointercancel', handlePointerCancel, { passive: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+      }
+    };
+  }, []);
 
   // Milestone Celebration Overlay State (Day 7, Day 30, Day 100)
   const [celebrationMilestone, setCelebrationMilestone] = useState<MilestoneCelebrationData | null>(null);
@@ -1652,7 +1767,9 @@ export default function App() {
     <ErrorBoundary>
       <div
         id="manga-app-root"
-        className={`min-h-screen ${isOledMode ? 'bg-black' : 'bg-[#0a0d14]'} text-slate-100 flex flex-col font-sans pb-32`}
+        className={`min-h-screen ${isOledMode ? 'bg-black' : 'bg-[#0a0d14]'} text-slate-100 flex flex-col font-sans transition-[padding] duration-300 ease-in-out ${
+          isBottomBarsVisible ? 'pb-32' : 'pb-4'
+        }`}
       >
         {/* Offline Sync Toast Banner */}
       {syncToastMessage && (
@@ -1827,6 +1944,7 @@ export default function App() {
             onRequestRewardedAd={handleRequestRewardedAd}
             onUpgradeClick={handleOpenSubscriptionModal}
             onBack={handleCloseActiveReader}
+            isBottomBarsVisible={isBottomBarsVisible}
           />
         </Suspense>
       )}
@@ -2218,6 +2336,7 @@ export default function App() {
         onTabChange={handleTabChange}
         isCreator={isCreator}
         isAdmin={isAdmin}
+        isVisible={isBottomBarsVisible}
       />
 
       {/* Footer */}
@@ -2737,9 +2856,35 @@ export default function App() {
       {/* DAILY READING GOAL REWARD NOTIFICATION */}
       <DailyRewardNotification onOpenProfileModal={() => setIsProfileModalOpen(true)} />
 
+      {/* Floating Immersion Mode Hint Pill (When Bottom Bars are Hidden) */}
+      <AnimatePresence>
+        {!isBottomBarsVisible && showTapHint && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.25 }}
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[130] pointer-events-auto"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setIsBottomBarsVisible(true);
+                setShowTapHint(false);
+              }}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-2xl backdrop-blur-md text-[11px] font-medium hover:bg-slate-800 transition active:scale-95"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+              <span>Double-tap screen to show navigation</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Persistent Bottom Google AdMob Banner (Always Visible Across Entire App) */}
       <AdMobBanner
         variant="persistent-bottom"
+        isVisible={isBottomBarsVisible}
         onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
       />
 

@@ -6,12 +6,14 @@ interface BottomNavProps {
   onTabChange: (tab: any) => void;
   isCreator: boolean;
   isAdmin?: boolean;
+  isVisible?: boolean;
 }
 
 const BottomNavComponent: React.FC<BottomNavProps> = ({
   activeTab,
   onTabChange,
   isAdmin = false,
+  isVisible = true,
 }) => {
   const tabs = useMemo(
     () => [
@@ -74,8 +76,13 @@ const BottomNavComponent: React.FC<BottomNavProps> = ({
 
   return (
     <nav
+      id="bottom-nav-bar"
       aria-label="Bottom Navigation"
-      className="fixed left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/80 px-2 py-1.5 shadow-2xl transform-gpu"
+      className={`fixed left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/80 px-2 py-1.5 shadow-2xl transform-gpu transition-all duration-300 ease-in-out ${
+        isVisible
+          ? 'translate-y-0 opacity-100 pointer-events-auto'
+          : 'translate-y-[calc(100%+80px)] opacity-0 pointer-events-none'
+      }`}
       style={{
         bottom: 'calc(50px + env(safe-area-inset-bottom, 0px))',
       }}

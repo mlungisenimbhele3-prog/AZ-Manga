@@ -39,6 +39,7 @@ export interface AdMobBannerProps {
   onUpgradeClick?: () => void;
   variant?: 'inline' | 'persistent-bottom';
   className?: string;
+  isVisible?: boolean;
 }
 
 export const AdMobBanner: React.FC<AdMobBannerProps> = ({
@@ -47,6 +48,7 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
   onUpgradeClick,
   variant = 'inline',
   className = '',
+  isVisible = true,
 }) => {
   const [isNativeBannerActive, setIsNativeBannerActive] = useState(false);
   const [showAdUnitDetails, setShowAdUnitDetails] = useState(false);
@@ -85,12 +87,27 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
     };
   }, [bannerId]);
 
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !isNativeBannerActive) return;
+    import('@capacitor-community/admob')
+      .then(({ AdMob }) => {
+        if (isVisible) {
+          AdMob.resumeBanner().catch(() => {});
+        } else {
+          AdMob.hideBanner().catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, [isVisible, isNativeBannerActive]);
+
   if (variant === 'persistent-bottom') {
     if (isNativeBannerActive) {
       return (
         <div
           id="persistent-admob-native-spacer"
-          className="fixed bottom-0 left-0 right-0 z-[115] h-[50px] pointer-events-none"
+          className={`fixed bottom-0 left-0 right-0 z-[115] h-[50px] pointer-events-none transition-all duration-300 ease-in-out ${
+            isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
+          }`}
           aria-hidden="true"
         />
       );
@@ -101,7 +118,11 @@ export const AdMobBanner: React.FC<AdMobBannerProps> = ({
         id="persistent-bottom-admob-banner"
         role="region"
         aria-label="Google AdMob Sponsored Banner"
-        className={`fixed bottom-0 left-0 right-0 z-[115] bg-slate-950 border-t border-slate-800 px-3 sm:px-5 flex items-center justify-center shadow-2xl select-none ${className}`}
+        className={`fixed bottom-0 left-0 right-0 z-[115] bg-slate-950 border-t border-slate-800 px-3 sm:px-5 flex items-center justify-center shadow-2xl select-none transition-all duration-300 ease-in-out ${
+          isVisible
+            ? 'translate-y-0 opacity-100 pointer-events-auto'
+            : 'translate-y-full opacity-0 pointer-events-none'
+        } ${className}`}
         style={{
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           minHeight: 'calc(50px + env(safe-area-inset-bottom, 0px))',

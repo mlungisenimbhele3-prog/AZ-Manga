@@ -1215,6 +1215,62 @@ class _MangaCardWidget extends StatelessWidget {
                     fontSize: 10,
                   ),
                 ),
+                const SizedBox(height: 6),
+                // 5-Star RATE row fitting perfectly inside card width
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF1E293B)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'RATE: ',
+                                style: TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: List.generate(5, (index) {
+                                  final isLit = index < (manga.rating.round());
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 1),
+                                    child: Icon(
+                                      isLit ? Icons.star_rounded : Icons.star_outline_rounded,
+                                      color: isLit ? const Color(0xFFF59E0B) : const Color(0xFF475569),
+                                      size: 12,
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          manga.rating > 0 ? '${manga.rating}' : '0',
+                          style: const TextStyle(
+                            color: Color(0xFFF59E0B),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

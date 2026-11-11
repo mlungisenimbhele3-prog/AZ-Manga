@@ -66,6 +66,7 @@ export interface ReaderViewProps {
   onRequestRewardedAd?: (chapter: Chapter, onUnlocked?: () => void) => void;
   onUpgradeClick?: () => void;
   dataSaverMode?: boolean;
+  isBottomBarsVisible?: boolean;
 }
 
 interface ReaderPageSurfaceProps {
@@ -236,6 +237,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   onRequestRewardedAd,
   onUpgradeClick,
   dataSaverMode = false,
+  isBottomBarsVisible = true,
 }) => {
   const pages = useMemo(() => chapter?.pages || [], [chapter?.pages]);
   const totalPages = pages.length;
@@ -1411,7 +1413,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
-        className={`fixed bottom-[44px] left-0 right-0 z-50 px-4 py-3.5 bg-black/85 backdrop-blur-md border-t border-white/10 transition-[transform,opacity] duration-200 ease-out space-y-3 safe-bottom-inset ${
+        className={`fixed left-0 right-0 z-50 px-4 py-3.5 bg-black/85 backdrop-blur-md border-t border-white/10 transition-[bottom,transform,opacity] duration-300 ease-in-out space-y-3 safe-bottom-inset ${
+          isBottomBarsVisible ? 'bottom-[50px]' : 'bottom-0'
+        } ${
           showOverlay
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : 'translate-y-full opacity-0 pointer-events-none'
