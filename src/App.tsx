@@ -121,6 +121,9 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() =>
   import('./pages/TermsOfService').then((m) => ({ default: m.TermsOfService }))
 );
+const ContentRules = lazy(() =>
+  import('./pages/ContentRules').then((m) => ({ default: m.ContentRules }))
+);
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
@@ -608,11 +611,15 @@ export default function App() {
     | 'forgot'
     | 'reset'
     | 'dashboard'
-    | 'admin';
+    | 'admin'
+    | 'rules'
+    | 'content-rules';
 
   const VALID_ROUTE_TABS = new Set<string>([
     'privacy',
     'terms',
+    'rules',
+    'content-rules',
     'creators',
     'following',
     'chats',
@@ -1944,6 +1951,14 @@ export default function App() {
                 />
               </Suspense>
             )}
+            {/* Route: /rules or /content-rules */}
+            {(activeTab === 'rules' || activeTab === 'content-rules') && (
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <ContentRules
+                  onClose={() => handleTabChange(legalReturnTabRef.current || 'readers')}
+                />
+              </Suspense>
+            )}
             {/* Route: /settings */}
             {activeTab === 'settings' && (
               <Suspense fallback={<RouteLoadingFallback />}>
@@ -1955,6 +1970,7 @@ export default function App() {
                   onNavigateToHome={() => handleTabChange('readers')}
                   onNavigateToTerms={() => handleTabChange('terms')}
                   onNavigateToPrivacy={() => handleTabChange('privacy')}
+                  onNavigateToContentRules={() => handleTabChange('content-rules')}
                   onNavigateToAwards={() => handleTabChange('awards')}
                 />
               </Suspense>
@@ -2251,6 +2267,12 @@ export default function App() {
                 Terms of Service
               </button>
               <button
+                onClick={() => handleTabChange('content-rules')}
+                className="min-h-[40px] px-1.5 py-2 rounded-xl bg-slate-900/80 border border-slate-800/90 hover:border-amber-500/50 hover:text-amber-400 active:scale-95 transition flex items-center justify-center text-center font-medium leading-tight text-amber-300"
+              >
+                Content Rules
+              </button>
+              <button
                 onClick={() => handleTabChange('settings')}
                 className="min-h-[40px] px-1.5 py-2 rounded-xl bg-slate-900/80 border border-slate-800/90 hover:border-amber-500/50 hover:text-amber-400 active:scale-95 transition flex items-center justify-center text-center font-medium leading-tight"
               >
@@ -2338,6 +2360,13 @@ export default function App() {
                 className="hover:text-amber-400 transition"
               >
                 Terms of Service
+              </button>
+              <span>•</span>
+              <button
+                onClick={() => handleTabChange('content-rules')}
+                className="text-amber-400 hover:text-amber-300 font-semibold transition"
+              >
+                Content Rules
               </button>
               <span>•</span>
               <button

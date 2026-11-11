@@ -79,8 +79,16 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ onClose }) => {
             </p>
           </section>
 
+          <section className="bg-slate-900/60 p-5 rounded-2xl border border-amber-500/30">
+            <h2 className="text-lg font-bold text-amber-400 mb-2">7. Content Rules & Age Rating Policy</h2>
+            <p className="text-slate-300 leading-relaxed">
+              All manga published on AZ OVERVERSE must strictly follow the official <strong>Age Rating Rules</strong> (ALL AGES, 13+, 16+, 18+).
+              Choosing 18+ does not permit pornography or hentai. No explicit sex acts, visible genitals, pornographic content, content involving minors, or real photos of sexual content or gore are permitted anywhere on the platform. All uploads remain &ldquo;Pending Review&rdquo; until approved by an Admin.
+            </p>
+          </section>
+
           <section className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800">
-            <h2 className="text-lg font-bold text-amber-400 mb-2">7. Contact & Support</h2>
+            <h2 className="text-lg font-bold text-amber-400 mb-2">8. Contact & Support</h2>
             <p className="text-slate-300">
               For any legal notices, copyright inquiries, or support inquiries, please reach out to our administration team at:
             </p>

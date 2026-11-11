@@ -19,6 +19,13 @@ import {
   ArrowLeft,
   User,
   ShieldCheck,
+  ShieldAlert,
+  Baby,
+  Users,
+  Flame,
+  Skull,
+  Flag,
+  FileText,
   Check,
 } from 'lucide-react';
 import { Manga, Chapter, ChapterPage } from '../../types';
@@ -79,6 +86,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
   const [newGenres, setNewGenres] = useState<string[]>(['Action']);
   const [newLanguage, setNewLanguage] = useState('English');
   const [newAgeRating, setNewAgeRating] = useState<'All Ages' | '13+' | '16+' | '18+'>('All Ages');
+  const [showContentRulesModal, setShowContentRulesModal] = useState(false);
 
   // Edit Manga Modal States
   const [editingManga, setEditingManga] = useState<Manga | null>(null);
@@ -372,25 +380,38 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
           </div>
         </div>
 
-        {isCreator ? (
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={() => setShowNewMangaModal(true)}
-            className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs shadow-lg hover:brightness-105 active:scale-95 transition flex items-center gap-2"
+            id="creator-dashboard-content-rules-btn"
+            onClick={() => setShowContentRulesModal(true)}
+            className="px-3.5 py-2.5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-amber-500/50 text-slate-300 hover:text-white font-bold text-xs transition active:scale-95 flex items-center gap-1.5 shadow-sm"
+            title="AZ OVERVERSE Age Rating & Content Rules"
           >
-            <Plus className="w-4 h-4" />
-            <span>New Manga</span>
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <span>Content Rules</span>
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowBecomeCreatorModal(true)}
-            className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs shadow-lg hover:brightness-105 active:scale-95 transition flex items-center gap-2"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Become a Creator</span>
-          </button>
-        )}
+
+          {isCreator ? (
+            <button
+              type="button"
+              onClick={() => setShowNewMangaModal(true)}
+              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs shadow-lg hover:brightness-105 active:scale-95 transition flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Manga</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowBecomeCreatorModal(true)}
+              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs shadow-lg hover:brightness-105 active:scale-95 transition flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Become a Creator</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* NON-CREATOR STATE: PROMPT TO BECOME CREATOR */}
@@ -935,13 +956,22 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold uppercase text-slate-400 block">
-                      Age Rating
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold uppercase text-slate-400 block">
+                        Age Rating *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowContentRulesModal(true)}
+                        className="text-[10px] text-amber-400 hover:text-amber-300 font-bold underline"
+                      >
+                        Rules Guide
+                      </button>
+                    </div>
                     <select
                       value={newAgeRating}
                       onChange={(e) => setNewAgeRating(e.target.value as any)}
-                      className="w-full rounded-xl bg-slate-900 border border-slate-800 p-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                      className="w-full rounded-xl bg-slate-900 border border-slate-800 p-2 text-xs text-white focus:outline-none focus:border-amber-400 font-bold"
                     >
                       {AGE_RATING_OPTIONS.map((rate) => (
                         <option key={rate} value={rate}>
@@ -950,6 +980,81 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                       ))}
                     </select>
                   </div>
+                </div>
+
+                {/* Selected Rating Guidance */}
+                {newAgeRating === 'All Ages' && (
+                  <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 text-xs text-emerald-200 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-emerald-300">
+                      <Baby className="w-3.5 h-3.5" />
+                      <span>ALL AGES — For Everyone</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-100/90 leading-relaxed">
+                      No blood, no gore, no swearing, no kissing beyond a quick peck, no scary horror. Think: Sunday morning cartoon.
+                    </p>
+                  </div>
+                )}
+
+                {newAgeRating === '13+' && (
+                  <div className="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/40 text-xs text-cyan-200 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-cyan-300">
+                      <Users className="w-3.5 h-3.5" />
+                      <span>13+ — Young Teen Readers</span>
+                    </div>
+                    <p className="text-[11px] text-cyan-100/90 leading-relaxed">
+                      Mild action violence, a little blood, mild swearing, crushes and romance, spooky but not scary. No gore, no sexual content, no detailed injuries.
+                    </p>
+                  </div>
+                )}
+
+                {newAgeRating === '16+' && (
+                  <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/40 text-xs text-amber-200 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-amber-300">
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>16+ — Older Teen Readers</span>
+                    </div>
+                    <p className="text-[11px] text-amber-100/90 leading-relaxed">
+                      Stronger violence, blood, horror, death, trauma, strong language, suggestive outfits, kissing and romantic tension, implied intimacy off-screen. No explicit sex, no genitalia, no graphic sexual violence.
+                    </p>
+                  </div>
+                )}
+
+                {newAgeRating === '18+' && (
+                  <div className="p-3 rounded-xl bg-rose-950/30 border border-rose-500/40 text-xs text-rose-200 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-rose-300">
+                      <Skull className="w-3.5 h-3.5" />
+                      <span>18+ — Mature Readers Only</span>
+                    </div>
+                    <p className="text-[11px] text-rose-100/90 leading-relaxed">
+                      Intense gore, graphic violence, horror, dark themes, strong language, suggestive themes, implied sex. This is for MATURE readers only.
+                    </p>
+                  </div>
+                )}
+
+                {/* NEVER ALLOWED Notice Box */}
+                <div className="p-3 rounded-xl bg-red-950/30 border border-red-500/40 text-xs text-red-200 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-red-400 text-[11px] uppercase tracking-wide flex items-center gap-1">
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>NEVER ALLOWED — Even in 18+</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowContentRulesModal(true)}
+                      className="text-amber-400 hover:text-amber-300 text-[10px] font-bold underline"
+                    >
+                      View All Rules →
+                    </button>
+                  </div>
+                  <ul className="text-[10px] text-slate-300 space-y-0.5 list-disc list-inside">
+                    <li>No explicit sex acts or visible genitals</li>
+                    <li>No pornographic / hentai content</li>
+                    <li>No sexual content involving minors or characters who look like minors</li>
+                    <li>No real photos of sexual content or real gore</li>
+                  </ul>
+                  <p className="text-[10px] text-amber-200 font-medium pt-1 border-t border-red-500/20">
+                    Choosing 18+ does not mean you can post porn. It means you can post darker, more violent stories. All uploads stay as &ldquo;Pending Review&rdquo; until approved by an Admin.
+                  </p>
                 </div>
 
                 <div className="pt-2 flex items-center justify-end gap-2.5">
@@ -1281,6 +1386,134 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                   className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg transition"
                 >
                   Yes, Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CONTENT RULES MODAL */}
+      <AnimatePresence>
+        {showContentRulesModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-label="AZ OVERVERSE Age Rating Rules"
+            onClick={() => setShowContentRulesModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-amber-500/40 bg-slate-950 p-6 sm:p-8 shadow-2xl text-white space-y-5"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black text-white">
+                      AZ OVERVERSE - Age Rating Rules
+                    </h2>
+                    <p className="text-xs text-slate-400">Content Rules &amp; Publishing Standards</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowContentRulesModal(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs font-semibold leading-relaxed">
+                All manga must follow these rules, no matter what rating you choose. If you break them, your series will be removed.
+              </div>
+
+              {/* 4 Tiers */}
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-emerald-500/40 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-mono font-bold text-xs">
+                      ALL AGES
+                    </span>
+                    <span className="text-xs font-bold text-white">For everyone</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    No blood, no gore, no swearing, no kissing beyond a quick peck, no scary horror. Think: Sunday morning cartoon.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-cyan-500/40 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-lg bg-cyan-500/20 text-cyan-300 font-mono font-bold text-xs">
+                      13+
+                    </span>
+                    <span className="text-xs font-bold text-white">Young Teen Readers</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Mild action violence, a little blood, mild swearing, crushes and romance, spooky but not scary. No gore, no sexual content, no detailed injuries.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-amber-500/40 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 font-mono font-bold text-xs">
+                      16+
+                    </span>
+                    <span className="text-xs font-bold text-white">Older Teen Readers</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Stronger violence, blood, horror, death, trauma, strong language, suggestive outfits, kissing and romantic tension, implied intimacy off-screen. No explicit sex, no genitalia, no graphic sexual violence.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-rose-500/40 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 font-mono font-bold text-xs">
+                      18+
+                    </span>
+                    <span className="text-xs font-bold text-white">Mature Readers Only</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Intense gore, graphic violence, horror, dark themes, strong language, suggestive themes, implied sex. This is for MATURE readers only.
+                  </p>
+                </div>
+              </div>
+
+              {/* NEVER ALLOWED */}
+              <div className="p-4 rounded-2xl bg-red-950/40 border-2 border-red-500/50 space-y-2">
+                <h4 className="text-xs font-black uppercase text-red-300 tracking-wide flex items-center gap-1.5">
+                  <XCircle className="w-4 h-4 text-red-400" />
+                  <span>NEVER ALLOWED — Even in 18+:</span>
+                </h4>
+                <ul className="text-xs text-red-100/90 space-y-1 list-disc list-inside">
+                  <li>No explicit sex acts or visible genitals</li>
+                  <li>No pornographic / hentai content</li>
+                  <li>No sexual content involving minors or characters who look like minors</li>
+                  <li>No real photos of sexual content or real gore</li>
+                </ul>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-900 text-xs text-slate-300 leading-relaxed">
+                Your series will stay as <strong className="text-amber-400">&ldquo;Pending Review&rdquo;</strong> until an Admin checks it. Choosing 18+ does not mean you can post porn. It means you can post darker, more violent stories.
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-[11px] text-slate-400">
+                  If you see something that breaks these rules, report it.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowContentRulesModal(false)}
+                  className="px-5 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs hover:bg-amber-400 transition"
+                >
+                  I Understand
                 </button>
               </div>
             </motion.div>

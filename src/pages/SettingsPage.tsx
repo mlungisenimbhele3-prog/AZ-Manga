@@ -49,6 +49,7 @@ interface SettingsPageProps {
   onNavigateToTerms?: () => void;
   onNavigateToPrivacy?: () => void;
   onNavigateToAwards?: () => void;
+  onNavigateToContentRules?: () => void;
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -60,6 +61,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onNavigateToTerms,
   onNavigateToPrivacy,
   onNavigateToAwards,
+  onNavigateToContentRules,
 }) => {
   // Performance & Smoothness states (persisted in localStorage)
   const [ultraSmooth120Hz, setUltraSmooth120Hz] = useState<boolean>(() => {
@@ -769,6 +771,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 transition border border-slate-700"
               >
                 Open Privacy Policy
+              </button>
+            )}
+            {onNavigateToContentRules && (
+              <button
+                type="button"
+                onClick={onNavigateToContentRules}
+                className="px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-xs font-bold text-amber-300 transition border border-amber-500/30 flex items-center gap-1.5"
+              >
+                <Shield className="w-3.5 h-3.5 text-amber-400" />
+                <span>Content & Age Rules</span>
               </button>
             )}
             {onNavigateToAwards && (

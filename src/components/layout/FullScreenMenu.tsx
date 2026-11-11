@@ -706,6 +706,27 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                   <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
                 </button>
 
+                {/* Content Rules */}
+                <button
+                  type="button"
+                  id="menu-item-content-rules"
+                  onClick={() => {
+                    onTabChange?.('content-rules');
+                    onClose();
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 hover:bg-slate-850 border border-slate-800 text-left transition group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ShieldAlert className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-semibold text-slate-200 group-hover:text-white">
+                      Content & Age Rating Rules
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
+                    Rules →
+                  </span>
+                </button>
+
                 {/* Producer Credit */}
                 <div className="flex items-center gap-2.5 rounded-xl p-2.5 bg-slate-900/40 border border-slate-800/60 text-xs">
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
