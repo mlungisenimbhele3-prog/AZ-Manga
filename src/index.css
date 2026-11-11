@@ -105,15 +105,22 @@ img {
   contain-intrinsic-size: auto 680px;
 }
 
-/* HIGH-END / ULTRA 120Hz EXPERIENCE */
+/* HIGH-END / ULTRA 120Hz & 90Hz EXPERIENCE */
 html.tier-ultra,
 html.tier-high {
   -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+
+html.tier-ultra .smooth-scroll-container,
+html.tier-high .smooth-scroll-container {
+  scroll-behavior: smooth;
 }
 
 html.tier-ultra .manga-page-img,
 html.tier-high .manga-page-img {
   image-rendering: high-quality;
+  transform: translateZ(0);
 }
 
 /* Dynamic Viewport Height Support (100dvh for mobile address bar resilience) */
@@ -187,6 +194,15 @@ html.lite-mode-active .animate-pulse {
 
 html.lite-mode-active [class*="transition"] {
   transition-duration: 0.01ms !important;
+}
+
+html.lite-mode-active * {
+  text-shadow: none !important;
+}
+
+html.lite-mode-active .smooth-scroll-container,
+html.lite-mode-active .fluid-scroller {
+  scroll-behavior: auto !important;
 }
 
 /* Reader Touch & Gesture Physics (Zero inline style allocation) */

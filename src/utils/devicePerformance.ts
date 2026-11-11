@@ -329,14 +329,27 @@ export function detectDeviceCapabilities(forceRefresh = false): DeviceDiagnostic
   const lowerGpu = (gpuRenderer || '').toLowerCase();
   const isBudgetGpu =
     lowerGpu.includes('mali-400') ||
+    lowerGpu.includes('mali-450') ||
     lowerGpu.includes('mali-t') ||
+    lowerGpu.includes('mali-g31') ||
+    lowerGpu.includes('mali-g51') ||
     lowerGpu.includes('mali-g52') ||
     lowerGpu.includes('mali-g57') ||
     lowerGpu.includes('adreno (tm) 3') ||
+    lowerGpu.includes('adreno (tm) 4') ||
+    lowerGpu.includes('adreno (tm) 504') ||
     lowerGpu.includes('adreno (tm) 505') ||
     lowerGpu.includes('adreno (tm) 506') ||
+    lowerGpu.includes('adreno (tm) 508') ||
+    lowerGpu.includes('adreno (tm) 509') ||
     lowerGpu.includes('adreno (tm) 610') ||
+    lowerGpu.includes('adreno (tm) 612') ||
+    lowerGpu.includes('adreno (tm) 613') ||
+    lowerGpu.includes('adreno (tm) 616') ||
     lowerGpu.includes('powervr') ||
+    lowerGpu.includes('vivante') ||
+    lowerGpu.includes('unisoc') ||
+    lowerGpu.includes('spreadtrum') ||
     lowerGpu.includes('swiftshader') ||
     lowerGpu.includes('llvmpipe');
 
@@ -344,10 +357,16 @@ export function detectDeviceCapabilities(forceRefresh = false): DeviceDiagnostic
     lowerGpu.includes('adreno (tm) 7') ||
     lowerGpu.includes('adreno (tm) 8') ||
     lowerGpu.includes('immortalis') ||
+    lowerGpu.includes('mali-g710') ||
+    lowerGpu.includes('mali-g715') ||
+    lowerGpu.includes('mali-g720') ||
+    lowerGpu.includes('mali-g77') ||
+    lowerGpu.includes('mali-g78') ||
     lowerGpu.includes('apple') ||
     lowerGpu.includes('nvidia') ||
     lowerGpu.includes('radeon') ||
-    lowerGpu.includes('arc');
+    lowerGpu.includes('arc') ||
+    lowerGpu.includes('metal');
 
   const isLowBatteryUnplugged =
     typeof cachedBatteryLevel === 'number' &&
