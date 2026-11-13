@@ -5,9 +5,9 @@ import React, {
   useDeferredValue,
   useRef,
   Suspense,
-  lazy,
   startTransition,
 } from 'react';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 import {
   Manga,
   Chapter,
@@ -113,155 +113,155 @@ import {
   Lock,
 } from 'lucide-react';
 
-// Lazy-loaded Full-Screen Reader & Secondary Routes (keeps initial Reader home bundle fast & light)
-const ReaderView = lazy(() =>
+// Lazy-loaded Full-Screen Reader & Secondary Routes (keeps initial Reader home bundle fast & resilient)
+const ReaderView = lazyWithRetry(() =>
   import('./components/reader/ReaderView').then((m) => ({ default: m.ReaderView }))
 );
-const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
-const TermsOfService = lazy(() =>
+const PrivacyPolicy = lazyWithRetry(() => import('./pages/PrivacyPolicy'));
+const TermsOfService = lazyWithRetry(() =>
   import('./pages/TermsOfService').then((m) => ({ default: m.TermsOfService }))
 );
-const ContentRules = lazy(() =>
+const ContentRules = lazyWithRetry(() =>
   import('./pages/ContentRules').then((m) => ({ default: m.ContentRules }))
 );
-const SettingsPage = lazy(() =>
+const SettingsPage = lazyWithRetry(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
-const MangaOfTheYearAwardsPage = lazy(() =>
+const MangaOfTheYearAwardsPage = lazyWithRetry(() =>
   import('./components/awards/MangaOfTheYearAwardsPage').then((m) => ({
     default: m.MangaOfTheYearAwardsPage,
   }))
 );
-const BackdropPage = lazy(() =>
+const BackdropPage = lazyWithRetry(() =>
   import('./pages/BackdropPage').then((m) => ({ default: m.BackdropPage }))
 );
-const CreatorAccountGate = lazy(() =>
+const CreatorAccountGate = lazyWithRetry(() =>
   import('./components/publisher/CreatorAccountGate').then((m) => ({
     default: m.CreatorAccountGate,
   }))
 );
-const CreatorEarningsView = lazy(() =>
+const CreatorEarningsView = lazyWithRetry(() =>
   import('./components/publisher/CreatorEarningsView').then((m) => ({
     default: m.CreatorEarningsView,
   }))
 );
-const ChatsPage = lazy(() =>
+const ChatsPage = lazyWithRetry(() =>
   import('./components/chat/ChatsPage').then((m) => ({ default: m.ChatsPage }))
 );
-const WalletPage = lazy(() =>
+const WalletPage = lazyWithRetry(() =>
   import('./components/wallet/WalletPage').then((m) => ({ default: m.WalletPage }))
 );
-const RegisterPage = lazy(() => import('./app/(auth)/register/page'));
-const LoginPage = lazy(() => import('./app/(auth)/login/page'));
-const VerifyEmailPage = lazy(() => import('./app/(auth)/verify/page'));
-const ForgotPasswordPage = lazy(() => import('./app/(auth)/forgot/page'));
-const ResetPasswordPage = lazy(() => import('./app/(auth)/reset/page'));
-const CreatorDashboardPage = lazy(() => import('./app/(auth)/dashboard/page'));
-const CreatorDashboardView = lazy(() =>
+const RegisterPage = lazyWithRetry(() => import('./app/(auth)/register/page'));
+const LoginPage = lazyWithRetry(() => import('./app/(auth)/login/page'));
+const VerifyEmailPage = lazyWithRetry(() => import('./app/(auth)/verify/page'));
+const ForgotPasswordPage = lazyWithRetry(() => import('./app/(auth)/forgot/page'));
+const ResetPasswordPage = lazyWithRetry(() => import('./app/(auth)/reset/page'));
+const CreatorDashboardPage = lazyWithRetry(() => import('./app/(auth)/dashboard/page'));
+const CreatorDashboardView = lazyWithRetry(() =>
   import('./components/creator/CreatorDashboardView').then((m) => ({
     default: m.CreatorDashboardView,
   }))
 );
-const AdminApprovalView = lazy(() =>
+const AdminApprovalView = lazyWithRetry(() =>
   import('./components/admin/AdminApprovalView').then((m) => ({
     default: m.AdminApprovalView,
   }))
 );
 
 // Lazy-loaded Modals (mounted on demand only when opened)
-const MangaDetailModal = lazy(() =>
+const MangaDetailModal = lazyWithRetry(() =>
   import('./components/manga/MangaDetailModal').then((m) => ({ default: m.MangaDetailModal }))
 );
-const SubscriptionModal = lazy(() =>
+const SubscriptionModal = lazyWithRetry(() =>
   import('./components/subscription/SubscriptionModal').then((m) => ({
     default: m.SubscriptionModal,
   }))
 );
-const PublishModal = lazy(() =>
+const PublishModal = lazyWithRetry(() =>
   import('./components/publisher/PublishModal').then((m) => ({ default: m.PublishModal }))
 );
-const CreatorDashboardModal = lazy(() =>
+const CreatorDashboardModal = lazyWithRetry(() =>
   import('./components/publisher/CreatorDashboardModal').then((m) => ({
     default: m.CreatorDashboardModal,
   }))
 );
-const InterstitialAdModal = lazy(() =>
+const InterstitialAdModal = lazyWithRetry(() =>
   import('./components/ads/InterstitialAdModal').then((m) => ({ default: m.InterstitialAdModal }))
 );
-const RewardedAdModal = lazy(() =>
+const RewardedAdModal = lazyWithRetry(() =>
   import('./components/ads/RewardedAdModal').then((m) => ({ default: m.RewardedAdModal }))
 );
-const AppOpenAdModal = lazy(() =>
+const AppOpenAdModal = lazyWithRetry(() =>
   import('./components/ads/AppOpenAdModal').then((m) => ({ default: m.AppOpenAdModal }))
 );
-const MangaOfTheYearAwardsModal = lazy(() =>
+const MangaOfTheYearAwardsModal = lazyWithRetry(() =>
   import('./components/awards/MangaOfTheYearAwardsModal').then((m) => ({
     default: m.MangaOfTheYearAwardsModal,
   }))
 );
-const GlobalPublishShareModal = lazy(() =>
+const GlobalPublishShareModal = lazyWithRetry(() =>
   import('./components/common/GlobalPublishShareModal').then((m) => ({
     default: m.GlobalPublishShareModal,
   }))
 );
-const AiReportModal = lazy(() =>
+const AiReportModal = lazyWithRetry(() =>
   import('./components/modals/AiReportModal').then((m) => ({ default: m.AiReportModal }))
 );
-const AppStoreModal = lazy(() =>
+const AppStoreModal = lazyWithRetry(() =>
   import('./components/modals/AppStoreModal').then((m) => ({ default: m.AppStoreModal }))
 );
-const MilestoneCelebrationModal = lazy(() =>
+const MilestoneCelebrationModal = lazyWithRetry(() =>
   import('./components/common/MilestoneCelebrationModal').then((m) => ({
     default: m.MilestoneCelebrationModal,
   }))
 );
-const DevicePerformanceModal = lazy(() =>
+const DevicePerformanceModal = lazyWithRetry(() =>
   import('./components/common/DevicePerformanceModal').then((m) => ({
     default: m.DevicePerformanceModal,
   }))
 );
-const ProductivityCommandPalette = lazy(() =>
+const ProductivityCommandPalette = lazyWithRetry(() =>
   import('./components/common/ProductivityCommandPalette').then((m) => ({
     default: m.ProductivityCommandPalette,
   }))
 );
-const SecurityDefenseModal = lazy(() =>
+const SecurityDefenseModal = lazyWithRetry(() =>
   import('./components/common/SecurityDefenseModal').then((m) => ({
     default: m.SecurityDefenseModal,
   }))
 );
-const FcmNotificationBanner = lazy(() =>
+const FcmNotificationBanner = lazyWithRetry(() =>
   import('./components/common/FcmNotificationBanner').then((m) => ({
     default: m.FcmNotificationBanner,
   }))
 );
-const FcmNotificationsModal = lazy(() =>
+const FcmNotificationsModal = lazyWithRetry(() =>
   import('./components/common/FcmNotificationBanner').then((m) => ({
     default: m.FcmNotificationsModal,
   }))
 );
-const WebViewerModal = lazy(() =>
+const WebViewerModal = lazyWithRetry(() =>
   import('./components/common/WebViewerModal').then((m) => ({ default: m.WebViewerModal }))
 );
-const UserProfileModal = lazy(() =>
+const UserProfileModal = lazyWithRetry(() =>
   import('./components/common/UserProfileModal').then((m) => ({ default: m.UserProfileModal }))
 );
-const ApplyAsMangakaModal = lazy(() =>
+const ApplyAsMangakaModal = lazyWithRetry(() =>
   import('./components/modals/ApplyAsMangakaModal').then((m) => ({
     default: m.ApplyAsMangakaModal,
   }))
 );
-const MangakaDashboardModal = lazy(() =>
+const MangakaDashboardModal = lazyWithRetry(() =>
   import('./components/publisher/MangakaDashboardModal').then((m) => ({
     default: m.MangakaDashboardModal,
   }))
 );
-const AdminDashboardModal = lazy(() =>
+const AdminDashboardModal = lazyWithRetry(() =>
   import('./components/publisher/AdminDashboardModal').then((m) => ({
     default: m.AdminDashboardModal,
   }))
 );
-const RecommendationModal = lazy(() =>
+const RecommendationModal = lazyWithRetry(() =>
   import('./components/recommendations/RecommendationModal').then((m) => ({
     default: m.RecommendationModal,
   }))
@@ -641,14 +641,33 @@ export default function App() {
     'admin',
   ]);
 
+  const normalizeRouteAlias = (candidate: string): AppRouteTab | null => {
+    if (candidate === 'reader' || candidate === 'updates' || candidate === 'readers') {
+      return 'readers';
+    }
+    if (candidate === 'hot' || candidate === 'awards') {
+      return 'awards';
+    }
+    if (candidate === 'browse' || candidate === 'canvas' || candidate === 'backdrop') {
+      return 'backdrop';
+    }
+    if (candidate === 'account' || candidate === 'creators') {
+      return 'creators';
+    }
+    if (candidate === 'follow' || candidate === 'shelf' || candidate === 'following') {
+      return 'following';
+    }
+    if (VALID_ROUTE_TABS.has(candidate)) {
+      return candidate as AppRouteTab;
+    }
+    return null;
+  };
+
   const [activeTab, setActiveTab] = useState<AppRouteTab>(() => {
     const hash = window.location.hash.replace(/^#\/?/, '').split('?')[0].toLowerCase();
     const path = window.location.pathname.replace(/^\//, '').toLowerCase();
     const candidate = hash || path;
-    if (VALID_ROUTE_TABS.has(candidate)) {
-      return (candidate === 'canvas' ? 'backdrop' : candidate) as AppRouteTab;
-    }
-    return 'readers';
+    return normalizeRouteAlias(candidate) || 'readers';
   });
   // Creator Studio access is strictly derived from authenticated Creator Account state
 
@@ -657,8 +676,8 @@ export default function App() {
   activeTabRef.current = activeTab;
 
   const handleTabChange = useCallback(
-    (tab: AppRouteTab) => {
-      let targetTab: AppRouteTab = tab === 'canvas' ? 'backdrop' : tab;
+    (tab: AppRouteTab | string) => {
+      let targetTab: AppRouteTab = normalizeRouteAlias(String(tab).toLowerCase()) || 'readers';
       // Security RBAC: Wallet page is only available and visible to the admin
       if (targetTab === 'wallet' && !isAdmin) {
         targetTab = 'readers';
@@ -732,9 +751,7 @@ export default function App() {
       const hash = window.location.hash.replace(/^#\/?/, '').split('?')[0].toLowerCase();
       const path = window.location.pathname.replace(/^\//, '').toLowerCase();
       const candidate = hash || path;
-      let matched: AppRouteTab = VALID_ROUTE_TABS.has(candidate)
-        ? ((candidate === 'canvas' ? 'backdrop' : candidate) as AppRouteTab)
-        : 'readers';
+      let matched: AppRouteTab = normalizeRouteAlias(candidate) || 'readers';
       // Gated: Wallet is only accessible to Admin
       if (matched === 'wallet' && !isAdmin) {
         matched = 'readers';
@@ -1433,17 +1450,13 @@ export default function App() {
     }
   };
 
-  const handleDeleteManga = (mangaId: string) => {
+  const handleDeleteManga = useCallback((mangaId: string) => {
     setMangaList((prev) => {
       const updated = prev.filter((m) => m.id !== mangaId);
-      try {
-        localStorage.setItem('ka_africa_manga_list', JSON.stringify(updated));
-      } catch (e) {
-        console.error(e);
-      }
+      safeStorage.setJSONDeferred('ka_africa_manga_list', updated);
       return updated;
     });
-  };
+  }, []);
 
   const handleAddComment = (text: string, chapterNumber?: number, parentComment?: Comment) => {
     if (!selectedDetailManga) return;
@@ -1767,7 +1780,7 @@ export default function App() {
     <ErrorBoundary>
       <div
         id="manga-app-root"
-        className={`min-h-screen ${isOledMode ? 'bg-black' : 'bg-[#0a0d14]'} text-slate-100 flex flex-col font-sans transition-[padding] duration-300 ease-in-out ${
+        className={`min-h-screen ${isOledMode ? 'bg-black' : 'bg-[#0A0A0A]'} text-slate-100 flex flex-col font-sans transition-[padding] duration-300 ease-in-out ${
           isBottomBarsVisible ? 'pb-32' : 'pb-4'
         }`}
       >
@@ -1835,56 +1848,59 @@ export default function App() {
         onSwitchUserEmail={handleSwitchUserEmail}
       />
 
-      {/* Dynamic Magazine Header Banner */}
-      <div className="border-b border-amber-500/30 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-2">
-        <div className="mx-auto max-w-7xl flex flex-col gap-1.5 text-xs">
-          <div className="flex items-center justify-between gap-3">
-            {/* Left side orange badge text = "WEEKLY AZ STORIES" (2 lines) */}
-            <div className="rounded bg-amber-500 text-black font-black text-[9px] sm:text-[10px] leading-tight px-2.5 py-1 tracking-wider uppercase text-center flex flex-col justify-center shrink-0 shadow-sm">
-              <span>WEEKLY</span>
-              <span>AZ STORIES</span>
+      {/* Dynamic Magazine Header Banner & Chats Strip (Hidden on Updates Home Tab to display Manga Plus strip directly) */}
+      {activeTab !== 'readers' && (
+        <>
+          <div className="border-b border-amber-500/30 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-2">
+            <div className="mx-auto max-w-7xl flex flex-col gap-1.5 text-xs">
+              <div className="flex items-center justify-between gap-3">
+                {/* Left side orange badge text = "WEEKLY AZ STORIES" (2 lines) */}
+                <div className="rounded bg-amber-500 text-black font-black text-[9px] sm:text-[10px] leading-tight px-2.5 py-1 tracking-wider uppercase text-center flex flex-col justify-center shrink-0 shadow-sm">
+                  <span>WEEKLY</span>
+                  <span>AZ STORIES</span>
+                </div>
+                {/* Right side text = "ISSUE #41 • OCTOBER 2026 EDITION" */}
+                <span className="font-extrabold text-white tracking-wide text-xs sm:text-sm font-mono">
+                  ISSUE #41 • OCTOBER 2026 EDITION
+                </span>
+              </div>
+              {/* Flame icon text below: "Weekly Simulpubs & Original Uploads Ready" */}
+              <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
+                <Flame className="w-3.5 h-3.5 fill-amber-400 shrink-0" />
+                <span>Weekly Simulpubs & Original Uploads Ready</span>
+              </div>
             </div>
-            {/* Right side text = "ISSUE #41 • OCTOBER 2026 EDITION" */}
-            <span className="font-extrabold text-white tracking-wide text-xs sm:text-sm font-mono">
-              ISSUE #41 • OCTOBER 2026 EDITION
-            </span>
           </div>
-          {/* Flame icon text below: "Weekly Simulpubs & Original Uploads Ready" */}
-          <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
-            <Flame className="w-3.5 h-3.5 fill-amber-400 shrink-0" />
-            <span>Weekly Simulpubs & Original Uploads Ready</span>
-          </div>
-        </div>
-      </div>
 
-      {/* CHATS & INBOX Strip Below Weekly Issue Banner */}
-      <div className="border-b border-slate-800/80 bg-slate-950/80 px-4 py-2">
-        <div className="mx-auto max-w-7xl flex items-center justify-between gap-3 text-xs">
-          <button
-            onClick={() => handleTabChange('chats')}
-            className="flex items-center gap-2.5 group text-left hover:text-amber-400 transition"
-          >
-            <div className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30 group-hover:bg-amber-500/20 group-hover:text-amber-400 group-hover:border-amber-500/40 transition">
-              <MessageSquare className="w-3.5 h-3.5" />
+          <div className="border-b border-slate-800/80 bg-slate-950/80 px-4 py-2">
+            <div className="mx-auto max-w-7xl flex items-center justify-between gap-3 text-xs">
+              <button
+                onClick={() => handleTabChange('chats')}
+                className="flex items-center gap-2.5 group text-left hover:text-amber-400 transition"
+              >
+                <div className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30 group-hover:bg-amber-500/20 group-hover:text-amber-400 group-hover:border-amber-500/40 transition">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-['Bebas_Neue',sans-serif] text-base sm:text-lg tracking-wider text-white group-hover:text-amber-400 transition">
+                    CHATS & <span className="text-amber-400">INBOX</span>
+                  </span>
+                  <span className="text-slate-400 text-[11px] hidden sm:inline">
+                    • Direct reader, creator & community messages
+                  </span>
+                </div>
+              </button>
+              <button
+                onClick={() => handleTabChange('chats')}
+                className="flex items-center gap-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-300 hover:text-white transition active:scale-95 shadow-sm"
+              >
+                <span>Open Chats</span>
+                <span className="text-amber-400 font-mono">→</span>
+              </button>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-['Bebas_Neue',sans-serif] text-base sm:text-lg tracking-wider text-white group-hover:text-amber-400 transition">
-                CHATS & <span className="text-amber-400">INBOX</span>
-              </span>
-              <span className="text-slate-400 text-[11px] hidden sm:inline">
-                • Direct reader, creator & community messages
-              </span>
-            </div>
-          </button>
-          <button
-            onClick={() => handleTabChange('chats')}
-            className="flex items-center gap-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-300 hover:text-white transition active:scale-95 shadow-sm"
-          >
-            <span>Open Chats</span>
-            <span className="text-amber-400 font-mono">→</span>
-          </button>
-        </div>
-      </div>
+          </div>
+        </>
+      )}
 
       {/* FULL-SCREEN MANGA PLUS MODELED READER (100vh, 100vw, Zero Light Leakage, Object-Contain, Center Tap Overlay) */}
       {activeRatedReaderManga && (
@@ -1949,7 +1965,12 @@ export default function App() {
         </Suspense>
       )}
 
-      <main id="main-container" className="main-container mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 py-6 space-y-6">
+      <main
+        id="main-container"
+        className={`main-container mx-auto w-full max-w-7xl flex-1 ${
+          activeTab === 'readers' ? 'px-0 py-0 space-y-0' : 'px-4 sm:px-6 py-6 space-y-6'
+        }`}
+      >
         {isAdmin && showPlayUploadKeyCard && !activeRatedReaderManga && (
           <PlayUploadKeyCard
             isAdmin={isAdmin}
@@ -2016,26 +2037,31 @@ export default function App() {
                 />
               </Suspense>
             )}
-            {/* Route: /dashboard (Part 2: Creator Dashboard - Become Creator, Upload Manga, Chapters, Status) */}
+            {/* Route: /dashboard (Creator Dashboard - My Manga, Upload, Earnings, ZAR Payouts, Audience) */}
             {activeTab === 'dashboard' && (
               <Suspense fallback={<RouteLoadingFallback />}>
                 <CreatorDashboardView
                   currentUserEmail={currentUserEmail}
+                  isAdmin={isAdmin}
                   mangaList={mangaList}
+                  allComments={allComments}
                   onCreateManga={(newManga) => {
-                    setMangaList((prev) => [newManga, ...prev]);
-                    safeStorage.setJSON('ka_africa_manga_list', [newManga, ...mangaList]);
+                    setMangaList((prev) => {
+                      const next = [newManga, ...prev];
+                      safeStorage.setJSONDeferred('ka_africa_manga_list', next);
+                      return next;
+                    });
                   }}
                   onUpdateManga={(updated) => {
-                    setMangaList((prev) =>
-                      prev.map((m) => (m.id === updated.id ? updated : m))
-                    );
-                    safeStorage.setJSON(
-                      'ka_africa_manga_list',
-                      mangaList.map((m) => (m.id === updated.id ? updated : m))
-                    );
+                    setMangaList((prev) => {
+                      const next = prev.map((m) => (m.id === updated.id ? updated : m));
+                      safeStorage.setJSONDeferred('ka_africa_manga_list', next);
+                      return next;
+                    });
                   }}
                   onDeleteManga={handleDeleteManga}
+                  onViewManga={handleSelectDetailManga}
+                  onOpenApplyCreator={handleOpenApplyMangaka}
                   onBackToCatalog={() => handleTabChange('readers')}
                 />
               </Suspense>
@@ -2108,7 +2134,7 @@ export default function App() {
 
             {/* Route: /readers (Reader Page) */}
             {activeTab === 'readers' && (
-              <div className="space-y-6">
+              <div className="w-full">
                 {/* Quick Resume Reading Banner (Maximizes Reader Productivity) */}
                 {!activeRatedReaderManga && lastReadProgress && (
                   <ResumeReadingBanner

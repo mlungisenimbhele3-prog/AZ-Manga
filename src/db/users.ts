@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { db } from './index.ts';
+import { db, withDbRetry } from './index.ts';
 import { users, DbUser, NewDbUser } from './schema.ts';
 
 export interface PublicUser {
@@ -13,6 +13,7 @@ export interface PublicUser {
   email_verified: boolean;
   totp_enabled: boolean;
   totp_recovery_codes_remaining: number;
+  is_creator: boolean;
   role: 'reader' | 'creator' | 'admin';
   created_at: string;
 }
@@ -28,15 +29,12 @@ function parseRemainingRecoveryCodesCount(rawJson: string | null | undefined): n
 }
 
 /**
- * Strips password_hash, verification_token, reset_token, totp_secret, totp_pending_secret,
- * and totp_recovery_codes hashes before any response leaves the server.
+ * Strips password hashes and internal security tokens before serializing user records.
  */
 export function toPublicUser(row: DbUser): PublicUser {
-  const normalizedRole =
-    row.role === 'admin' || row.role === 'reader' || row.role === 'creator'
-      ? row.role
-      : 'creator';
   const totpActive = Boolean(row.totpEnabled && row.totpSecret);
+  const normalizedRole =
+    row.role === 'admin' ? 'admin' : row.role === 'reader' ? 'reader' : 'creator';
 
   return {
     id: row.id,
@@ -51,6 +49,7 @@ export function toPublicUser(row: DbUser): PublicUser {
     totp_recovery_codes_remaining: totpActive
       ? parseRemainingRecoveryCodesCount(row.totpRecoveryCodes)
       : 0,
+    is_creator: normalizedRole === 'creator' || normalizedRole === 'admin',
     role: normalizedRole,
     created_at:
       row.createdAt instanceof Date
@@ -62,44 +61,50 @@ export function toPublicUser(row: DbUser): PublicUser {
 export async function findUserByEmail(rawEmail: string): Promise<DbUser | null> {
   const email = rawEmail.trim().toLowerCase();
   try {
-    const rows = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    return rows[0] ?? null;
+    return await withDbRetry(async () => {
+      const rows = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      return rows[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] findUserByEmail failed:', error);
-    throw new Error('Authentication database is temporarily unavailable.', { cause: error });
+    throw error;
   }
 }
 
 export async function findUserById(id: string): Promise<DbUser | null> {
   try {
-    const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
-    return rows[0] ?? null;
+    return await withDbRetry(async () => {
+      const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
+      return rows[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] findUserById failed:', error);
-    throw new Error('Authentication database is temporarily unavailable.', { cause: error });
+    throw error;
   }
 }
 
 export async function createUserRecord(input: NewDbUser): Promise<DbUser> {
   try {
-    const inserted = await db
-      .insert(users)
-      .values({
-        ...input,
-        email: input.email.trim().toLowerCase(),
-      })
-      .returning();
+    return await withDbRetry(async () => {
+      const inserted = await db
+        .insert(users)
+        .values({
+          ...input,
+          email: input.email.trim().toLowerCase(),
+        })
+        .returning();
 
-    if (!inserted[0]) {
-      throw new Error('Failed to create user record.');
-    }
-    return inserted[0];
+      if (!inserted[0]) {
+        throw new Error('Failed to create user record.');
+      }
+      return inserted[0];
+    });
   } catch (error: any) {
     if (error?.code === '23505') {
       throw new Error('EMAIL_ALREADY_EXISTS', { cause: error });
     }
     console.error('[DB] createUserRecord failed:', error);
-    throw new Error('Could not register account right now. Please try again.', { cause: error });
+    throw error;
   }
 }
 
@@ -111,41 +116,45 @@ export async function updateUserVerificationToken(
   studioName?: string
 ): Promise<DbUser | null> {
   try {
-    const updatePayload: Partial<NewDbUser> = {
-      verificationToken,
-      updatedAt: new Date(),
-    };
-    if (passwordHash) updatePayload.passwordHash = passwordHash;
-    if (penName) updatePayload.penName = penName;
-    if (studioName) updatePayload.studioName = studioName;
+    return await withDbRetry(async () => {
+      const updatePayload: Partial<NewDbUser> = {
+        verificationToken,
+        updatedAt: new Date(),
+      };
+      if (passwordHash) updatePayload.passwordHash = passwordHash;
+      if (penName) updatePayload.penName = penName;
+      if (studioName) updatePayload.studioName = studioName;
 
-    const updated = await db
-      .update(users)
-      .set(updatePayload)
-      .where(eq(users.id, id))
-      .returning();
-    return updated[0] ?? null;
+      const updated = await db
+        .update(users)
+        .set(updatePayload)
+        .where(eq(users.id, id))
+        .returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] updateUserVerificationToken failed:', error);
-    throw new Error('Failed to update verification token.', { cause: error });
+    throw error;
   }
 }
 
 export async function markUserEmailVerified(id: string): Promise<DbUser | null> {
   try {
-    const updated = await db
-      .update(users)
-      .set({
-        emailVerified: true,
-        verificationToken: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, id))
-      .returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db
+        .update(users)
+        .set({
+          emailVerified: true,
+          verificationToken: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+        .returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] markUserEmailVerified failed:', error);
-    throw new Error('Failed to verify email address.', { cause: error });
+    throw error;
   }
 }
 
@@ -154,18 +163,20 @@ export async function setUserPasswordResetToken(
   resetToken: string | null
 ): Promise<DbUser | null> {
   try {
-    const updated = await db
-      .update(users)
-      .set({
-        resetToken,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, id))
-      .returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db
+        .update(users)
+        .set({
+          resetToken,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+        .returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] setUserPasswordResetToken failed:', error);
-    throw new Error('Failed to save password reset token.', { cause: error });
+    throw error;
   }
 }
 
@@ -174,20 +185,22 @@ export async function updateUserPasswordHash(
   passwordHash: string
 ): Promise<DbUser | null> {
   try {
-    const updated = await db
-      .update(users)
-      .set({
-        passwordHash,
-        resetToken: null,
-        emailVerified: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, id))
-      .returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db
+        .update(users)
+        .set({
+          passwordHash,
+          resetToken: null,
+          emailVerified: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+        .returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] updateUserPasswordHash failed:', error);
-    throw new Error('Failed to update account password.', { cause: error });
+    throw error;
   }
 }
 
@@ -203,33 +216,35 @@ export async function updateUserCreatorProfile(
   }
 ): Promise<DbUser | null> {
   try {
-    const patch: Partial<NewDbUser> = {
-      updatedAt: new Date(),
-    };
-    if (typeof updates.penName === 'string' && updates.penName.trim().length >= 2) {
-      patch.penName = updates.penName.trim();
-    }
-    if (typeof updates.studioName === 'string') {
-      patch.studioName = updates.studioName.trim();
-    }
-    if (typeof updates.bio === 'string') {
-      patch.bio = updates.bio.trim();
-    }
-    if (updates.avatarUrl !== undefined) {
-      patch.avatarUrl = updates.avatarUrl;
-    }
-    if (updates.role) {
-      patch.role = updates.role;
-    }
-    if (updates.backupEmail !== undefined) {
-      patch.backupEmail = updates.backupEmail ? updates.backupEmail.trim().toLowerCase() : null;
-    }
+    return await withDbRetry(async () => {
+      const patch: Partial<NewDbUser> = {
+        updatedAt: new Date(),
+      };
+      if (typeof updates.penName === 'string' && updates.penName.trim().length >= 2) {
+        patch.penName = updates.penName.trim();
+      }
+      if (typeof updates.studioName === 'string') {
+        patch.studioName = updates.studioName.trim();
+      }
+      if (typeof updates.bio === 'string') {
+        patch.bio = updates.bio.trim();
+      }
+      if (updates.avatarUrl !== undefined) {
+        patch.avatarUrl = updates.avatarUrl;
+      }
+      if (updates.role) {
+        patch.role = updates.role;
+      }
+      if (updates.backupEmail !== undefined) {
+        patch.backupEmail = updates.backupEmail ? updates.backupEmail.trim().toLowerCase() : null;
+      }
 
-    const updated = await db.update(users).set(patch).where(eq(users.id, id)).returning();
-    return updated[0] ?? null;
+      const updated = await db.update(users).set(patch).where(eq(users.id, id)).returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] updateUserCreatorProfile failed:', error);
-    throw new Error('Failed to update creator profile.', { cause: error });
+    throw error;
   }
 }
 
@@ -238,18 +253,20 @@ export async function savePendingTotpSecret(
   encryptedPendingSecret: string
 ): Promise<DbUser | null> {
   try {
-    const updated = await db
-      .update(users)
-      .set({
-        totpPendingSecret: encryptedPendingSecret,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, id))
-      .returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db
+        .update(users)
+        .set({
+          totpPendingSecret: encryptedPendingSecret,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+        .returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] savePendingTotpSecret failed:', error);
-    throw new Error('Failed to initialize two-factor setup.', { cause: error });
+    throw error;
   }
 }
 
@@ -259,21 +276,23 @@ export async function activateUserTotp(
   recoveryCodesHashesJson: string
 ): Promise<DbUser | null> {
   try {
-    const updated = await db
-      .update(users)
-      .set({
-        totpEnabled: true,
-        totpSecret: encryptedSecret,
-        totpPendingSecret: null,
-        totpRecoveryCodes: recoveryCodesHashesJson,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, id))
-      .returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db
+        .update(users)
+        .set({
+          totpEnabled: true,
+          totpSecret: encryptedSecret,
+          totpPendingSecret: null,
+          totpRecoveryCodes: recoveryCodesHashesJson,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+        .returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] activateUserTotp failed:', error);
-    throw new Error('Failed to enable two-factor authentication.', { cause: error });
+    throw error;
   }
 }
 
@@ -282,37 +301,41 @@ export async function updateUserRecoveryCodes(
   recoveryCodesHashesJson: string
 ): Promise<DbUser | null> {
   try {
-    const updated = await db
-      .update(users)
-      .set({
-        totpRecoveryCodes: recoveryCodesHashesJson,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, id))
-      .returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db
+        .update(users)
+        .set({
+          totpRecoveryCodes: recoveryCodesHashesJson,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+        .returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] updateUserRecoveryCodes failed:', error);
-    throw new Error('Failed to update recovery codes.', { cause: error });
+    throw error;
   }
 }
 
 export async function disableUserTotp(id: string): Promise<DbUser | null> {
   try {
-    const updated = await db
-      .update(users)
-      .set({
-        totpEnabled: false,
-        totpSecret: null,
-        totpPendingSecret: null,
-        totpRecoveryCodes: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, id))
-      .returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db
+        .update(users)
+        .set({
+          totpEnabled: false,
+          totpSecret: null,
+          totpPendingSecret: null,
+          totpRecoveryCodes: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+        .returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error('[DB] disableUserTotp failed:', error);
-    throw new Error('Failed to disable two-factor authentication.', { cause: error });
+    throw error;
   }
 }

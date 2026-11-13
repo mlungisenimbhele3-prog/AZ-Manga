@@ -16,6 +16,8 @@ import {
   logoutOververseSession,
 } from './oververseAuth';
 
+import { recordReadingHistoryEvent } from './recommendationEngine';
+
 export interface ReadingProgressItem {
   mangaId: string;
   mangaTitle: string;
@@ -24,11 +26,27 @@ export interface ReadingProgressItem {
   chapterNumber: number;
   chapterTitle: string;
   pageNumber: number;
+  pageIndex?: number;
   totalPages: number;
   progressPercent: number;
   updatedAt: string;
   completed?: boolean;
   durationSeconds?: number;
+  bookmarked?: boolean;
+  bookmarkedAt?: string;
+}
+
+export interface ChapterPageBookmark {
+  mangaId: string;
+  mangaTitle: string;
+  mangaCover: string;
+  chapterId: string;
+  chapterNumber: number;
+  chapterTitle: string;
+  pageIndex: number;
+  pageNumber: number;
+  totalPages: number;
+  savedAt: string;
 }
 
 export interface ReadingPreferences {
@@ -60,6 +78,7 @@ export interface UserProfile {
   lastLoginAt: string;
   bookmarks: string[];
   readingProgress: Record<string, ReadingProgressItem>;
+  chapterPageBookmarks?: Record<string, ChapterPageBookmark>;
   preferences: ReadingPreferences;
   following: string[];
   followersCount: number;
@@ -207,6 +226,7 @@ function loadLocalProfile(): UserProfile {
         ? cached.bookmarks
         : DEFAULT_USER_PROFILE.bookmarks,
       readingProgress: cached.readingProgress || {},
+      chapterPageBookmarks: cached.chapterPageBookmarks || {},
       following: Array.isArray(cached.following) ? cached.following : ['c-1', 'c-2'],
     };
   }
@@ -226,7 +246,14 @@ function computeHasCreatorAccount(
 ): boolean {
   if (!authUser || !authUser.email_verified) return false;
   if (isGuestUid(profile.uid) || profile.uid !== authUser.id) return false;
-  return Boolean(profile.isCreator && profile.penName && profile.penName.trim().length >= 2);
+  const isRoleCreator =
+    authUser.role === 'creator' ||
+    authUser.role === 'admin' ||
+    Boolean(authUser.is_creator) ||
+    profile.role === 'creator' ||
+    profile.role === 'admin' ||
+    profile.isCreator;
+  return Boolean(isRoleCreator);
 }
 
 export function getCreatorAuthState(): CreatorAuthState {
@@ -299,9 +326,9 @@ function ensureCreatorApprovedInMangakaDirectory(profile: UserProfile) {
 function mapOververseUserToProfile(user: OververseAuthUser): UserProfile {
   const isAdmin = ADMIN_EMAILS.includes(user.email.toLowerCase()) || user.role === 'admin';
   const isCreator =
+    isAdmin ||
     user.role === 'creator' ||
-    user.role === 'admin' ||
-    Boolean(user.pen_name && user.pen_name.trim().length >= 2);
+    Boolean(user.is_creator);
   const draft = getCreatorFormDraft();
 
   return {
@@ -309,12 +336,12 @@ function mapOververseUserToProfile(user: OververseAuthUser): UserProfile {
     uid: user.id,
     email: user.email,
     backupEmail: user.backup_email !== undefined ? user.backup_email : activeProfile.backupEmail ?? null,
-    displayName: user.pen_name || user.email.split('@')[0] || 'OVERVERSE Creator',
+    displayName: user.pen_name || user.email.split('@')[0] || (isCreator ? 'OVERVERSE Creator' : 'OVERVERSE Reader'),
     avatarUrl: user.avatar_url || activeProfile.avatarUrl || DEFAULT_USER_PROFILE.avatarUrl,
-    bio: user.bio || `Creator at ${user.studio_name || DEFAULT_CREATOR_STUDIO_NAME}.`,
+    bio: user.bio || (isCreator ? `Creator at ${user.studio_name || DEFAULT_CREATOR_STUDIO_NAME}.` : 'Manga reader on AZ OVERVERSE.'),
     isCreator,
-    penName: user.pen_name,
-    studioName: user.studio_name || draft.studioName || `${user.pen_name} Studio`,
+    penName: isCreator ? user.pen_name : undefined,
+    studioName: isCreator ? (user.studio_name || draft.studioName || `${user.pen_name} Studio`) : undefined,
     primaryGenres: draft.primaryGenres || ['Action', 'Fantasy'],
     role: isAdmin ? 'admin' : isCreator ? 'creator' : 'reader',
     createdAt: user.created_at || activeProfile.createdAt,
@@ -499,8 +526,15 @@ export async function signOutCreatorAccount(): Promise<void> {
 export async function saveReadingProgress(
   progress: Omit<ReadingProgressItem, 'updatedAt'>
 ): Promise<void> {
+  const existing = activeProfile.readingProgress[progress.mangaId];
   const fullItem: ReadingProgressItem = {
     ...progress,
+    pageIndex:
+      typeof progress.pageIndex === 'number'
+        ? progress.pageIndex
+        : Math.max(0, (progress.pageNumber || 1) - 1),
+    bookmarked: progress.bookmarked ?? existing?.bookmarked,
+    bookmarkedAt: progress.bookmarkedAt ?? existing?.bookmarkedAt,
     updatedAt: new Date().toISOString(),
   };
 
@@ -515,6 +549,135 @@ export async function saveReadingProgress(
 
 export function getMangaReadingProgress(mangaId: string): ReadingProgressItem | null {
   return activeProfile.readingProgress[mangaId] || null;
+}
+
+function buildChapterBookmarkKey(mangaId: string, chapterId: string): string {
+  return `${mangaId}::${chapterId}`;
+}
+
+export function getChapterPageBookmark(
+  mangaId: string,
+  chapterId: string
+): ChapterPageBookmark | null {
+  if (!mangaId || !chapterId) return null;
+  const key = buildChapterBookmarkKey(mangaId, chapterId);
+  return activeProfile.chapterPageBookmarks?.[key] || null;
+}
+
+export function saveChapterPageBookmark(
+  input: Omit<ChapterPageBookmark, 'savedAt'>
+): ChapterPageBookmark {
+  const savedAt = new Date().toISOString();
+  const totalPages = Math.max(1, input.totalPages || 1);
+  const clampedPageIndex = Math.max(0, Math.min(totalPages - 1, input.pageIndex || 0));
+  const pageNumber = clampedPageIndex + 1;
+
+  const bookmarkRecord: ChapterPageBookmark = {
+    ...input,
+    pageIndex: clampedPageIndex,
+    pageNumber,
+    totalPages,
+    savedAt,
+  };
+
+  const key = buildChapterBookmarkKey(input.mangaId, input.chapterId);
+  const nextBookmarksMap: Record<string, ChapterPageBookmark> = {
+    ...(activeProfile.chapterPageBookmarks || {}),
+    [key]: bookmarkRecord,
+  };
+
+  const progressPercent = Math.round((pageNumber / totalPages) * 100);
+
+  saveLocalProfile({
+    ...activeProfile,
+    chapterPageBookmarks: nextBookmarksMap,
+    readingProgress: {
+      ...activeProfile.readingProgress,
+      [input.mangaId]: {
+        mangaId: input.mangaId,
+        mangaTitle: input.mangaTitle,
+        mangaCover: input.mangaCover,
+        chapterId: input.chapterId,
+        chapterNumber: input.chapterNumber,
+        chapterTitle: input.chapterTitle,
+        pageNumber,
+        pageIndex: clampedPageIndex,
+        totalPages,
+        progressPercent,
+        updatedAt: savedAt,
+        completed: clampedPageIndex >= totalPages - 1,
+        bookmarked: true,
+        bookmarkedAt: savedAt,
+      },
+    },
+  });
+
+  // Persist immediately into last-read resume banner storage
+  safeStorage.setJSON('ka_pulse_last_read', {
+    mangaId: input.mangaId,
+    mangaTitle: input.mangaTitle,
+    coverImage: input.mangaCover,
+    chapterId: input.chapterId,
+    chapterNumber: input.chapterNumber,
+    chapterTitle: input.chapterTitle,
+    pageIndex: clampedPageIndex,
+    totalPages,
+    bookmarked: true,
+    timestamp: savedAt,
+  });
+
+  // Record in reading history for taste profile & easy return
+  recordReadingHistoryEvent(input.mangaId, input.mangaTitle, input.chapterNumber, {
+    chapterId: input.chapterId,
+    pageIndex: clampedPageIndex,
+    totalPages,
+    isBookmark: true,
+  });
+
+  return bookmarkRecord;
+}
+
+export function getSavedChapterResumePageIndex(
+  mangaId: string,
+  chapterId: string,
+  totalPages: number
+): number {
+  if (!mangaId || !chapterId || totalPages <= 0) return 0;
+  const maxIdx = Math.max(0, totalPages - 1);
+
+  // 1. Explicit chapter page bookmark takes highest priority
+  const bookmarked = getChapterPageBookmark(mangaId, chapterId);
+  if (bookmarked && typeof bookmarked.pageIndex === 'number') {
+    return Math.max(0, Math.min(maxIdx, bookmarked.pageIndex));
+  }
+
+  // 2. Saved reading progress for this manga & chapter (if not finished)
+  const prog = getMangaReadingProgress(mangaId);
+  if (prog && prog.chapterId === chapterId && !prog.completed) {
+    const idx =
+      typeof prog.pageIndex === 'number'
+        ? prog.pageIndex
+        : Math.max(0, (prog.pageNumber || 1) - 1);
+    return Math.max(0, Math.min(maxIdx, idx));
+  }
+
+  // 3. Last-read session cache if matching manga + chapter
+  const lastRead = safeStorage.getJSON<{
+    mangaId?: string;
+    chapterId?: string;
+    pageIndex?: number;
+  } | null>('ka_pulse_last_read', null);
+  if (
+    lastRead &&
+    lastRead.mangaId === mangaId &&
+    lastRead.chapterId === chapterId &&
+    typeof lastRead.pageIndex === 'number' &&
+    lastRead.pageIndex < maxIdx
+  ) {
+    return Math.max(0, Math.min(maxIdx, lastRead.pageIndex));
+  }
+
+  return 0;
 }
 
 export function isMangaBookmarked(mangaId: string): boolean {

@@ -145,6 +145,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState(profile.displayName);
   const [editBio, setEditBio] = useState(profile.bio);
+  const [editAvatar, setEditAvatar] = useState(profile.avatarUrl);
 
   const isApprovedMangaka = isUserApprovedMangaka(profile.email);
   const mangakaApp = getMangakaApplicationByEmail(profile.email);
@@ -158,6 +159,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setProfile(current);
       setEditName(current.displayName);
       setEditBio(current.bio);
+      setEditAvatar(current.avatarUrl);
       setStreakData(getReadingStreak());
     }
   }, [isOpen]);
@@ -278,7 +280,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   };
 
   const handleSaveProfileEdits = async () => {
-    const updated = await updateUserBioAndAvatar(editName, editBio);
+    const updated = await updateUserBioAndAvatar(editName, editBio, editAvatar);
     setProfile(updated);
     setIsEditingProfile(false);
     setJustLoggedToast('Profile updated successfully!');
@@ -294,7 +296,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   // Find bookmarked mangas
   const bookmarkedMangas = mangas.filter((m) => profile.bookmarks.includes(m.id));
-  const readingProgressList = Object.values(profile.readingProgress || {});
+  const readingProgressList = Object.values(profile.readingProgress || {}).sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
 
   return (
     <div
@@ -502,7 +506,75 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
 
                 {isEditingProfile ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {/* Avatar Customization */}
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 block mb-1.5">Profile Avatar</label>
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={editAvatar || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=150&auto=format&fit=crop&q=80'}
+                          alt="Avatar preview"
+                          className="w-12 h-12 rounded-full object-cover border-2 border-amber-500 shadow-md shrink-0"
+                        />
+                        <div className="flex-1 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <label className="cursor-pointer px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-bold text-slate-300 hover:text-white hover:border-amber-500/50 transition">
+                              <span>Upload Photo</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = () => {
+                                      if (typeof reader.result === 'string') {
+                                        setEditAvatar(reader.result);
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                            <input
+                              type="url"
+                              value={editAvatar.startsWith('data:') ? '' : editAvatar}
+                              onChange={(e) => setEditAvatar(e.target.value)}
+                              placeholder="Or paste image URL..."
+                              className="flex-1 rounded-xl bg-slate-900 border border-slate-800 px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+
+                          {/* Quick Preset Avatars */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] text-slate-500 font-semibold">Presets:</span>
+                            {[
+                              { label: 'Warrior', url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=150&auto=format&fit=crop&q=80' },
+                              { label: 'Mystic', url: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=150&auto=format&fit=crop&q=80' },
+                              { label: 'Cyber', url: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=150&auto=format&fit=crop&q=80' },
+                              { label: 'Golden Sun', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80' },
+                              { label: 'Shadow', url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=150&auto=format&fit=crop&q=80' },
+                            ].map((preset) => (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => setEditAvatar(preset.url)}
+                                className={`text-[10px] px-2 py-0.5 rounded-lg border transition ${
+                                  editAvatar === preset.url
+                                    ? 'bg-amber-500 text-slate-950 font-bold border-amber-400'
+                                    : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div>
                       <label className="text-[11px] font-bold text-slate-400 block mb-1">Display Name</label>
                       <input
@@ -515,7 +587,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <div>
                       <label className="text-[11px] font-bold text-slate-400 block mb-1">Bio / Status</label>
                       <textarea
-                        rows={3}
+                        rows={2}
                         value={editBio}
                         onChange={(e) => setEditBio(e.target.value)}
                         className="w-full rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
@@ -973,8 +1045,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             <p className="text-[11px] text-amber-300/90 font-medium mt-0.5 truncate">
                               Chapter {item.chapterNumber}: {item.chapterTitle}
                             </p>
-                            <span className="text-[10px] text-slate-500 block mt-0.5">
-                              Page {item.pageNumber} of {item.totalPages} ({item.progressPercent}%)
+                            <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                              {item.bookmarked && (
+                                <Bookmark className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
+                              )}
+                              <span>
+                                Page {item.pageNumber} of {item.totalPages} ({item.progressPercent}%)
+                              </span>
                             </span>
                           </div>
 

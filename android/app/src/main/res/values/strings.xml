@@ -2,8 +2,8 @@
 <resources>
     <string name="app_name">AZ OVERVERSE</string>
     <string name="title_activity_main">AZ OVERVERSE</string>
-    <string name="package_name">com.azoververse.oververse</string>
-    <string name="custom_url_scheme">com.azoververse.oververse</string>
+    <string name="package_name">com.azoververse.manga</string>
+    <string name="custom_url_scheme">com.azoververse.manga</string>
     <string name="server_client_id">197009931605-p16sjppjk069g41lt740g920k9cb9m8s.apps.googleusercontent.com</string>
     <string name="oververse_backend_url">https://ais-pre-cy3finrwpictw7cjwxzt7s-401335544603.europe-west2.run.app</string>
     <string name="admob_app_id">ca-app-pub-7570164094154420~3142297870</string>

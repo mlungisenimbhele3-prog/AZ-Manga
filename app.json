@@ -3,7 +3,7 @@
   "displayName": "AZ OVERVERSE",
   "version": "1.0.3",
   "android": {
-    "package": "com.azoververse.oververse",
+    "package": "com.azoververse.manga",
     "versionCode": 103
   },
   "expo": {
@@ -11,14 +11,14 @@
     "slug": "az-oververse",
     "version": "1.0.3",
     "android": {
-      "package": "com.azoververse.oververse",
+      "package": "com.azoververse.manga",
       "versionCode": 103,
       "config": {
         "googleMobileAdsAppId": "ca-app-pub-7570164094154420~3142297870"
       }
     },
     "ios": {
-      "bundleIdentifier": "com.azoververse.oververse"
+      "bundleIdentifier": "com.azoververse.manga"
     }
   },
   "react-native-google-mobile-ads": {

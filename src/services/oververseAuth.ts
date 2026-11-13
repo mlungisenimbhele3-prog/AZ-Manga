@@ -13,6 +13,7 @@ export interface OververseAuthUser {
   email_verified: boolean;
   totp_enabled: boolean;
   totp_recovery_codes_remaining?: number;
+  is_creator?: boolean;
   role: 'reader' | 'creator' | 'admin';
   created_at: string;
 }
@@ -145,6 +146,7 @@ export async function registerOververseUser(input: {
     });
     const data = await res.json();
     if (!res.ok) {
+      console.error('[Auth Error] /api/auth/register returned:', data?.error || data);
       return {
         success: false,
         error: data?.error || 'Could not create account.',
@@ -157,10 +159,11 @@ export async function registerOververseUser(input: {
       previewVerificationUrl: data.previewVerificationUrl,
       user: data.user,
     };
-  } catch {
+  } catch (err) {
+    console.error('[Auth Error] Exception in registerOververseUser:', err);
     return {
       success: false,
-      error: 'Network error while registering account. Please try again.',
+      error: err instanceof Error ? err.message : 'Network or database error while registering account.',
     };
   }
 }
@@ -267,6 +270,7 @@ export async function loginOververseUser(input: {
     }
 
     if (!res.ok || !data?.accessToken || !data?.user) {
+      console.error('[Auth Error] /api/auth/login returned:', data?.error || data);
       return {
         success: false,
         code: data?.code,
@@ -281,10 +285,11 @@ export async function loginOververseUser(input: {
       refreshToken: data.refreshToken,
       user: data.user,
     };
-  } catch {
+  } catch (err) {
+    console.error('[Auth Error] Exception in loginOververseUser:', err);
     return {
       success: false,
-      error: 'Network error while signing in. Please try again.',
+      error: err instanceof Error ? err.message : 'Network or database error while signing in.',
     };
   }
 }

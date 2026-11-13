@@ -13,21 +13,14 @@ import {
   Sparkles,
   BookOpen,
   Users,
-  Coins,
   Globe,
   Smartphone,
   HelpCircle,
-  FileText,
   LogOut,
   Search,
-  ExternalLink,
   ChevronRight,
-  Bell,
-  Volume2,
-  Lock,
 } from 'lucide-react';
 import { UserSubscription, SubscriptionTier } from '../../types';
-import { PWAInstallButton } from './PWAInstallButton';
 import {
   getCreatorAuthState,
   subscribeToCreatorAuth,
@@ -281,102 +274,48 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                 </div>
               </div>
 
-              {/* 2. Primary Navigation List Items */}
-              <div className="space-y-1.5 pt-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1">
-                  Main Sections
-                </span>
-
-                {/* Dashboard (Creator Dashboard) */}
-                <button
-                  type="button"
-                  id="menu-item-dashboard"
-                  onClick={() => {
-                    if (onOpenCreatorDashboard) {
-                      onOpenCreatorDashboard();
-                    } else {
-                      onTabChange?.('dashboard');
-                    }
-                    onClose();
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-900/60 hover:bg-slate-850 border border-slate-800 hover:border-emerald-500/50 text-left transition group active:scale-[0.99]"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                      <LayoutDashboard className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white group-hover:text-emerald-400 transition">
-                        Dashboard
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        Creator Studio, chapter uploads & analytics
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition" />
-                </button>
-
-                {/* Admin Panel (STRICTLY HIDDEN if user is NOT admin) */}
-                {isAdmin && (
+              {/* 2. CREATOR STUDIO (Only shown if user.is_creator == true or admin) */}
+              {(isCreator || isAdmin) && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/90 px-1">
+                    Creator Studio
+                  </span>
                   <button
                     type="button"
-                    id="menu-item-admin"
+                    id="menu-item-dashboard"
                     onClick={() => {
-                      if (onOpenAdminDashboard) {
-                        onOpenAdminDashboard();
+                      if (onOpenCreatorDashboard) {
+                        onOpenCreatorDashboard();
                       } else {
-                        onTabChange?.('admin');
+                        onTabChange?.('dashboard');
                       }
                       onClose();
                     }}
-                    className="w-full flex items-center justify-between p-3 rounded-xl bg-purple-950/40 hover:bg-purple-950/70 border border-purple-500/50 text-left transition group active:scale-[0.99]"
+                    className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-900/60 hover:bg-slate-850 border border-emerald-500/30 hover:border-emerald-500/60 text-left transition group active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/25 text-purple-300 border border-purple-500/50">
-                        <ShieldAlert className="w-4 h-4" />
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        <LayoutDashboard className="w-4 h-4" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-purple-200">
-                          <span>Admin Panel</span>
-                          <span className="text-[9px] bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded font-mono font-bold">
-                            Mlungiseni
-                          </span>
+                        <div className="text-xs font-bold text-white group-hover:text-emerald-400 transition">
+                          Creator Dashboard
                         </div>
-                        <div className="text-[10px] text-purple-300/70">
-                          Review pending uploads, approve mangas & system controls
+                        <div className="text-[10px] text-slate-400">
+                          My Manga, Uploads, Earnings &amp; ZAR Payouts
                         </div>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition" />
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition" />
                   </button>
-                )}
+                </div>
+              )}
 
-                {/* Settings (Notifications, Push Alerts, Blocked Users, Language) */}
-                <button
-                  type="button"
-                  id="menu-item-settings"
-                  onClick={() => {
-                    onTabChange?.('settings');
-                    onClose();
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-900/60 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/50 text-left transition group active:scale-[0.99]"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                      <Settings className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white group-hover:text-amber-400 transition">
-                        Settings
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        Notifications, push alerts, blocked users, language
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 transition" />
-                </button>
+              {/* 3. PUBLIC MENU (For all logged-in readers) */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1">
+                  Menu
+                </span>
 
                 {/* My Library / Bookmarks */}
                 <button
@@ -398,14 +337,14 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                         My Library / Bookmarks
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        Saved manga series & reading history
+                        Saved manga series &amp; reading history
                       </div>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 transition" />
                 </button>
 
-                {/* Wallet / VIP: Go VIP R89/mo */}
+                {/* Wallet / VIP */}
                 <button
                   type="button"
                   id="menu-item-wallet-vip"
@@ -429,7 +368,7 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                         </span>
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        Zero ads, offline reads & support creators
+                        Zero ads, offline reads &amp; support creators
                       </div>
                     </div>
                   </div>
@@ -437,17 +376,11 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                     Go VIP →
                   </span>
                 </button>
-              </div>
 
-              {/* 3. Catalog & Followed Creators (Preserved Existing Navigation) */}
-              <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1">
-                  Manga & Creators
-                </span>
-
-                {/* Read Library */}
+                {/* All Manga Catalog */}
                 <button
                   type="button"
+                  id="menu-item-catalog"
                   onClick={() => {
                     onTabChange?.('readers');
                     onSelectFilter('all');
@@ -467,6 +400,7 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                 {/* Followed Creators */}
                 <button
                   type="button"
+                  id="menu-item-following"
                   onClick={() => {
                     onTabChange?.('following');
                     onClose();
@@ -481,59 +415,9 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                   </div>
                   <span className="text-[11px] text-slate-400">View Alerts →</span>
                 </button>
-              </div>
 
-              {/* 4. Monetization & App Hub (Preserved Existing Menu Items) */}
-              <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1">
-                  <span>Monetization & App Hub</span>
-                  <Coins className="w-3.5 h-3.5 text-emerald-400" />
-                </div>
-
-                {/* 70% Creator Rev-Share */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onOpenCreatorDashboard) {
-                      onOpenCreatorDashboard();
-                    } else {
-                      onTabChange?.('dashboard');
-                    }
-                    onClose();
-                  }}
-                  className="w-full flex items-center justify-between rounded-xl p-2.5 bg-emerald-950/30 hover:bg-emerald-950/60 border border-emerald-500/30 text-left transition"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      <Coins className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-emerald-300">
-                        70% Creator Rev-Share
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        Google AdMob · Google Play Billing
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-                    70%
-                  </span>
-                </button>
-
-                {/* Live ZAR Payouts */}
-                <div className="flex items-center justify-between rounded-xl p-2.5 bg-slate-900/60 border border-slate-800/80 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">🇿🇦</span>
-                    <span className="font-semibold text-slate-200">Live ZAR Payouts</span>
-                  </div>
-                  <span className="font-mono text-emerald-400 font-bold text-[11px]">
-                    Instant Gross Settlement
-                  </span>
-                </div>
-
-                {/* Reading Tier Toggle */}
-                <div className="flex items-center justify-between rounded-xl p-2 bg-slate-900 border border-slate-800 text-xs">
+                {/* Reading Tier toggle (Free / VIP) */}
+                <div className="flex items-center justify-between rounded-xl p-2.5 bg-slate-900 border border-slate-800 text-xs">
                   <span className="text-[11px] font-semibold text-slate-300">Reading Tier:</span>
                   <div className="inline-flex rounded-lg bg-slate-950 border border-slate-800 p-0.5">
                     <button
@@ -561,98 +445,33 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                   </div>
                 </div>
 
-                {/* PWA Install */}
-                <PWAInstallButton
-                  fullWidth
-                  alwaysShowInMenu
-                  onOpenStoreModal={() => {
+                {/* Settings */}
+                <button
+                  type="button"
+                  id="menu-item-settings"
+                  onClick={() => {
+                    onTabChange?.('settings');
                     onClose();
-                    onOpenStoreModal?.();
                   }}
-                />
-
-                {/* Play Store Hub */}
-                {onOpenStoreModal && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onOpenStoreModal();
-                    }}
-                    className="min-h-[44px] w-full flex items-center justify-between rounded-xl p-2.5 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 text-left transition"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Smartphone className="w-4 h-4 text-cyan-400 shrink-0" />
-                      <span className="text-xs font-semibold text-slate-200">
-                        AZ OVERVERSE Play Store Hub
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-cyan-400">com.azoververse.oververse</span>
-                  </button>
-                )}
-
-                {/* Download Signed AAB */}
-                <a
-                  href="/AZ-OVERVERSE-signed.aab"
-                  download="AZ-OVERVERSE-signed.aab"
-                  onClick={onClose}
-                  className="min-h-[44px] w-full flex items-center justify-between rounded-xl p-2.5 bg-cyan-950/30 hover:bg-cyan-950/50 border border-cyan-500/40 text-left transition"
+                  className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-900/60 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/50 text-left transition group active:scale-[0.99]"
                 >
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-xs font-bold text-cyan-200">
-                      Download AZ-OVERVERSE-signed.aab
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                      <Settings className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white group-hover:text-amber-400 transition">
+                        Settings
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        Notifications, push alerts, blocked users, language
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-mono font-bold text-emerald-400">v1.0.2 Signed</span>
-                </a>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 transition" />
+                </button>
 
-                {/* Defense x5 Security */}
-                {onOpenSecurityDefense && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenSecurityDefense();
-                      onClose();
-                    }}
-                    className="w-full flex items-center justify-between rounded-xl p-2 bg-slate-900/50 hover:bg-slate-800/60 border border-slate-800/80 text-left transition"
-                  >
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                      <span className="text-xs font-semibold text-slate-200">Defense ×5 Security Suite</span>
-                    </div>
-                    <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                      Active
-                    </span>
-                  </button>
-                )}
-
-                {/* Global Live Status */}
-                {onOpenGlobalShare && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenGlobalShare();
-                      onClose();
-                    }}
-                    className="w-full flex items-center justify-between rounded-xl p-2 bg-blue-950/30 hover:bg-blue-950/50 border border-blue-500/30 text-left transition"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-blue-400 animate-pulse" />
-                      <span className="text-xs font-semibold text-blue-200">Global Live Status</span>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-400">Online 🟢</span>
-                  </button>
-                )}
-              </div>
-
-              {/* 5. Help & Support + Legal */}
-              <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1">
-                  Support & Policies
-                </span>
-
-                {/* Help & Support */}
+                {/* Help */}
                 <button
                   type="button"
                   id="menu-item-help"
@@ -662,88 +481,115 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                   <div className="flex items-center gap-2.5">
                     <HelpCircle className="w-4 h-4 text-amber-400" />
                     <span className="text-xs font-semibold text-slate-200 group-hover:text-white">
-                      Help & Support
+                      Help
                     </span>
                   </div>
-                  <span className="text-[11px] text-slate-400">Contact →</span>
+                  <span className="text-[11px] text-slate-400">Support →</span>
                 </button>
-
-                {/* Privacy Policy */}
-                <button
-                  type="button"
-                  id="menu-item-privacy"
-                  onClick={() => {
-                    onTabChange?.('privacy');
-                    onClose();
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 hover:bg-slate-850 border border-slate-800 text-left transition group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <FileText className="w-4 h-4 text-slate-400" />
-                    <span className="text-xs font-semibold text-slate-200 group-hover:text-white">
-                      Privacy Policy
-                    </span>
-                  </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
-                </button>
-
-                {/* Terms of Service */}
-                <button
-                  type="button"
-                  id="menu-item-terms"
-                  onClick={() => {
-                    onTabChange?.('terms');
-                    onClose();
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 hover:bg-slate-850 border border-slate-800 text-left transition group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <FileText className="w-4 h-4 text-slate-400" />
-                    <span className="text-xs font-semibold text-slate-200 group-hover:text-white">
-                      Terms of Service
-                    </span>
-                  </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
-                </button>
-
-                {/* Content Rules */}
-                <button
-                  type="button"
-                  id="menu-item-content-rules"
-                  onClick={() => {
-                    onTabChange?.('content-rules');
-                    onClose();
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 hover:bg-slate-850 border border-slate-800 text-left transition group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <ShieldAlert className="w-4 h-4 text-amber-400" />
-                    <span className="text-xs font-semibold text-slate-200 group-hover:text-white">
-                      Content & Age Rating Rules
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
-                    Rules →
-                  </span>
-                </button>
-
-                {/* Producer Credit */}
-                <div className="flex items-center gap-2.5 rounded-xl p-2.5 bg-slate-900/40 border border-slate-800/60 text-xs">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
-                    🎬
-                  </div>
-                  <div>
-                    <div className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">
-                      Executive Producer
-                    </div>
-                    <div className="text-xs font-bold text-amber-300">
-                      Produced by Mlungiseni Mbhele
-                    </div>
-                  </div>
-                </div>
               </div>
 
-              {/* 6. Log Out - In Red at the Bottom */}
+              {/* 4. ADMIN MENU (Only shown if user.role === 'admin') */}
+              {isAdmin && (
+                <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-purple-300 px-1">
+                    <span>Monetization &amp; App Hub</span>
+                    <ShieldAlert className="w-3.5 h-3.5 text-purple-400" />
+                  </div>
+
+                  {/* Admin Panel */}
+                  <button
+                    type="button"
+                    id="menu-item-admin"
+                    onClick={() => {
+                      if (onOpenAdminDashboard) {
+                        onOpenAdminDashboard();
+                      } else {
+                        onTabChange?.('admin');
+                      }
+                      onClose();
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl bg-purple-950/40 hover:bg-purple-950/70 border border-purple-500/50 text-left transition group active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/25 text-purple-300 border border-purple-500/50">
+                        <ShieldAlert className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-purple-200">
+                          <span>Admin Panel</span>
+                          <span className="text-[9px] bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded font-mono font-bold">
+                            Mlungiseni
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-purple-300/70">
+                          Review pending uploads, approve mangas &amp; system controls
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition" />
+                  </button>
+
+                  {/* AZ OVERVERSE Play Store Hub */}
+                  {onOpenStoreModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenStoreModal();
+                      }}
+                      className="min-h-[44px] w-full flex items-center justify-between rounded-xl p-2.5 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 text-left transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Smartphone className="w-4 h-4 text-cyan-400 shrink-0" />
+                        <span className="text-xs font-semibold text-slate-200">
+                          AZ OVERVERSE Play Store Hub
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-cyan-400">com.azoververse.manga</span>
+                    </button>
+                  )}
+
+                  {/* Defense x5 Security Suite */}
+                  {onOpenSecurityDefense && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenSecurityDefense();
+                        onClose();
+                      }}
+                      className="w-full flex items-center justify-between rounded-xl p-2.5 bg-slate-900/50 hover:bg-slate-800/60 border border-slate-800/80 text-left transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                        <span className="text-xs font-semibold text-slate-200">Defense ×5 Security Suite</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                        Active
+                      </span>
+                    </button>
+                  )}
+
+                  {/* Global Live Status */}
+                  {onOpenGlobalShare && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenGlobalShare();
+                        onClose();
+                      }}
+                      className="w-full flex items-center justify-between rounded-xl p-2.5 bg-blue-950/30 hover:bg-blue-950/50 border border-blue-500/30 text-left transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-blue-400 animate-pulse" />
+                        <span className="text-xs font-semibold text-blue-200">Global Live Status</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-400">Online</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* 5. Log Out */}
               <div className="pt-3 border-t border-slate-800/80">
                 {showLogoutConfirm ? (
                   <div className="rounded-xl border border-red-500/40 bg-red-950/30 p-3 space-y-2.5">
@@ -820,9 +666,9 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                     </a>
                   </div>
                   <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-1.5 text-[11px]">
-                    <span className="font-semibold text-slate-200">Creator Earnings Notice:</span>
+                    <span className="font-semibold text-slate-200">Creator Payouts (ZAR) Notice:</span>
                     <p className="text-slate-400 leading-relaxed">
-                      AZ OVERVERSE creators receive 70% revenue share paid out monthly via Gross Settlement.
+                      Earnings come from AdMob ads + Google Play Billing VIP. OVERVERSE receives payment from Google, then pays creators their 70% share. Payouts are reviewed and paid within 7-14 working days. Minimum payout R100.
                     </p>
                   </div>
                 </div>

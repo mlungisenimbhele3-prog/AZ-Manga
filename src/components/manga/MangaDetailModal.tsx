@@ -688,37 +688,10 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                     <h2 className="text-xl sm:text-2xl font-black text-white truncate drop-shadow">
                       {activeManga.title}
                     </h2>
-                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                    <div className="mt-0.5">
                       <p className="text-xs text-slate-300 truncate">
                         By <span className="font-semibold text-white">{activeManga.author}</span> • Art by {activeManga.artist}
                       </p>
-                      <button
-                        type="button"
-                        onClick={handleToggleFollowAuthor}
-                        className={`follow-button inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all duration-200 select-none shadow-sm cursor-pointer ${
-                          isFollowPulsing
-                            ? 'scale-95 animate-pulse ring-2 ring-amber-400 bg-amber-500/30'
-                            : 'hover:scale-[1.03] active:scale-95'
-                        } ${
-                          isFollowingAuthor
-                            ? 'border-amber-500/70 bg-amber-500/20 text-amber-300'
-                            : 'border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white'
-                        }`}
-                        title={isFollowingAuthor ? `Unfollow ${activeManga.author}` : `Follow ${activeManga.author} for new releases`}
-                      >
-                        {isFollowingAuthor ? (
-                          <>
-                            <UserCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            <span>Following</span>
-                            <Bell className="w-3 h-3 text-amber-400 fill-amber-400/30 shrink-0 ml-0.5" />
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            <span>Follow Author</span>
-                          </>
-                        )}
-                      </button>
                     </div>
                     <p className="text-[11px] text-amber-400/90 font-semibold mt-0.5">
                       Executive Producer: Mlungiseni Mbhele
@@ -728,7 +701,117 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
               </div>
 
               {/* Modal Body */}
-              <div className="p-6 space-y-6">
+              <div className="p-4 sm:p-6 space-y-5">
+                {/* 1. Genres */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {activeManga.genres.map((genre, idx) => (
+                    <span
+                      key={`${modalId}-genre-${genre}-${idx}`}
+                      className="rounded-full px-3 py-1 text-xs font-bold text-white shadow-sm"
+                      style={{
+                        backgroundColor: getGenreColor(genre),
+                      }}
+                    >
+                      {genre}
+                    </span>
+                  ))}
+                </div>
+
+                {/* 2. Action Button Row — ONLY 3 buttons: Favorite, Add to Library, Follow Author */}
+                <div className="grid grid-cols-3 gap-2 w-full">
+                  <button
+                    id="detail-toggle-favorite-btn"
+                    type="button"
+                    onClick={() => onToggleFavorite?.(activeManga.id)}
+                    className={`min-h-[42px] min-w-0 flex items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold transition ${
+                      isFavorite
+                        ? 'border-rose-500 bg-rose-600/20 text-rose-300'
+                        : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+                    }`}
+                    title={isFavorite ? 'Remove from favorites' : 'Add to personal favorites collection'}
+                  >
+                    <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${isFavorite ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
+                    <span className="truncate">{isFavorite ? 'Favorited' : 'Favorite'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (manga) {
+                        toggleMangaBookmark(manga.id, manga.title, manga.coverImage);
+                        setIsBookmarked(!isBookmarked);
+                      }
+                    }}
+                    className={`min-h-[42px] min-w-0 flex items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold transition ${
+                      isBookmarked
+                        ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                        : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <Bookmark className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${isBookmarked ? 'fill-amber-400 text-amber-400' : ''}`} />
+                    <span className="truncate">{isBookmarked ? 'In Library' : 'Add to Library'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="detail-follow-author-action-btn"
+                    onClick={handleToggleFollowAuthor}
+                    className={`follow-button min-h-[42px] min-w-0 flex items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                      isFollowPulsing
+                        ? 'scale-95 animate-pulse ring-2 ring-amber-400 bg-amber-500/30'
+                        : 'active:scale-95'
+                    } ${
+                      isFollowingAuthor
+                        ? 'border-amber-500 bg-amber-500/20 text-amber-300 shadow-sm'
+                        : 'border-slate-700 hover:bg-slate-800 text-slate-300 hover:text-white'
+                    }`}
+                    title={isFollowingAuthor ? `Unfollow ${activeManga.author}` : `Follow ${activeManga.author} for new chapter push notifications`}
+                  >
+                    {isFollowingAuthor ? (
+                      <>
+                        <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+                        <span className="truncate">Following</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
+                        <span className="truncate">Follow Author</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* 3. Full-Width Non-Clickable Coming Soon Banner (or Start Ch. 1 CTA when live) */}
+                {isMangaComingSoon(activeManga) ? (
+                  <div
+                    id="detail-coming-soon-banner"
+                    className="w-full flex items-center justify-start gap-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-300 px-4 py-3 text-xs font-bold shadow-sm select-none"
+                  >
+                    <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Coming Soon • Panels In Production</span>
+                  </div>
+                ) : firstChapter ? (
+                  <button
+                    id="detail-start-reading-btn"
+                    type="button"
+                    onClick={() => onStartReading(firstChapter.id)}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 px-5 py-3 text-xs font-black text-black transition shadow-lg"
+                  >
+                    <Play className="w-4 h-4 fill-black" />
+                    <span>Start Ch. 1</span>
+                  </button>
+                ) : null}
+
+                {/* 4. Synopsis */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    Synopsis
+                  </h4>
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    {activeManga.synopsis}
+                  </p>
+                </div>
+
                 {/* Banned Alert Banner */}
                 {activeManga.isBanned && (
                   <div className="rounded-2xl border border-rose-500/80 bg-gradient-to-r from-rose-950/80 via-slate-900 to-rose-950/60 p-4 flex items-center justify-between gap-3 shadow-lg shadow-rose-950/40">
@@ -821,111 +904,7 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                   </div>
                 )}
 
-                {/* Action Row & Tags */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {activeManga.genres.map((genre, idx) => (
-                      <span
-                        key={`${modalId}-genre-${genre}-${idx}`}
-                        className="rounded-full px-3 py-1 text-xs font-bold text-white shadow-sm"
-                        style={{
-                          backgroundColor: getGenreColor(genre),
-                        }}
-                      >
-                        {genre}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      id="detail-toggle-favorite-btn"
-                      onClick={() => onToggleFavorite?.(activeManga.id)}
-                      className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
-                        isFavorite
-                          ? 'border-rose-500 bg-rose-600/20 text-rose-300'
-                          : 'border-slate-700 hover:bg-slate-800 text-slate-300'
-                      }`}
-                      title={isFavorite ? 'Remove from favorites' : 'Add to personal favorites collection'}
-                    >
-                      <Heart className={`w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
-                      <span>{isFavorite ? 'Favorited' : 'Favorite'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        if (manga) {
-                          toggleMangaBookmark(manga.id, manga.title, manga.coverImage);
-                          setIsBookmarked(!isBookmarked);
-                        }
-                      }}
-                      className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
-                        isBookmarked
-                          ? 'border-amber-500 bg-amber-500/20 text-amber-300'
-                          : 'border-slate-700 hover:bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-amber-400' : ''}`} />
-                      <span>{isBookmarked ? 'In Library' : 'Add to Library'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      id="detail-follow-author-action-btn"
-                      onClick={handleToggleFollowAuthor}
-                      className={`follow-button flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all duration-200 cursor-pointer ${
-                        isFollowPulsing
-                          ? 'scale-95 animate-pulse ring-2 ring-amber-400 bg-amber-500/30'
-                          : 'hover:scale-[1.02] active:scale-95'
-                      } ${
-                        isFollowingAuthor
-                          ? 'border-amber-500 bg-amber-500/20 text-amber-300 shadow-sm'
-                          : 'border-slate-700 hover:bg-slate-800 text-slate-300 hover:text-white'
-                      }`}
-                      title={isFollowingAuthor ? `Unfollow ${activeManga.author}` : `Follow ${activeManga.author} for new chapter push notifications`}
-                    >
-                      {isFollowingAuthor ? (
-                        <>
-                          <UserCheck className="w-4 h-4 text-amber-400" />
-                          <span>Following</span>
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="w-4 h-4 text-slate-400" />
-                          <span>Follow Author</span>
-                        </>
-                      )}
-                    </button>
-
-                    {isMangaComingSoon(activeManga) ? (
-                      <div className="flex items-center gap-2 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 px-4 py-2 text-xs font-bold shadow-sm">
-                        <Clock className="w-4 h-4 text-amber-400" />
-                        <span>Coming Soon • Panels In Production</span>
-                      </div>
-                    ) : firstChapter ? (
-                      <button
-                        id="detail-start-reading-btn"
-                        onClick={() => onStartReading(firstChapter.id)}
-                        className="flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 px-5 py-2 text-xs font-bold text-black transition shadow-lg"
-                      >
-                        <Play className="w-4 h-4 fill-black" />
-                        <span>Start Ch. 1</span>
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-
-                {/* Synopsis */}
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Synopsis
-                  </h4>
-                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                    {activeManga.synopsis}
-                  </p>
-                </div>
-
-                {/* Series Overall Average Rating & Interactive 1–5 Star Rating Bar */}
+                {/* 5. Series Overall Average Rating & Interactive 1–5 Star Rating Bar */}
                 <div
                   id="manga-series-rating-card"
                   className="rounded-2xl border border-slate-800 bg-slate-950/75 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"

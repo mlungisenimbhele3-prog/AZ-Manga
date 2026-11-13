@@ -16,21 +16,14 @@ export interface OververseJwtClaims extends JwtPayload {
   purpose: TokenPurpose;
 }
 
-let cachedFallbackSecret: string | null = null;
-
 export function getJwtSecret(): string {
-  const configured = process.env.JWT_SECRET?.trim();
-  if (configured && configured.length >= 16) {
-    return configured;
-  }
-  if (!cachedFallbackSecret) {
-    const seed = `${process.env.SQL_DB_NAME || 'az-oververse'}:${process.env.SQL_USER || 'creator-auth'}:oververse-jwt-v1`;
-    cachedFallbackSecret = crypto.createHash('sha256').update(seed).digest('hex');
-    console.warn(
-      '[OVERVERSE Auth] JWT_SECRET not set in environment; using derived runtime secret. Configure JWT_SECRET in production.'
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error(
+      'JWT_SECRET is missing from environment variables. Please define JWT_SECRET in your .env file.'
     );
   }
-  return cachedFallbackSecret;
+  return secret;
 }
 
 export function getDerivedEncryptionKey(): Buffer {

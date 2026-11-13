@@ -119,6 +119,7 @@ export function RegisterPage({
     setIsSubmitting(false);
 
     if (!res.success) {
+      console.error('[Register Error Details]', res.error);
       setServerError(res.error || 'Could not create your account. Please try again.');
       return;
     }

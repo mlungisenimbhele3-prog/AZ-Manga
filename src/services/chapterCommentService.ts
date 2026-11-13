@@ -15,7 +15,7 @@ import {
   setDoc,
   updateDoc,
   where,
-} from './firebase';
+} from './localDataStore';
 import { getCurrentUserProfile } from './userProfile';
 import { safeStorage } from '../utils/safeStorage';
 import { checkClientRateLimit, logSecurityEvent } from '../utils/securitySanitizer';

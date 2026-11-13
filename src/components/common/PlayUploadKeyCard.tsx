@@ -21,7 +21,7 @@ export const PLAY_UPLOAD_KEY_INFO = {
   alias: 'upload',
   validityDays: 10000,
   distinguishedName: 'CN=AZ OVERVERSE, O=AZ OVERVERSE, C=ZA',
-  packageName: 'com.azoververse.oververse',
+  packageName: 'com.azoververse.manga',
   sha1: '79:C1:6B:96:71:58:03:E3:7E:2A:5B:C4:2F:C7:E8:43:27:4D:2B:5B',
   sha256:
     '92:36:6C:BF:69:41:4F:63:59:BD:95:CD:14:04:27:CE:EF:2B:13:1C:B8:65:2B:BC:6D:11:6D:74:DF:E5:EA:2C',

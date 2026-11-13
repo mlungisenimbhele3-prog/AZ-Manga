@@ -492,7 +492,7 @@ export const INITIAL_MESSAGES_BY_CONVERSATION: Record<string, ChatMessage[]> = {
       sender: 'AZ Editorial & Publisher Support',
       senderRole: 'Official Platform Desk',
       senderIsVIP: false,
-      text: 'Hello Creator! Your AZ OVERVERSE Studio profile and package ID com.azoververse.oververse are verified.',
+      text: 'Hello Creator! Your AZ OVERVERSE Studio profile and package ID com.azoververse.manga are verified.',
       timestamp: '14:10',
       dateGroup: 'Yesterday',
       isMe: false,

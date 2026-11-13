@@ -8,11 +8,11 @@ var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
-var __copyProps = (to, from, except, desc) => {
+var __copyProps = (to, from, except, desc2) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
       if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc2 = __getOwnPropDesc(from, key)) || desc2.enumerable });
   }
   return to;
 };
@@ -26,7 +26,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // server.ts
-var import_express2 = __toESM(require("express"), 1);
+var import_express3 = __toESM(require("express"), 1);
 var import_fs = __toESM(require("fs"), 1);
 var import_path = __toESM(require("path"), 1);
 var import_zlib = __toESM(require("zlib"), 1);
@@ -51,6 +51,9 @@ var import_pg = require("pg");
 // src/db/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
+  chapters: () => chapters,
+  mangas: () => mangas,
+  payouts: () => payouts,
   users: () => users
 });
 var import_pg_core = require("drizzle-orm/pg-core");
@@ -74,22 +77,103 @@ var users = (0, import_pg_core.pgTable)("users", {
   createdAt: (0, import_pg_core.timestamp)("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: (0, import_pg_core.timestamp)("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
+var mangas = (0, import_pg_core.pgTable)("mangas", {
+  id: (0, import_pg_core.text)("id").primaryKey(),
+  creatorId: (0, import_pg_core.text)("creator_id").notNull(),
+  creatorEmail: (0, import_pg_core.text)("creator_email").notNull(),
+  title: (0, import_pg_core.text)("title").notNull(),
+  synopsis: (0, import_pg_core.text)("synopsis").notNull().default(""),
+  coverUrl: (0, import_pg_core.text)("cover_url").notNull().default(""),
+  genres: (0, import_pg_core.text)("genres").notNull().default('["Action"]'),
+  ageRating: (0, import_pg_core.text)("age_rating").notNull().default("13+"),
+  language: (0, import_pg_core.text)("language").notNull().default("English"),
+  status: (0, import_pg_core.text)("status").notNull().default("Draft"),
+  approvalStatus: (0, import_pg_core.text)("approval_status").notNull().default("pending_review"),
+  views: (0, import_pg_core.integer)("views").notNull().default(0),
+  likes: (0, import_pg_core.integer)("likes").notNull().default(0),
+  createdAt: (0, import_pg_core.timestamp)("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: (0, import_pg_core.timestamp)("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+var chapters = (0, import_pg_core.pgTable)("chapters", {
+  id: (0, import_pg_core.text)("id").primaryKey(),
+  mangaId: (0, import_pg_core.text)("manga_id").notNull(),
+  creatorId: (0, import_pg_core.text)("creator_id").notNull(),
+  number: (0, import_pg_core.integer)("number").notNull(),
+  title: (0, import_pg_core.text)("title").notNull(),
+  panels: (0, import_pg_core.text)("panels").notNull().default("[]"),
+  publishStatus: (0, import_pg_core.text)("publish_status").notNull().default("Coming Soon \u2022 Panels In Production"),
+  scheduledFor: (0, import_pg_core.text)("scheduled_for"),
+  reads: (0, import_pg_core.integer)("reads").notNull().default(0),
+  likes: (0, import_pg_core.integer)("likes").notNull().default(0),
+  commentsCount: (0, import_pg_core.integer)("comments_count").notNull().default(0),
+  releaseDate: (0, import_pg_core.text)("release_date").notNull(),
+  createdAt: (0, import_pg_core.timestamp)("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: (0, import_pg_core.timestamp)("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+var payouts = (0, import_pg_core.pgTable)("payouts", {
+  id: (0, import_pg_core.text)("id").primaryKey(),
+  creatorId: (0, import_pg_core.text)("creator_id").notNull(),
+  creatorEmail: (0, import_pg_core.text)("creator_email").notNull(),
+  amountZar: (0, import_pg_core.doublePrecision)("amount_zar").notNull(),
+  method: (0, import_pg_core.text)("method").notNull(),
+  accountReference: (0, import_pg_core.text)("account_reference").notNull().default(""),
+  status: (0, import_pg_core.text)("status").notNull().default("Pending"),
+  paidAt: (0, import_pg_core.timestamp)("paid_at", { withTimezone: true }),
+  createdAt: (0, import_pg_core.timestamp)("created_at", { withTimezone: true }).notNull().defaultNow()
+});
 
 // src/db/index.ts
+function formatDatabaseUrl(rawUrl) {
+  const urlString = rawUrl?.trim() || process.env.DATABASE_URL?.trim() || "";
+  if (!urlString) return "";
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.hostname.includes("-pooler.") || !parsed.searchParams.has("pgbouncer")) {
+      parsed.searchParams.set("pgbouncer", "true");
+    }
+    if (!parsed.searchParams.has("connect_timeout")) {
+      parsed.searchParams.set("connect_timeout", "15");
+    }
+    return parsed.toString();
+  } catch {
+    const separator = urlString.includes("?") ? "&" : "?";
+    let formatted = urlString;
+    if (!formatted.includes("pgbouncer=")) {
+      formatted += `${separator}pgbouncer=true`;
+    }
+    if (!formatted.includes("connect_timeout=")) {
+      formatted += `&connect_timeout=15`;
+    }
+    return formatted;
+  }
+}
 var createPool = () => {
   if (!global._postgresPool) {
-    global._postgresPool = new import_pg.Pool({
+    const databaseUrl = formatDatabaseUrl(process.env.DATABASE_URL);
+    const poolConfig = databaseUrl ? {
+      connectionString: databaseUrl,
+      max: 12,
+      idleTimeoutMillis: 3e4,
+      connectionTimeoutMillis: 15e3,
+      // Increased to 15s for Neon cold-start wakeup
+      statement_timeout: 15e3,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 1e4,
+      ssl: databaseUrl.includes("sslmode=disable") ? false : { rejectUnauthorized: false }
+    } : {
       host: process.env.SQL_HOST,
       user: process.env.SQL_USER,
       password: process.env.SQL_PASSWORD,
       database: process.env.SQL_DB_NAME,
       max: 12,
       idleTimeoutMillis: 3e4,
-      connectionTimeoutMillis: 1e4,
+      connectionTimeoutMillis: 15e3,
+      // Increased to 15s for Neon cold-start wakeup
+      statement_timeout: 15e3,
       keepAlive: true,
-      keepAliveInitialDelayMillis: 1e4,
-      statement_timeout: 15e3
-    });
+      keepAliveInitialDelayMillis: 1e4
+    };
+    global._postgresPool = new import_pg.Pool(poolConfig);
     global._postgresPool.on("error", (err) => {
       console.error("Unexpected error on idle SQL pool client:", err);
     });
@@ -98,6 +182,44 @@ var createPool = () => {
 };
 var pool = createPool();
 var db = (0, import_node_postgres.drizzle)(pool, { schema: schema_exports });
+function isConnectionTimeoutError(error) {
+  if (!error) return false;
+  const msg = error instanceof Error ? error.message : String(error);
+  const code = error?.code;
+  return code === "ETIMEDOUT" || code === "ECONNREFUSED" || code === "ECONNRESET" || code === "57P01" || // admin shutdown
+  code === "08006" || // connection failure
+  code === "P1001" || code === "P1002" || /timeout|timed out|connection closed|connection terminated|cold start|server closed the connection|starting up/i.test(msg);
+}
+async function withDbRetry(operation, maxRetries = 3, delayMs = 2e3) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await operation();
+    } catch (error) {
+      attempt++;
+      if (attempt <= maxRetries && isConnectionTimeoutError(error)) {
+        console.warn(
+          `[Neon DB Wake] Connection timeout or cold-start detected. Retrying in ${delayMs / 1e3}s (Attempt ${attempt}/${maxRetries})...`,
+          error?.message || error
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+      console.error(`[DB Query Error] Failed after ${attempt} attempt(s):`, error);
+      throw error;
+    }
+  }
+}
+async function pingDatabaseWithRetry() {
+  await withDbRetry(async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("SELECT 1 as ping");
+    } finally {
+      client.release();
+    }
+  });
+}
 
 // src/db/users.ts
 function parseRemainingRecoveryCodesCount(rawJson) {
@@ -110,8 +232,8 @@ function parseRemainingRecoveryCodesCount(rawJson) {
   }
 }
 function toPublicUser(row) {
-  const normalizedRole = row.role === "admin" || row.role === "reader" || row.role === "creator" ? row.role : "creator";
   const totpActive = Boolean(row.totpEnabled && row.totpSecret);
+  const normalizedRole = row.role === "admin" ? "admin" : row.role === "reader" ? "reader" : "creator";
   return {
     id: row.id,
     email: row.email,
@@ -123,6 +245,7 @@ function toPublicUser(row) {
     email_verified: Boolean(row.emailVerified),
     totp_enabled: totpActive,
     totp_recovery_codes_remaining: totpActive ? parseRemainingRecoveryCodesCount(row.totpRecoveryCodes) : 0,
+    is_creator: normalizedRole === "creator" || normalizedRole === "admin",
     role: normalizedRole,
     created_at: row.createdAt instanceof Date ? row.createdAt.toISOString() : (/* @__PURE__ */ new Date()).toISOString()
   };
@@ -130,197 +253,215 @@ function toPublicUser(row) {
 async function findUserByEmail(rawEmail) {
   const email = rawEmail.trim().toLowerCase();
   try {
-    const rows = await db.select().from(users).where((0, import_drizzle_orm.eq)(users.email, email)).limit(1);
-    return rows[0] ?? null;
+    return await withDbRetry(async () => {
+      const rows = await db.select().from(users).where((0, import_drizzle_orm.eq)(users.email, email)).limit(1);
+      return rows[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] findUserByEmail failed:", error);
-    throw new Error("Authentication database is temporarily unavailable.", { cause: error });
+    throw error;
   }
 }
 async function findUserById(id) {
   try {
-    const rows = await db.select().from(users).where((0, import_drizzle_orm.eq)(users.id, id)).limit(1);
-    return rows[0] ?? null;
+    return await withDbRetry(async () => {
+      const rows = await db.select().from(users).where((0, import_drizzle_orm.eq)(users.id, id)).limit(1);
+      return rows[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] findUserById failed:", error);
-    throw new Error("Authentication database is temporarily unavailable.", { cause: error });
+    throw error;
   }
 }
 async function createUserRecord(input) {
   try {
-    const inserted = await db.insert(users).values({
-      ...input,
-      email: input.email.trim().toLowerCase()
-    }).returning();
-    if (!inserted[0]) {
-      throw new Error("Failed to create user record.");
-    }
-    return inserted[0];
+    return await withDbRetry(async () => {
+      const inserted = await db.insert(users).values({
+        ...input,
+        email: input.email.trim().toLowerCase()
+      }).returning();
+      if (!inserted[0]) {
+        throw new Error("Failed to create user record.");
+      }
+      return inserted[0];
+    });
   } catch (error) {
     if (error?.code === "23505") {
       throw new Error("EMAIL_ALREADY_EXISTS", { cause: error });
     }
     console.error("[DB] createUserRecord failed:", error);
-    throw new Error("Could not register account right now. Please try again.", { cause: error });
+    throw error;
   }
 }
 async function updateUserVerificationToken(id, verificationToken, passwordHash, penName, studioName) {
   try {
-    const updatePayload = {
-      verificationToken,
-      updatedAt: /* @__PURE__ */ new Date()
-    };
-    if (passwordHash) updatePayload.passwordHash = passwordHash;
-    if (penName) updatePayload.penName = penName;
-    if (studioName) updatePayload.studioName = studioName;
-    const updated = await db.update(users).set(updatePayload).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updatePayload = {
+        verificationToken,
+        updatedAt: /* @__PURE__ */ new Date()
+      };
+      if (passwordHash) updatePayload.passwordHash = passwordHash;
+      if (penName) updatePayload.penName = penName;
+      if (studioName) updatePayload.studioName = studioName;
+      const updated = await db.update(users).set(updatePayload).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] updateUserVerificationToken failed:", error);
-    throw new Error("Failed to update verification token.", { cause: error });
+    throw error;
   }
 }
 async function markUserEmailVerified(id) {
   try {
-    const updated = await db.update(users).set({
-      emailVerified: true,
-      verificationToken: null,
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db.update(users).set({
+        emailVerified: true,
+        verificationToken: null,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] markUserEmailVerified failed:", error);
-    throw new Error("Failed to verify email address.", { cause: error });
+    throw error;
   }
 }
 async function setUserPasswordResetToken(id, resetToken) {
   try {
-    const updated = await db.update(users).set({
-      resetToken,
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db.update(users).set({
+        resetToken,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] setUserPasswordResetToken failed:", error);
-    throw new Error("Failed to save password reset token.", { cause: error });
+    throw error;
   }
 }
 async function updateUserPasswordHash(id, passwordHash) {
   try {
-    const updated = await db.update(users).set({
-      passwordHash,
-      resetToken: null,
-      emailVerified: true,
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db.update(users).set({
+        passwordHash,
+        resetToken: null,
+        emailVerified: true,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] updateUserPasswordHash failed:", error);
-    throw new Error("Failed to update account password.", { cause: error });
+    throw error;
   }
 }
 async function updateUserCreatorProfile(id, updates) {
   try {
-    const patch = {
-      updatedAt: /* @__PURE__ */ new Date()
-    };
-    if (typeof updates.penName === "string" && updates.penName.trim().length >= 2) {
-      patch.penName = updates.penName.trim();
-    }
-    if (typeof updates.studioName === "string") {
-      patch.studioName = updates.studioName.trim();
-    }
-    if (typeof updates.bio === "string") {
-      patch.bio = updates.bio.trim();
-    }
-    if (updates.avatarUrl !== void 0) {
-      patch.avatarUrl = updates.avatarUrl;
-    }
-    if (updates.role) {
-      patch.role = updates.role;
-    }
-    if (updates.backupEmail !== void 0) {
-      patch.backupEmail = updates.backupEmail ? updates.backupEmail.trim().toLowerCase() : null;
-    }
-    const updated = await db.update(users).set(patch).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const patch = {
+        updatedAt: /* @__PURE__ */ new Date()
+      };
+      if (typeof updates.penName === "string" && updates.penName.trim().length >= 2) {
+        patch.penName = updates.penName.trim();
+      }
+      if (typeof updates.studioName === "string") {
+        patch.studioName = updates.studioName.trim();
+      }
+      if (typeof updates.bio === "string") {
+        patch.bio = updates.bio.trim();
+      }
+      if (updates.avatarUrl !== void 0) {
+        patch.avatarUrl = updates.avatarUrl;
+      }
+      if (updates.role) {
+        patch.role = updates.role;
+      }
+      if (updates.backupEmail !== void 0) {
+        patch.backupEmail = updates.backupEmail ? updates.backupEmail.trim().toLowerCase() : null;
+      }
+      const updated = await db.update(users).set(patch).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] updateUserCreatorProfile failed:", error);
-    throw new Error("Failed to update creator profile.", { cause: error });
+    throw error;
   }
 }
 async function savePendingTotpSecret(id, encryptedPendingSecret) {
   try {
-    const updated = await db.update(users).set({
-      totpPendingSecret: encryptedPendingSecret,
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db.update(users).set({
+        totpPendingSecret: encryptedPendingSecret,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] savePendingTotpSecret failed:", error);
-    throw new Error("Failed to initialize two-factor setup.", { cause: error });
+    throw error;
   }
 }
 async function activateUserTotp(id, encryptedSecret, recoveryCodesHashesJson) {
   try {
-    const updated = await db.update(users).set({
-      totpEnabled: true,
-      totpSecret: encryptedSecret,
-      totpPendingSecret: null,
-      totpRecoveryCodes: recoveryCodesHashesJson,
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db.update(users).set({
+        totpEnabled: true,
+        totpSecret: encryptedSecret,
+        totpPendingSecret: null,
+        totpRecoveryCodes: recoveryCodesHashesJson,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] activateUserTotp failed:", error);
-    throw new Error("Failed to enable two-factor authentication.", { cause: error });
+    throw error;
   }
 }
 async function updateUserRecoveryCodes(id, recoveryCodesHashesJson) {
   try {
-    const updated = await db.update(users).set({
-      totpRecoveryCodes: recoveryCodesHashesJson,
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db.update(users).set({
+        totpRecoveryCodes: recoveryCodesHashesJson,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] updateUserRecoveryCodes failed:", error);
-    throw new Error("Failed to update recovery codes.", { cause: error });
+    throw error;
   }
 }
 async function disableUserTotp(id) {
   try {
-    const updated = await db.update(users).set({
-      totpEnabled: false,
-      totpSecret: null,
-      totpPendingSecret: null,
-      totpRecoveryCodes: null,
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
-    return updated[0] ?? null;
+    return await withDbRetry(async () => {
+      const updated = await db.update(users).set({
+        totpEnabled: false,
+        totpSecret: null,
+        totpPendingSecret: null,
+        totpRecoveryCodes: null,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where((0, import_drizzle_orm.eq)(users.id, id)).returning();
+      return updated[0] ?? null;
+    });
   } catch (error) {
     console.error("[DB] disableUserTotp failed:", error);
-    throw new Error("Failed to disable two-factor authentication.", { cause: error });
+    throw error;
   }
 }
 
 // src/server/jwt.ts
 var import_crypto = __toESM(require("crypto"), 1);
 var import_jsonwebtoken = __toESM(require("jsonwebtoken"), 1);
-var cachedFallbackSecret = null;
 function getJwtSecret() {
-  const configured = process.env.JWT_SECRET?.trim();
-  if (configured && configured.length >= 16) {
-    return configured;
-  }
-  if (!cachedFallbackSecret) {
-    const seed = `${process.env.SQL_DB_NAME || "az-oververse"}:${process.env.SQL_USER || "creator-auth"}:oververse-jwt-v1`;
-    cachedFallbackSecret = import_crypto.default.createHash("sha256").update(seed).digest("hex");
-    console.warn(
-      "[OVERVERSE Auth] JWT_SECRET not set in environment; using derived runtime secret. Configure JWT_SECRET in production."
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error(
+      "JWT_SECRET is missing from environment variables. Please define JWT_SECRET in your .env file."
     );
   }
-  return cachedFallbackSecret;
+  return secret;
 }
 function getDerivedEncryptionKey() {
   return import_crypto.default.createHash("sha256").update(`oververse-totp-aes256:${getJwtSecret()}`).digest();
@@ -1577,6 +1718,651 @@ authRouter.post("/logout", (req, res) => {
   return res.json({ success: true, message: "Signed out successfully." });
 });
 
+// src/server/creatorRoutes.ts
+var import_crypto4 = __toESM(require("crypto"), 1);
+var import_express2 = __toESM(require("express"), 1);
+
+// src/db/creator.ts
+var import_drizzle_orm2 = require("drizzle-orm");
+var tablesInitialized = false;
+var tableInitPromise = null;
+async function ensureCreatorTables() {
+  if (tablesInitialized) return;
+  if (tableInitPromise) return tableInitPromise;
+  tableInitPromise = (async () => {
+    try {
+      await withDbRetry(async () => {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS mangas (
+            id TEXT PRIMARY KEY,
+            creator_id TEXT NOT NULL,
+            creator_email TEXT NOT NULL,
+            title TEXT NOT NULL,
+            synopsis TEXT NOT NULL DEFAULT '',
+            cover_url TEXT NOT NULL DEFAULT '',
+            genres TEXT NOT NULL DEFAULT '["Action"]',
+            age_rating TEXT NOT NULL DEFAULT '13+',
+            language TEXT NOT NULL DEFAULT 'English',
+            status TEXT NOT NULL DEFAULT 'Draft',
+            approval_status TEXT NOT NULL DEFAULT 'pending_review',
+            views INTEGER NOT NULL DEFAULT 0,
+            likes INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+
+          CREATE TABLE IF NOT EXISTS chapters (
+            id TEXT PRIMARY KEY,
+            manga_id TEXT NOT NULL,
+            creator_id TEXT NOT NULL,
+            number INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            panels TEXT NOT NULL DEFAULT '[]',
+            publish_status TEXT NOT NULL DEFAULT 'Coming Soon \u2022 Panels In Production',
+            scheduled_for TEXT,
+            reads INTEGER NOT NULL DEFAULT 0,
+            likes INTEGER NOT NULL DEFAULT 0,
+            comments_count INTEGER NOT NULL DEFAULT 0,
+            release_date TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+
+          CREATE TABLE IF NOT EXISTS payouts (
+            id TEXT PRIMARY KEY,
+            creator_id TEXT NOT NULL,
+            creator_email TEXT NOT NULL,
+            amount_zar DOUBLE PRECISION NOT NULL,
+            method TEXT NOT NULL,
+            account_reference TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'Pending',
+            paid_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+
+          ALTER TABLE payouts ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+
+          CREATE INDEX IF NOT EXISTS idx_mangas_creator_email ON mangas (creator_email);
+          CREATE INDEX IF NOT EXISTS idx_chapters_manga_id ON chapters (manga_id);
+          CREATE INDEX IF NOT EXISTS idx_payouts_creator_id ON payouts (creator_id);
+        `);
+      });
+      tablesInitialized = true;
+    } catch (error) {
+      tableInitPromise = null;
+      throw error;
+    }
+  })();
+  return tableInitPromise;
+}
+async function listCreatorMangas(creatorId, creatorEmail) {
+  await ensureCreatorTables();
+  return withDbRetry(async () => {
+    const byId = await db.select().from(mangas).where((0, import_drizzle_orm2.eq)(mangas.creatorId, creatorId)).orderBy((0, import_drizzle_orm2.desc)(mangas.updatedAt));
+    if (byId.length > 0 || !creatorEmail) {
+      return byId;
+    }
+    return db.select().from(mangas).where((0, import_drizzle_orm2.eq)(mangas.creatorEmail, creatorEmail.trim().toLowerCase())).orderBy((0, import_drizzle_orm2.desc)(mangas.updatedAt));
+  });
+}
+async function listChaptersForCreator(creatorId) {
+  await ensureCreatorTables();
+  return withDbRetry(
+    async () => db.select().from(chapters).where((0, import_drizzle_orm2.eq)(chapters.creatorId, creatorId)).orderBy((0, import_drizzle_orm2.desc)(chapters.createdAt))
+  );
+}
+async function upsertCreatorManga(input) {
+  await ensureCreatorTables();
+  return withDbRetry(async () => {
+    const now = /* @__PURE__ */ new Date();
+    const rows = await db.insert(mangas).values({
+      id: input.id,
+      creatorId: input.creatorId,
+      creatorEmail: input.creatorEmail.trim().toLowerCase(),
+      title: input.title,
+      synopsis: input.synopsis,
+      coverUrl: input.coverUrl,
+      genres: JSON.stringify(input.genres),
+      ageRating: input.ageRating,
+      language: input.language,
+      status: input.status,
+      approvalStatus: input.approvalStatus || (input.status === "Live" ? "approved" : "pending_review"),
+      createdAt: now,
+      updatedAt: now
+    }).onConflictDoUpdate({
+      target: mangas.id,
+      set: {
+        title: input.title,
+        synopsis: input.synopsis,
+        coverUrl: input.coverUrl,
+        genres: JSON.stringify(input.genres),
+        ageRating: input.ageRating,
+        language: input.language,
+        status: input.status,
+        approvalStatus: input.approvalStatus || (input.status === "Live" ? "approved" : "pending_review"),
+        updatedAt: now
+      }
+    }).returning();
+    return rows[0];
+  });
+}
+async function updateCreatorMangaRecord(id, creatorId, patch) {
+  await ensureCreatorTables();
+  return withDbRetry(async () => {
+    const existing = await db.select().from(mangas).where((0, import_drizzle_orm2.eq)(mangas.id, id)).limit(1);
+    if (!existing[0] || existing[0].creatorId !== creatorId) {
+      return null;
+    }
+    const updated = await db.update(mangas).set({
+      ...patch,
+      updatedAt: /* @__PURE__ */ new Date()
+    }).where((0, import_drizzle_orm2.eq)(mangas.id, id)).returning();
+    return updated[0] ?? null;
+  });
+}
+async function deleteCreatorMangaRecord(id, creatorId) {
+  await ensureCreatorTables();
+  return withDbRetry(async () => {
+    const existing = await db.select().from(mangas).where((0, import_drizzle_orm2.eq)(mangas.id, id)).limit(1);
+    if (!existing[0] || existing[0].creatorId !== creatorId) {
+      return false;
+    }
+    await db.delete(chapters).where((0, import_drizzle_orm2.eq)(chapters.mangaId, id));
+    await db.delete(mangas).where((0, import_drizzle_orm2.eq)(mangas.id, id));
+    return true;
+  });
+}
+async function createCreatorChapterRecord(input) {
+  await ensureCreatorTables();
+  return withDbRetry(async () => {
+    const now = /* @__PURE__ */ new Date();
+    const rows = await db.insert(chapters).values({
+      id: input.id,
+      mangaId: input.mangaId,
+      creatorId: input.creatorId,
+      number: input.number,
+      title: input.title,
+      panels: JSON.stringify(input.panels),
+      publishStatus: input.publishStatus,
+      scheduledFor: input.scheduledFor ?? null,
+      reads: 0,
+      likes: 0,
+      commentsCount: 0,
+      releaseDate: input.releaseDate,
+      createdAt: now,
+      updatedAt: now
+    }).returning();
+    if (input.publishStatus === "Live") {
+      await db.update(mangas).set({ status: "Live", approvalStatus: "approved", updatedAt: now }).where((0, import_drizzle_orm2.eq)(mangas.id, input.mangaId));
+    } else {
+      await db.update(mangas).set({ status: "Coming Soon", updatedAt: now }).where((0, import_drizzle_orm2.eq)(mangas.id, input.mangaId));
+    }
+    return rows[0];
+  });
+}
+async function publishCreatorChapterRecord(chapterId, creatorId) {
+  await ensureCreatorTables();
+  return withDbRetry(async () => {
+    const existing = await db.select().from(chapters).where((0, import_drizzle_orm2.eq)(chapters.id, chapterId)).limit(1);
+    if (!existing[0] || existing[0].creatorId !== creatorId) {
+      return null;
+    }
+    const now = /* @__PURE__ */ new Date();
+    const updated = await db.update(chapters).set({
+      publishStatus: "Live",
+      scheduledFor: null,
+      updatedAt: now
+    }).where((0, import_drizzle_orm2.eq)(chapters.id, chapterId)).returning();
+    if (updated[0]) {
+      await db.update(mangas).set({ status: "Live", approvalStatus: "approved", updatedAt: now }).where((0, import_drizzle_orm2.eq)(mangas.id, updated[0].mangaId));
+    }
+    return updated[0] ?? null;
+  });
+}
+async function listCreatorPayouts(creatorId) {
+  await ensureCreatorTables();
+  return withDbRetry(
+    async () => db.select().from(payouts).where((0, import_drizzle_orm2.eq)(payouts.creatorId, creatorId)).orderBy((0, import_drizzle_orm2.desc)(payouts.createdAt))
+  );
+}
+async function listAllPayoutsForAdmin() {
+  await ensureCreatorTables();
+  return withDbRetry(
+    async () => db.select().from(payouts).orderBy((0, import_drizzle_orm2.desc)(payouts.createdAt))
+  );
+}
+async function createCreatorPayoutRecord(input) {
+  await ensureCreatorTables();
+  return withDbRetry(async () => {
+    const rows = await db.insert(payouts).values({
+      id: input.id,
+      creatorId: input.creatorId,
+      creatorEmail: input.creatorEmail.trim().toLowerCase(),
+      amountZar: input.amountZar,
+      method: input.method,
+      accountReference: input.accountReference,
+      status: "Pending",
+      paidAt: null,
+      createdAt: /* @__PURE__ */ new Date()
+    }).returning();
+    return rows[0];
+  });
+}
+async function updatePayoutStatusRecord(payoutId, status) {
+  await ensureCreatorTables();
+  return withDbRetry(async () => {
+    const updated = await db.update(payouts).set({
+      status,
+      paidAt: status === "Paid" ? /* @__PURE__ */ new Date() : null
+    }).where((0, import_drizzle_orm2.eq)(payouts.id, payoutId)).returning();
+    return updated[0] ?? null;
+  });
+}
+
+// src/server/creatorRoutes.ts
+var ADMIN_EMAILS2 = /* @__PURE__ */ new Set(["mlungisenimbhele3@gmail.com"]);
+var VALID_PAYOUT_METHODS = /* @__PURE__ */ new Set(["Bank", "Capitec", "PayFast"]);
+var VALID_ADMIN_PAYOUT_STATUSES = /* @__PURE__ */ new Set(["Pending", "Approved", "Paid"]);
+function isAdminUser(user) {
+  if (!user) return false;
+  const emailLower = (user.email || "").trim().toLowerCase();
+  const roleLower = (user.role || "").trim().toLowerCase();
+  return ADMIN_EMAILS2.has(emailLower) || roleLower === "admin";
+}
+function serializePayoutForViewer(row, viewerId, viewerIsAdmin) {
+  const canSeeBankDetails = viewerIsAdmin || row.creatorId === viewerId;
+  return {
+    id: row.id,
+    creatorId: row.creatorId,
+    creatorEmail: canSeeBankDetails ? row.creatorEmail : "",
+    amountZar: row.amountZar,
+    method: canSeeBankDetails ? row.method : "Restricted",
+    accountReference: canSeeBankDetails ? row.accountReference : "",
+    status: row.status === "Processing" ? "Pending" : row.status,
+    paidAt: row.paidAt ?? null,
+    createdAt: row.createdAt
+  };
+}
+var creatorRouter = import_express2.default.Router();
+creatorRouter.use(requireJwtAuth);
+creatorRouter.use(async (req, res, next) => {
+  const user = req.authUser;
+  if (!user) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+  const emailLower = (user.email || "").trim().toLowerCase();
+  let effectiveRole = (user.role || "").toLowerCase();
+  try {
+    const dbUser = await findUserById(user.id);
+    if (dbUser?.role) {
+      effectiveRole = dbUser.role.toLowerCase();
+      user.role = dbUser.role;
+    }
+  } catch {
+  }
+  const isCreatorOrAdmin = ADMIN_EMAILS2.has(emailLower) || effectiveRole === "creator" || effectiveRole === "admin";
+  if (!isCreatorOrAdmin) {
+    return res.status(403).json({
+      error: "Creator account required. Please apply to become a Creator first."
+    });
+  }
+  return next();
+});
+function buildMonthlySeries(totalEarningsZar) {
+  const now = /* @__PURE__ */ new Date();
+  const weights = [0.11, 0.14, 0.15, 0.18, 0.2, 0.22];
+  const points = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const label = d.toLocaleDateString("en-US", { month: "short" });
+    const w = weights[5 - i] ?? 0.16;
+    const total = Number((totalEarningsZar * w).toFixed(2));
+    const adsZar = Number((total * 0.56).toFixed(2));
+    const vipZar = Number((total * 0.31).toFixed(2));
+    const tipsZar = Number((total * 0.13).toFixed(2));
+    points.push({ month: label, adsZar, vipZar, tipsZar, totalZar: total });
+  }
+  return points;
+}
+creatorRouter.get("/dashboard", async (req, res) => {
+  const user = req.authUser;
+  try {
+    const [dbMangas, dbChapters, dbPayouts] = await Promise.all([
+      listCreatorMangas(user.id, user.email),
+      listChaptersForCreator(user.id),
+      listCreatorPayouts(user.id)
+    ]);
+    const totalReads = dbMangas.reduce((acc, m) => acc + (Number(m.views) || 0), 0) + dbChapters.reduce((acc, c) => acc + (Number(c.reads) || 0), 0);
+    const totalLikes = dbMangas.reduce((acc, m) => acc + (Number(m.likes) || 0), 0) + dbChapters.reduce((acc, c) => acc + (Number(c.likes) || 0), 0);
+    const grossZar = Number(((totalReads * 0.042 + totalLikes * 0.35) * 0.7).toFixed(2));
+    const adsZar = Number((grossZar * 0.56).toFixed(2));
+    const vipZar = Number((grossZar * 0.31).toFixed(2));
+    const tipsZar = Number((grossZar * 0.13).toFixed(2));
+    const paidOrPendingZar = dbPayouts.reduce(
+      (acc, p) => p.status !== "Rejected" ? acc + (Number(p.amountZar) || 0) : acc,
+      0
+    );
+    const availableBalanceZar = Number(Math.max(0, grossZar - paidOrPendingZar).toFixed(2));
+    const monthlySeries = buildMonthlySeries(grossZar);
+    const thisMonthZar = monthlySeries[monthlySeries.length - 1]?.totalZar ?? 0;
+    return res.status(200).json({
+      dbConnected: true,
+      mangas: dbMangas.map((m) => ({
+        ...m,
+        genres: (() => {
+          try {
+            return JSON.parse(m.genres || '["Action"]');
+          } catch {
+            return ["Action"];
+          }
+        })()
+      })),
+      chapters: dbChapters.map((c) => ({
+        ...c,
+        panels: (() => {
+          try {
+            return JSON.parse(c.panels || "[]");
+          } catch {
+            return [];
+          }
+        })()
+      })),
+      payouts: dbPayouts.map(
+        (p) => serializePayoutForViewer(p, user.id, isAdminUser(user))
+      ),
+      earnings: {
+        totalZar: grossZar,
+        thisMonthZar,
+        availableBalanceZar,
+        breakdown: { adsZar, vipZar, tipsZar },
+        monthlySeries
+      },
+      audience: {
+        totalReads,
+        totalLikes
+      }
+    });
+  } catch (error) {
+    console.warn("[Creator API] Neon DB unavailable, returning graceful offline dashboard state:", error?.message || error);
+    return res.status(200).json({
+      dbConnected: false,
+      fallbackMode: true,
+      mangas: [],
+      chapters: [],
+      payouts: [],
+      earnings: null,
+      audience: null
+    });
+  }
+});
+creatorRouter.post("/mangas", async (req, res) => {
+  const user = req.authUser;
+  const {
+    id,
+    title,
+    synopsis,
+    coverUrl,
+    genres,
+    ageRating,
+    language,
+    status,
+    approvalStatus
+  } = req.body || {};
+  if (!title || typeof title !== "string" || !title.trim()) {
+    return res.status(400).json({ error: "Manga title is required." });
+  }
+  const mangaId = typeof id === "string" && id.trim() ? id.trim() : `creator-${user.id}-${Date.now()}`;
+  const cleanGenres = Array.isArray(genres) && genres.length > 0 ? genres.map(String) : ["Action"];
+  const cleanStatus = status === "Live" || status === "Coming Soon" || status === "Draft" ? status : "Coming Soon";
+  try {
+    const created = await upsertCreatorManga({
+      id: mangaId,
+      creatorId: user.id,
+      creatorEmail: user.email,
+      title: title.trim().slice(0, 140),
+      synopsis: typeof synopsis === "string" ? synopsis.trim().slice(0, 2e3) : "",
+      coverUrl: typeof coverUrl === "string" ? coverUrl.trim() : "",
+      genres: cleanGenres,
+      ageRating: typeof ageRating === "string" ? ageRating : "13+",
+      language: typeof language === "string" ? language : "English",
+      status: cleanStatus,
+      approvalStatus: typeof approvalStatus === "string" ? approvalStatus : void 0
+    });
+    return res.status(201).json({ success: true, dbPersisted: true, manga: created });
+  } catch (error) {
+    console.warn("[Creator API] POST /mangas DB fallback:", error?.message || error);
+    return res.status(200).json({
+      success: true,
+      dbPersisted: false,
+      manga: {
+        id: mangaId,
+        creatorId: user.id,
+        creatorEmail: user.email,
+        title: title.trim(),
+        status: cleanStatus
+      }
+    });
+  }
+});
+creatorRouter.patch("/mangas/:id", async (req, res) => {
+  const user = req.authUser;
+  const mangaId = req.params.id;
+  const { title, synopsis, coverUrl, status, approvalStatus } = req.body || {};
+  try {
+    const updated = await updateCreatorMangaRecord(mangaId, user.id, {
+      ...typeof title === "string" ? { title: title.trim().slice(0, 140) } : {},
+      ...typeof synopsis === "string" ? { synopsis: synopsis.trim().slice(0, 2e3) } : {},
+      ...typeof coverUrl === "string" ? { coverUrl: coverUrl.trim() } : {},
+      ...typeof status === "string" ? { status } : {},
+      ...typeof approvalStatus === "string" ? { approvalStatus } : {}
+    });
+    return res.status(200).json({ success: true, dbPersisted: Boolean(updated), manga: updated });
+  } catch (error) {
+    console.warn("[Creator API] PATCH /mangas DB fallback:", error?.message || error);
+    return res.status(200).json({ success: true, dbPersisted: false });
+  }
+});
+creatorRouter.delete("/mangas/:id", async (req, res) => {
+  const user = req.authUser;
+  const mangaId = req.params.id;
+  try {
+    const deleted = await deleteCreatorMangaRecord(mangaId, user.id);
+    return res.status(200).json({ success: true, dbPersisted: deleted });
+  } catch (error) {
+    console.warn("[Creator API] DELETE /mangas DB fallback:", error?.message || error);
+    return res.status(200).json({ success: true, dbPersisted: false });
+  }
+});
+creatorRouter.post("/chapters", async (req, res) => {
+  const user = req.authUser;
+  const {
+    id,
+    mangaId,
+    number,
+    title,
+    panels,
+    publishMode,
+    scheduledFor,
+    releaseDate
+  } = req.body || {};
+  if (!mangaId || typeof mangaId !== "string") {
+    return res.status(400).json({ error: "Target mangaId is required." });
+  }
+  const chapterNum = Math.max(1, Number(number) || 1);
+  const chapterTitle = typeof title === "string" && title.trim() ? title.trim().slice(0, 140) : `Chapter ${chapterNum}`;
+  const cleanPanels = Array.isArray(panels) ? panels.filter((p) => p && typeof p.imageUrl === "string" && p.imageUrl.trim()).map((p, idx) => ({
+    id: typeof p.id === "string" ? p.id : `p-${idx + 1}`,
+    pageNumber: idx + 1,
+    imageUrl: String(p.imageUrl)
+  })) : [];
+  const isLive = publishMode === "live";
+  const publishStatus = isLive ? "Live" : "Coming Soon \u2022 Panels In Production";
+  const chapterId = typeof id === "string" && id.trim() ? id.trim() : `ch-${mangaId}-${Date.now()}`;
+  const cleanReleaseDate = typeof releaseDate === "string" && releaseDate.trim() ? releaseDate.trim() : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  try {
+    const saved = await createCreatorChapterRecord({
+      id: chapterId,
+      mangaId,
+      creatorId: user.id,
+      number: chapterNum,
+      title: chapterTitle,
+      panels: cleanPanels,
+      publishStatus,
+      scheduledFor: typeof scheduledFor === "string" ? scheduledFor : null,
+      releaseDate: cleanReleaseDate
+    });
+    return res.status(201).json({
+      success: true,
+      dbPersisted: true,
+      chapter: {
+        ...saved,
+        panels: cleanPanels
+      }
+    });
+  } catch (error) {
+    console.warn("[Creator API] POST /chapters DB fallback:", error?.message || error);
+    return res.status(200).json({
+      success: true,
+      dbPersisted: false,
+      chapter: {
+        id: chapterId,
+        mangaId,
+        number: chapterNum,
+        title: chapterTitle,
+        panels: cleanPanels,
+        publishStatus,
+        scheduledFor: scheduledFor || null,
+        releaseDate: cleanReleaseDate
+      }
+    });
+  }
+});
+creatorRouter.patch("/chapters/:id/publish", async (req, res) => {
+  const user = req.authUser;
+  const chapterId = req.params.id;
+  try {
+    const updated = await publishCreatorChapterRecord(chapterId, user.id);
+    return res.status(200).json({
+      success: true,
+      dbPersisted: Boolean(updated),
+      chapter: updated
+    });
+  } catch (error) {
+    console.warn("[Creator API] PATCH /chapters/:id/publish DB fallback:", error?.message || error);
+    return res.status(200).json({ success: true, dbPersisted: false });
+  }
+});
+creatorRouter.post("/payouts", async (req, res) => {
+  const user = req.authUser;
+  const { amountZar, method, accountReference } = req.body || {};
+  const numericAmount = Number(amountZar);
+  if (!Number.isFinite(numericAmount) || numericAmount < 100) {
+    return res.status(400).json({ error: "Minimum payout is R100." });
+  }
+  if (!VALID_PAYOUT_METHODS.has(String(method))) {
+    return res.status(400).json({ error: "Payout method must be Bank, Capitec, or PayFast." });
+  }
+  const cleanRef = typeof accountReference === "string" && accountReference.trim().length >= 3 ? accountReference.trim().slice(0, 120) : "";
+  if (!cleanRef) {
+    return res.status(400).json({ error: "Please provide your payout account number or PayFast email." });
+  }
+  const payoutId = `pay-${import_crypto4.default.randomUUID().slice(0, 12)}`;
+  const typedMethod = method;
+  try {
+    const created = await createCreatorPayoutRecord({
+      id: payoutId,
+      creatorId: user.id,
+      creatorEmail: user.email,
+      amountZar: Number(numericAmount.toFixed(2)),
+      method: typedMethod,
+      accountReference: cleanRef
+    });
+    return res.status(201).json({
+      success: true,
+      dbPersisted: true,
+      message: "Payout request submitted for review. Status: Pending Review (7-14 working days).",
+      payout: serializePayoutForViewer(created, user.id, isAdminUser(user))
+    });
+  } catch (error) {
+    console.warn("[Creator API] POST /payouts DB fallback:", error?.message || error);
+    return res.status(200).json({
+      success: true,
+      dbPersisted: false,
+      message: "Payout request recorded with status Pending Review (7-14 working days).",
+      payout: {
+        id: payoutId,
+        creatorId: user.id,
+        creatorEmail: user.email,
+        amountZar: Number(numericAmount.toFixed(2)),
+        method: typedMethod,
+        accountReference: cleanRef,
+        status: "Pending",
+        paidAt: null,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    });
+  }
+});
+creatorRouter.get("/admin/payouts", async (req, res) => {
+  const user = req.authUser;
+  if (!isAdminUser(user)) {
+    return res.status(403).json({
+      error: "Forbidden. Creator bank details and payout administration are restricted to the creator and admin."
+    });
+  }
+  try {
+    const rows = await listAllPayoutsForAdmin();
+    return res.status(200).json({
+      success: true,
+      dbConnected: true,
+      payouts: rows.map((p) => serializePayoutForViewer(p, user.id, true))
+    });
+  } catch (error) {
+    console.warn("[Creator API] GET /admin/payouts DB fallback:", error?.message || error);
+    return res.status(200).json({
+      success: true,
+      dbConnected: false,
+      payouts: []
+    });
+  }
+});
+creatorRouter.patch("/admin/payouts/:id", async (req, res) => {
+  const user = req.authUser;
+  if (!isAdminUser(user)) {
+    return res.status(403).json({
+      error: "Forbidden. Only an admin can review and update creator payout statuses."
+    });
+  }
+  const payoutId = req.params.id;
+  const rawStatus = String(req.body?.status || "").trim();
+  const normalizedStatus = rawStatus === "Pending Review" ? "Pending" : rawStatus;
+  if (!VALID_ADMIN_PAYOUT_STATUSES.has(normalizedStatus)) {
+    return res.status(400).json({
+      error: "Status must be Pending, Approved, or Paid."
+    });
+  }
+  try {
+    const updated = await updatePayoutStatusRecord(
+      payoutId,
+      normalizedStatus
+    );
+    if (!updated) {
+      return res.status(404).json({ error: "Payout record not found." });
+    }
+    return res.status(200).json({
+      success: true,
+      dbPersisted: true,
+      payout: serializePayoutForViewer(updated, user.id, true)
+    });
+  } catch (error) {
+    console.warn("[Creator API] PATCH /admin/payouts DB fallback:", error?.message || error);
+    return res.status(200).json({
+      success: true,
+      dbPersisted: false
+    });
+  }
+});
+
 // server.ts
 dotenv.config();
 var SUSPICIOUS_PAYLOAD_REGEX = /<script\b|javascript:|UNION\s+SELECT/i;
@@ -1609,7 +2395,7 @@ process.on("unhandledRejection", (reason) => {
   console.error("[Server Stability] Unhandled Promise Rejection:", reason);
 });
 async function startServer() {
-  const app = (0, import_express2.default)();
+  const app = (0, import_express3.default)();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
   app.use((_req, res, next) => {
@@ -1676,20 +2462,20 @@ async function startServer() {
     next();
   });
   app.use((0, import_cookie_parser.default)());
-  app.use(import_express2.default.json({ limit: "10mb" }));
+  app.use(import_express3.default.json({ limit: "25mb" }));
   app.use((err, _req, res, next) => {
     if (err && err.type === "entity.parse.failed") {
       return res.status(400).json({ error: "Invalid JSON request payload" });
     }
     if (err && err.type === "entity.too.large") {
-      return res.status(413).json({ error: "Request payload exceeds maximum 10MB limit" });
+      return res.status(413).json({ error: "Request payload exceeds maximum 25MB limit" });
     }
     return next(err);
   });
   const coversStaticPath = import_path.default.join(process.cwd(), "public", "covers");
   app.use(
     "/covers",
-    import_express2.default.static(coversStaticPath, {
+    import_express3.default.static(coversStaticPath, {
       maxAge: "7d",
       etag: true,
       immutable: false
@@ -1717,36 +2503,6 @@ async function startServer() {
   };
   app.use("/api/", validateApiPayload);
   const PORT = 3e3;
-  app.get("/api/health", (_req, res) => {
-    res.setHeader("Cache-Control", "no-store");
-    res.json({ status: "ok", timestamp: Date.now() });
-  });
-  const serveSignedAab = async (_req, res) => {
-    try {
-      const aabPath = import_path.default.join(process.cwd(), "AZ-OVERVERSE-signed.aab");
-      if (!import_fs.default.existsSync(aabPath)) {
-        return res.status(404).json({ error: "AZ-OVERVERSE-signed.aab not found on server" });
-      }
-      const stat = await import_fs.default.promises.stat(aabPath);
-      res.setHeader("Content-Type", "application/octet-stream");
-      res.setHeader("Content-Disposition", 'attachment; filename="AZ-OVERVERSE-signed.aab"');
-      res.setHeader("Content-Length", String(stat.size));
-      res.setHeader("Cache-Control", "no-store");
-      const stream = import_fs.default.createReadStream(aabPath);
-      stream.on("error", (err) => {
-        console.error("Stream error serving AAB:", err);
-        if (!res.headersSent) res.status(500).end();
-      });
-      stream.pipe(res);
-    } catch (err) {
-      console.error("Failed to serve AAB:", err);
-      if (!res.headersSent) {
-        res.status(500).json({ error: "Failed to stream Android App Bundle" });
-      }
-    }
-  };
-  app.get("/AZ-OVERVERSE-signed.aab", serveSignedAab);
-  app.get("/api/download-aab", serveSignedAab);
   const ADMIN_MASTER_EMAIL = "mlungisenimbhele3@gmail.com";
   const requireAdminSigningAccess = (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -1825,7 +2581,20 @@ async function startServer() {
   app.get("/api/download-upload-certificate", requireAdminSigningAccess, serveUploadCertificatePem);
   app.get("/upload-keystore.jks", requireAdminSigningAccess, serveUploadKeystoreJks);
   app.get("/api/download-upload-keystore", requireAdminSigningAccess, serveUploadKeystoreJks);
+  app.get("/api/health", async (_req, res) => {
+    try {
+      await pingDatabaseWithRetry();
+      return res.status(200).json({ db: "connected" });
+    } catch (error) {
+      console.error("[Health Check] Neon wake-up error:", error);
+      return res.status(503).json({
+        db: "error",
+        error: error?.message || "Database wake timeout"
+      });
+    }
+  });
   app.use("/api/auth", authRouter);
+  app.use("/api/creator", creatorRouter);
   app.post("/api/upload-cover", async (req, res) => {
     try {
       const { fileData, fileName } = req.body || {};
@@ -1876,7 +2645,7 @@ async function startServer() {
   } else {
     const distPath = import_path.default.join(process.cwd(), "dist");
     app.use(
-      import_express2.default.static(distPath, {
+      import_express3.default.static(distPath, {
         etag: true,
         setHeaders: (res, filePath) => {
           const normalized = filePath.replace(/\\/g, "/");

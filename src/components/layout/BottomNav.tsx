@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BookOpen, Trophy, Sparkles, MessageSquare, Wallet, Layers, Users } from 'lucide-react';
+import { BookOpen, Trophy, Layers, User, Users } from 'lucide-react';
 
 interface BottomNavProps {
   activeTab: string;
@@ -12,73 +12,45 @@ interface BottomNavProps {
 const BottomNavComponent: React.FC<BottomNavProps> = ({
   activeTab,
   onTabChange,
-  isAdmin = false,
   isVisible = true,
 }) => {
+  // 5 primary tabs: Reader, Awards, Backdrop, Account, Follow
   const tabs = useMemo(
     () => [
       {
         id: 'readers',
         label: 'Reader',
         icon: BookOpen,
-        activeClass: 'text-amber-400 bg-amber-500/15 font-bold',
-        inactiveClass: 'text-slate-400 hover:text-slate-200',
-      },
-      {
-        id: 'following',
-        label: 'Following',
-        icon: Users,
-        activeClass: 'text-amber-400 bg-amber-500/15 font-bold',
-        inactiveClass: 'text-slate-400 hover:text-slate-200',
-      },
-      {
-        id: 'backdrop',
-        label: 'Backdrop',
-        icon: Layers,
-        activeClass: 'text-cyan-400 bg-cyan-500/15 font-bold',
-        inactiveClass: 'text-slate-400 hover:text-slate-200',
       },
       {
         id: 'awards',
         label: 'Awards',
         icon: Trophy,
-        activeClass: 'text-amber-300 bg-amber-500/20 font-black shadow-sm',
-        inactiveClass: 'text-amber-400/80 hover:text-amber-300',
+      },
+      {
+        id: 'backdrop',
+        label: 'Backdrop',
+        icon: Layers,
       },
       {
         id: 'creators',
-        label: 'Studio',
-        icon: Sparkles,
-        activeClass: 'text-emerald-400 bg-emerald-500/15 font-bold',
-        inactiveClass: 'text-slate-400 hover:text-slate-200',
+        label: 'Account',
+        icon: User,
       },
       {
-        id: 'chats',
-        label: 'Chats',
-        icon: MessageSquare,
-        activeClass: 'text-blue-400 bg-blue-500/15 font-bold',
-        inactiveClass: 'text-slate-400 hover:text-slate-200',
+        id: 'following',
+        label: 'Follow',
+        icon: Users,
       },
-      ...(isAdmin
-        ? [
-            {
-              id: 'wallet',
-              label: 'Wallet',
-              icon: Wallet,
-              activeClass: 'text-purple-400 bg-purple-500/15 font-bold',
-              inactiveClass: 'text-slate-400 hover:text-slate-200',
-            },
-          ]
-        : []),
     ],
-    [isAdmin]
+    []
   );
 
   return (
     <nav
       id="bottom-nav-bar"
       aria-label="Bottom Navigation"
-      className={`fixed left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/80 px-2 py-1.5 shadow-2xl transform-gpu transition-all duration-300 ease-in-out ${
+      className={`fixed left-0 right-0 z-50 bg-[#0A0A0A] border-t border-zinc-800/80 px-2 py-1 shadow-2xl transform-gpu transition-all duration-300 ease-in-out ${
         isVisible
           ? 'translate-y-0 opacity-100 pointer-events-auto'
           : 'translate-y-[calc(100%+80px)] opacity-0 pointer-events-none'
@@ -91,17 +63,24 @@ const BottomNavComponent: React.FC<BottomNavProps> = ({
         {tabs.map((tab, index) => {
           const Icon = tab.icon;
           const isActive =
-            activeTab === tab.id || (tab.id === 'backdrop' && activeTab === 'canvas');
+            activeTab === tab.id ||
+            (tab.id === 'readers' && (activeTab === 'reader' || activeTab === 'updates')) ||
+            (tab.id === 'awards' && activeTab === 'hot') ||
+            (tab.id === 'backdrop' && (activeTab === 'canvas' || activeTab === 'browse')) ||
+            (tab.id === 'creators' && activeTab === 'account') ||
+            (tab.id === 'following' && (activeTab === 'shelf' || activeTab === 'follow'));
           return (
             <button
               key={`bottom-tab-${tab.id}-${index}`}
               id={`bottom-nav-${tab.id}`}
               onClick={() => onTabChange(tab.id)}
-              className={`min-h-[44px] min-w-[44px] flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition duration-150 active:scale-95 whitespace-nowrap shrink-0 ${
-                isActive ? tab.activeClass : tab.inactiveClass
+              className={`min-h-[44px] min-w-[52px] flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition duration-150 active:scale-95 whitespace-nowrap shrink-0 ${
+                isActive
+                  ? 'text-white font-bold'
+                  : 'text-zinc-500 hover:text-zinc-300 font-medium'
               }`}
             >
-              <Icon className="w-5 h-5" />
+              <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
               <span className="text-[10px] tracking-wide">{tab.label}</span>
             </button>
           );

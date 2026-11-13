@@ -167,6 +167,7 @@ export function LoginPage({
     }
 
     if (!res.success) {
+      console.error('[Login Error Details]', res.error);
       if (res.code === 'EMAIL_NOT_VERIFIED') {
         setNeedsEmailVerification(true);
       }

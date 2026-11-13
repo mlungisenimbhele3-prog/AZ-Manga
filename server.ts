@@ -7,7 +7,9 @@ import * as dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { authRouter } from './src/server/authRoutes.ts';
+import { creatorRouter } from './src/server/creatorRoutes.ts';
 import { verifyPurposeToken } from './src/server/jwt.ts';
+import { pingDatabaseWithRetry } from './src/db/index.ts';
 
 dotenv.config();
 
@@ -128,13 +130,13 @@ async function startServer() {
 
   // Cookie parser for httpOnly refreshToken cookies + JSON body parsing
   app.use(cookieParser());
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '25mb' }));
   app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err && err.type === 'entity.parse.failed') {
       return res.status(400).json({ error: 'Invalid JSON request payload' });
     }
     if (err && err.type === 'entity.too.large') {
-      return res.status(413).json({ error: 'Request payload exceeds maximum 10MB limit' });
+      return res.status(413).json({ error: 'Request payload exceeds maximum 25MB limit' });
     }
     return next(err);
   });
@@ -181,41 +183,6 @@ async function startServer() {
   app.use('/api/', validateApiPayload);
 
   const PORT = 3000;
-
-  // Lightweight health check endpoint
-  app.get('/api/health', (_req, res) => {
-    res.setHeader('Cache-Control', 'no-store');
-    res.json({ status: 'ok', timestamp: Date.now() });
-  });
-
-  // Direct download route for signed Google Play Store Android App Bundle (AZ-OVERVERSE-signed.aab)
-  const serveSignedAab = async (_req: express.Request, res: express.Response) => {
-    try {
-      const aabPath = path.join(process.cwd(), 'AZ-OVERVERSE-signed.aab');
-      if (!fs.existsSync(aabPath)) {
-        return res.status(404).json({ error: 'AZ-OVERVERSE-signed.aab not found on server' });
-      }
-      const stat = await fs.promises.stat(aabPath);
-      res.setHeader('Content-Type', 'application/octet-stream');
-      res.setHeader('Content-Disposition', 'attachment; filename="AZ-OVERVERSE-signed.aab"');
-      res.setHeader('Content-Length', String(stat.size));
-      res.setHeader('Cache-Control', 'no-store');
-      const stream = fs.createReadStream(aabPath);
-      stream.on('error', (err) => {
-        console.error('Stream error serving AAB:', err);
-        if (!res.headersSent) res.status(500).end();
-      });
-      stream.pipe(res);
-    } catch (err) {
-      console.error('Failed to serve AAB:', err);
-      if (!res.headersSent) {
-        res.status(500).json({ error: 'Failed to stream Android App Bundle' });
-      }
-    }
-  };
-
-  app.get('/AZ-OVERVERSE-signed.aab', serveSignedAab);
-  app.get('/api/download-aab', serveSignedAab);
 
   // Admin-only authorization guard for Google Play signing assets (upload-keystore.jks & upload_certificate.pem)
   const ADMIN_MASTER_EMAIL = 'mlungisenimbhele3@gmail.com';
@@ -316,8 +283,25 @@ async function startServer() {
   app.get('/upload-keystore.jks', requireAdminSigningAccess, serveUploadKeystoreJks);
   app.get('/api/download-upload-keystore', requireAdminSigningAccess, serveUploadKeystoreJks);
 
+  // Health & Neon DB Wake endpoint: pings database to wake autosuspended compute
+  app.get('/api/health', async (_req, res) => {
+    try {
+      await pingDatabaseWithRetry();
+      return res.status(200).json({ db: "connected" });
+    } catch (error: any) {
+      console.error('[Health Check] Neon wake-up error:', error);
+      return res.status(503).json({
+        db: "error",
+        error: error?.message || 'Database wake timeout',
+      });
+    }
+  });
+
   // AZ OVERVERSE Custom Production Auth System (PostgreSQL + bcrypt 12 + JWT 15m/7d + Resend + Zod)
   app.use('/api/auth', authRouter);
+
+  // AZ OVERVERSE Creator Studio & Monetization API (Role-gated to Creator/Admin + Neon Postgres)
+  app.use('/api/creator', creatorRouter);
 
   // Upload Cover Image endpoint (persists in public/covers and returns real https URL)
   app.post("/api/upload-cover", async (req, res) => {

@@ -1,6 +1,6 @@
 /**
  * ReaderConfig.ts
- * High-Resilience 3-Page Chapter Preloader, Cache API Warmer & Bounded LRU Bitmap Pool
+ * High-Resilience 5-Page Chapter Preloader, Cache API Warmer & Bounded LRU Bitmap Pool
  * Engineered for seamless reading on slow 2G/3G networks, budget phones, and 120Hz flagships.
  */
 
@@ -10,26 +10,26 @@ import {
   subscribeToAppVisibility,
 } from '../../utils/devicePerformance';
 
-export type ReadingMode = 'vertical' | 'horizontal_ltr';
+export type ReadingMode = 'single' | 'vertical' | 'page_flip' | 'horizontal_ltr';
 
 export type PageLoadStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
 export interface ReaderSettings {
-  readingMode: ReadingMode; // 'vertical' (AZ Vertical 0px gap) | 'horizontal_ltr' (Left-to-Right Manga)
-  preloadAheadCount: number; // Preload & cache Page X+1, X+2, X+3 ahead of current page
+  readingMode: ReadingMode; // 'single' (Single Page) | 'vertical' (Continuous Vertical Scroll) | 'page_flip' (Page Flip)
+  preloadAheadCount: number; // Preload & cache Page X+1 .. X+5 ahead of current page
   backgroundColor: string; // Solid black #000000 (Zero light leakage)
-  fitMode: 'contain'; // object-contain (no crop, no distortion, max screen height)
-  centerTapThresholdRatio: number; // Middle 30% of screen triggers menus
+  fitMode: 'width' | 'contain'; // Fit Width mode by default
+  centerTapThresholdRatio: number; // Middle 35% of screen triggers menus
   hardwareAcceleration: boolean;
   enablePinchZoom: boolean;
 }
 
 export const DEFAULT_READER_CONFIG: ReaderSettings = {
-  readingMode: 'horizontal_ltr',
-  preloadAheadCount: 3, // Cache next 3 pages of the manga chapter for seamless slow-network reading
+  readingMode: 'single',
+  preloadAheadCount: 5, // Proactively preload next 5 pages of the manga chapter in background
   backgroundColor: '#000000',
-  fitMode: 'contain',
-  centerTapThresholdRatio: 0.3,
+  fitMode: 'width',
+  centerTapThresholdRatio: 0.35,
   hardwareAcceleration: true,
   enablePinchZoom: true,
 };
@@ -102,7 +102,7 @@ function touchLruEntry(url: string, img: HTMLImageElement, pinnedUrls?: Set<stri
   }
   decodedBitmapLRU.set(url, img);
 
-  const maxEntries = Math.max(6, getProfileConfig().maxDecodedPagesInMemory);
+  const maxEntries = Math.max(8, getProfileConfig().maxDecodedPagesInMemory);
   if (decodedBitmapLRU.size <= maxEntries) return;
 
   for (const oldestUrl of decodedBitmapLRU.keys()) {
@@ -345,10 +345,10 @@ export async function retryPreloadMangaImage(url: string): Promise<boolean> {
 }
 
 /**
- * Preloads and caches the next 3 pages (Page X+1, Page X+2, Page X+3) ahead of `currentIndex`.
- * - Prioritizes the current page and X+1 with `fetchPriority: 'high'` before X+2 and X+3.
+ * Proactively preloads and caches the next 5 pages (Page X+1 .. Page X+5) ahead of `currentIndex`.
+ * - Prioritizes the current page and X+1 with `fetchPriority: 'high'` before X+2..X+5.
  * - Automatically switches to strict sequential waterfall (`concurrency = 1`) on slow 2G/3G/Save-Data
- *   connections so Page X+1 never competes for bandwidth with X+2 or X+3.
+ *   connections so Page X+1 never competes for bandwidth with X+2..X+5.
  * - Keeps `[currentIndex - 1 .. currentIndex + aheadCount]` pinned in the bounded LRU bitmap cache.
  */
 export function preloadUpcomingPages(
@@ -359,10 +359,10 @@ export function preloadUpcomingPages(
 ): void {
   if (typeof window === 'undefined' || !pages || pages.length === 0) return;
 
-  const effectiveAhead = Math.max(3, aheadCount);
+  const effectiveAhead = Math.max(5, aheadCount);
   const pinnedUrls = new Set<string>();
 
-  // Pin previous, current, and upcoming 3+ pages so LRU never evicts active reading window
+  // Pin previous, current, and upcoming 5+ pages so LRU never evicts active reading window
   for (
     let i = Math.max(0, currentIndex - 1);
     i <= Math.min(pages.length - 1, currentIndex + effectiveAhead);
@@ -388,7 +388,7 @@ export function preloadUpcomingPages(
     nextTasks.push({ url: currentUrl, priority: 'high' });
   }
 
-  // Queue the next 3 pages (or more on Ultra devices) in strict forward order: X+1 -> X+2 -> X+3
+  // Queue the next 5 pages in strict forward order: X+1 -> X+2 -> X+3 -> X+4 -> X+5
   for (let offset = 1; offset <= effectiveAhead; offset++) {
     const nextIdx = currentIndex + offset;
     if (nextIdx >= pages.length) break;
@@ -410,10 +410,10 @@ export function preloadUpcomingPages(
     }
   }
 
-  // When within the last 3 pages of the chapter, prewarm Page 1 of the next chapter
+  // When within the last 5 pages of the chapter, prewarm Page 1 of the next chapter
   if (
     options.nextChapterFirstPageUrl &&
-    currentIndex >= Math.max(0, pages.length - 3) &&
+    currentIndex >= Math.max(0, pages.length - 5) &&
     !seen.has(options.nextChapterFirstPageUrl) &&
     !isPagePreloaded(options.nextChapterFirstPageUrl) &&
     !inFlightPreloads.has(options.nextChapterFirstPageUrl)

@@ -62,7 +62,6 @@ export default defineConfig(() => {
           'pwa-512x512.png',
           'pwa-maskable-192x192.png',
           'pwa-maskable-512x512.png',
-          'assets/aistudio/IMG-20261030-WA4361_fe49230b.jpg',
           'assets/aistudio/876507702_1790968748807516_1967466416315700542_n_aea98a38.webp',
         ],
         manifest: {
@@ -81,12 +80,12 @@ export default defineConfig(() => {
           dir: 'ltr',
           categories: ['books', 'entertainment', 'comics'],
           prefer_related_applications: false,
-          ...({ package_name: 'com.azoververse.oververse' } as Record<string, unknown>),
+          ...({ package_name: 'com.azoververse.manga' } as Record<string, unknown>),
           related_applications: [
             {
               platform: 'play',
-              id: 'com.azoververse.oververse',
-              url: 'https://play.google.com/store/apps/details?id=com.azoververse.oververse',
+              id: 'com.azoververse.manga',
+              url: 'https://play.google.com/store/apps/details?id=com.azoververse.manga',
             },
           ],
           icons: [
@@ -140,7 +139,7 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
+          enabled: false,
           type: 'module',
         },
         workbox: {
@@ -249,6 +248,20 @@ export default defineConfig(() => {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),
       },
+      dedupe: ['react', 'react-dom', 'react-is'],
+    },
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react-dom/client',
+        'react/jsx-runtime',
+        'react/jsx-dev-runtime',
+        'react-is',
+        'recharts',
+        'lucide-react',
+        'motion/react',
+      ],
     },
     build: {
       target: 'es2020',

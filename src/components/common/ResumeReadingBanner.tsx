@@ -10,6 +10,7 @@ export interface LastReadProgress {
   chapterTitle: string;
   pageIndex: number;
   totalPages: number;
+  bookmarked?: boolean;
   timestamp: string;
 }
 
@@ -55,6 +56,12 @@ export const ResumeReadingBanner: React.FC<ResumeReadingBannerProps> = ({
                 <Clock className="w-3 h-3 text-black" />
                 CONTINUE READING
               </span>
+              {progress.bookmarked && (
+                <span className="flex items-center gap-1 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold px-2 py-0.5">
+                  <Bookmark className="w-3 h-3 fill-amber-400 text-amber-400" />
+                  BOOKMARKED
+                </span>
+              )}
               <span className="text-xs text-amber-300 font-mono font-bold">
                 Chapter {progress.chapterNumber}
               </span>

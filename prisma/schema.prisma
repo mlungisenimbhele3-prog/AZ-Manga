@@ -1,0 +1,96 @@
+// Prisma schema for AZ OVERVERSE Manga Publishing Platform
+// Fully compatible with Postgres (Neon.tech, Supabase, Cloud SQL, Railway, RDS)
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  reader
+  creator
+  admin
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  password_hash      String
+  pen_name           String    // creator nickname
+  bio                String?   @default("")
+  avatar_url         String?
+  email_verified     Boolean   @default(false)
+  verification_token String?
+  reset_token        String?
+  is_creator         Boolean   @default(false)
+  role               Role      @default(reader)
+  created_at         DateTime  @default(now())
+
+  mangas             Manga[]
+  payouts            Payout[]
+
+  @@map("users")
+}
+
+model Manga {
+  id              String    @id
+  creator_id      String
+  creator_email   String
+  title           String
+  synopsis        String    @default("")
+  cover_url       String    @default("")
+  genres          String    @default("[]")
+  age_rating      String    @default("13+")
+  language        String    @default("English")
+  status          String    @default("Draft") // Draft | Coming Soon | Live
+  approval_status String    @default("pending_review")
+  views           Int       @default(0)
+  likes           Int       @default(0)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @default(now())
+
+  creator         User      @relation(fields: [creator_id], references: [id], onDelete: Cascade)
+  chapters        Chapter[]
+
+  @@map("mangas")
+}
+
+model Chapter {
+  id             String   @id
+  manga_id       String
+  creator_id     String
+  number         Int
+  title          String
+  panels         String   @default("[]") // JSON array of ordered { id, pageNumber, imageUrl }
+  publish_status String   @default("Coming Soon • Panels In Production") // Coming Soon • Panels In Production | Live | Scheduled
+  scheduled_for  String?
+  reads          Int      @default(0)
+  likes          Int      @default(0)
+  comments_count Int      @default(0)
+  release_date   String
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now())
+
+  manga          Manga    @relation(fields: [manga_id], references: [id], onDelete: Cascade)
+
+  @@map("chapters")
+}
+
+model Payout {
+  id                String   @id
+  creator_id        String
+  creator_email     String
+  amount_zar        Float
+  method            String   // Bank | Capitec | PayFast
+  account_reference String   @default("")
+  status            String   @default("Processing") // Processing | Paid | Failed
+  created_at        DateTime @default(now())
+
+  creator           User     @relation(fields: [creator_id], references: [id], onDelete: Cascade)
+
+  @@map("payouts")
+}

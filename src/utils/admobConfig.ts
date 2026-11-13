@@ -1,6 +1,6 @@
 /**
  * Google AdMob Production Ad Unit IDs
- * Configured for AZ OVERVERSE (com.azoververse.oververse)
+ * Configured for AZ OVERVERSE (com.azoververse.manga)
  */
 
 export const ADMOB_CONFIG = {

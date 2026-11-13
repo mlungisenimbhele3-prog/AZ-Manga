@@ -96,7 +96,7 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
         providerReference: `${refPrefix}${Math.floor(1000000 + Math.random() * 9000000)}`,
         destinationSummary: destSummary,
         revenueSource: isGooglePlay ? '70% Subscription Pool' : '70% Ad Monetization',
-        status: 'COMPLETED',
+        status: 'PROCESSING',
       };
 
       onExecutePayout(newTx);
@@ -123,10 +123,10 @@ export const CreatorPayoutManager: React.FC<CreatorPayoutManagerProps> = ({
                 <span className="tabular-nums">70% Creator Share</span>
               </div>
               <h4 className="text-lg font-bold text-white mt-0.5">
-                In-App Wallet · Google AdMob & Google Play Billing
+                Creator Payouts (ZAR)
               </h4>
               <p className="text-xs text-slate-300 max-w-xl mt-1 leading-relaxed">
-                Earnings follow YouTube Studio&apos;s monthly payout lifecycle: current-month estimates accrue in Pending, finalize into Payable between the 7th – 12th, and disburse between the 21st – 26th once R1,000.00 is reached.
+                Earnings come from AdMob ads + Google Play Billing VIP. OVERVERSE receives payment from Google, then pays creators their 70% share. Payouts are reviewed and paid within 7-14 working days. Minimum payout R100.
               </p>
             </div>
           </div>

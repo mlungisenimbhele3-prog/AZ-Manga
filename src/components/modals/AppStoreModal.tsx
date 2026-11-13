@@ -193,41 +193,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
               </div>
 
               {isAdmin && (
-                <>
-                  {/* Signed Google Play Console Release Bundle v1.0.3 (Admin Only) */}
-                  <div className="rounded-2xl border border-cyan-500/40 bg-cyan-950/25 p-4 sm:p-5 space-y-4">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-cyan-300 font-semibold">
-                        <span>Release v1.0.3 (Code 103)</span>
-                        <span aria-hidden="true">·</span>
-                        <span>com.azoververse.oververse</span>
-                        <span aria-hidden="true">·</span>
-                        <span>Admin Only</span>
-                      </div>
-                      <h4 className="text-sm font-bold text-white">
-                        Signed Google Play Store Release Bundle (AZ-OVERVERSE-signed.aab)
-                      </h4>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        Ready for Google Play Console upload: cryptographically signed <code className="text-cyan-300 font-mono text-[11px]">AZ-OVERVERSE-signed.aab</code> built with package <code className="text-emerald-300 font-mono text-[11px]">com.azoververse.oververse</code>, version <code className="text-amber-300 font-mono text-[11px]">1.0.3</code> (versionCode 103), Target SDK 35, and the Black AZ launcher icon.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
-                      <a
-                        id="android-aab-direct-download-link"
-                        href="/AZ-OVERVERSE-signed.aab"
-                        download="AZ-OVERVERSE-signed.aab"
-                        className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs px-5 py-2.5 shadow-lg shadow-cyan-950/50 transition whitespace-nowrap"
-                      >
-                        <Download className="w-4 h-4 shrink-0" />
-                        <span>Download AZ-OVERVERSE-signed.aab</span>
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Google Play Upload Key & Certificate Download Card (Admin Only) */}
-                  <PlayUploadKeyCard isAdmin={isAdmin} compact />
-                </>
+                <PlayUploadKeyCard isAdmin={isAdmin} compact />
               )}
 
               {/* Google Play Store Badge / Listing Card */}
@@ -244,7 +210,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                     <div>
                       <h5 className="text-xs font-bold text-white">Google Play Store Submission Profile</h5>
                       <p className="text-[11px] text-slate-400">
-                        Package: <code className="text-emerald-400">com.azoververse.oververse</code> · v1.0.3
+                        Package: <code className="text-emerald-400">com.azoververse.manga</code> · v1.0.3
                       </p>
                     </div>
                   </div>
@@ -354,7 +320,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                 <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-xs space-y-1">
                   <div className="flex items-center justify-between text-slate-400 text-[11px]">
                     <span>Bundle / Package ID:</span>
-                    <code className="text-amber-400">com.azoververse.oververse</code>
+                    <code className="text-amber-400">com.azoververse.manga</code>
                   </div>
                   <div className="flex items-center justify-between text-slate-400 text-[11px]">
                     <span>Developer Team:</span>
@@ -412,7 +378,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                   </code>
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Generates a signed <code className="text-white">.aab</code> (Android App Bundle) ready to drag and drop directly into your Google Play Developer Console.
+                  Packages your Trusted Web Activity release for Google Play Developer Console using <code className="text-white">com.azoververse.manga</code>.
                 </p>
               </div>
 

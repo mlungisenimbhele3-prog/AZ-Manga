@@ -5,6 +5,11 @@ export interface ReadingHistoryEntry {
   mangaId: string;
   mangaTitle: string;
   lastChapterNumber?: number;
+  lastChapterId?: string;
+  lastPageIndex?: number;
+  totalPages?: number;
+  bookmarkedPageIndex?: number;
+  bookmarkedAt?: string;
   lastReadAt: string; // ISO string
   readCount: number;
   userRating?: number; // 1-5 stars if user rated
@@ -248,23 +253,54 @@ export function saveUserTasteProfile(profile: UserTasteProfile): void {
 export function recordReadingHistoryEvent(
   mangaId: string,
   mangaTitle: string,
-  chapterNumber?: number
+  chapterNumber?: number,
+  extra?: {
+    chapterId?: string;
+    pageIndex?: number;
+    totalPages?: number;
+    isBookmark?: boolean;
+  }
 ): UserTasteProfile {
   const profile = getUserTasteProfile();
   const existingIdx = profile.readingHistory.findIndex((h) => h.mangaId === mangaId);
+  const now = new Date().toISOString();
 
   if (existingIdx >= 0) {
-    profile.readingHistory[existingIdx].lastReadAt = new Date().toISOString();
-    profile.readingHistory[existingIdx].readCount += 1;
+    const entry = profile.readingHistory[existingIdx];
+    entry.lastReadAt = now;
+    entry.readCount += 1;
     if (chapterNumber !== undefined) {
-      profile.readingHistory[existingIdx].lastChapterNumber = chapterNumber;
+      entry.lastChapterNumber = chapterNumber;
+    }
+    if (extra?.chapterId !== undefined) {
+      entry.lastChapterId = extra.chapterId;
+    }
+    if (extra?.pageIndex !== undefined) {
+      entry.lastPageIndex = extra.pageIndex;
+    }
+    if (extra?.totalPages !== undefined) {
+      entry.totalPages = extra.totalPages;
+    }
+    if (extra?.isBookmark && extra.pageIndex !== undefined) {
+      entry.bookmarkedPageIndex = extra.pageIndex;
+      entry.bookmarkedAt = now;
+    }
+    // Move most recently updated/bookmarked entry to front
+    if (existingIdx > 0) {
+      profile.readingHistory.splice(existingIdx, 1);
+      profile.readingHistory.unshift(entry);
     }
   } else {
     profile.readingHistory.unshift({
       mangaId,
       mangaTitle,
       lastChapterNumber: chapterNumber,
-      lastReadAt: new Date().toISOString(),
+      lastChapterId: extra?.chapterId,
+      lastPageIndex: extra?.pageIndex,
+      totalPages: extra?.totalPages,
+      bookmarkedPageIndex: extra?.isBookmark ? extra.pageIndex : undefined,
+      bookmarkedAt: extra?.isBookmark ? now : undefined,
+      lastReadAt: now,
       readCount: 1,
     });
   }

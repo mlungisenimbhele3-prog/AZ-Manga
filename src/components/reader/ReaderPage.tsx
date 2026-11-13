@@ -1,8 +1,6 @@
 import React from 'react';
 import { Manga } from '../../types';
-import { ResponsiveLayout } from '../layout/ResponsiveLayout';
-import { DesktopHome } from '../layout/DesktopHome';
-import { MobileHome } from '../layout/MobileHome';
+import { MangaPlusUpdatesHome } from '../manga/MangaPlusUpdatesHome';
 import { UserTasteProfile } from '../../services/recommendationEngine';
 
 export interface ReaderPageProps {
@@ -38,78 +36,21 @@ export interface ReaderPageProps {
   isAdmin?: boolean;
 }
 
-const NOOP = () => {};
-
 const ReaderPageComponent: React.FC<ReaderPageProps> = (props) => {
   return (
-    <div id="reader-hub-page" className="w-full animate-fadeIn">
-      {/* ResponsiveLayout lazily instantiates ONLY MobileHome or DesktopHome at 800px */}
-      <ResponsiveLayout
-        renderMobile={() => (
-          <MobileHome
-            mangaList={props.mangaList}
-            filteredManga={props.filteredManga}
-            featuredManga={props.featuredManga}
-            favoriteIds={props.favoriteIds}
-            onToggleFavorite={props.onToggleFavorite}
-            onStartReading={props.onStartReading}
-            onSelectDetailManga={props.onSelectDetailManga}
-            selectedFilter={props.selectedFilter}
-            onSelectFilter={props.onSelectFilter}
-            searchQuery={props.searchQuery || ''}
-            onSearchChange={props.onSearchChange || NOOP}
-            onClearSearch={props.onClearSearch}
-            isVipUser={props.isVipUser}
-            ads={props.ads}
-            onOpenSubscriptionModal={props.onOpenSubscriptionModal}
-            onOpenCreatorDashboard={props.onOpenCreatorDashboard}
-            onOpenPublishModal={props.onOpenPublishModal}
-            onNavigateToAwards={props.onNavigateToAwards}
-            onOpenAiReport={props.onOpenAiReport}
-            onOpenTasteProfileModal={props.onOpenTasteProfileModal}
-            userTasteProfile={props.userTasteProfile}
-            onNavigateToCanvas={props.onNavigateToCanvas}
-            onNavigateToFollowing={props.onNavigateToFollowing}
-          />
-        )}
-        renderDesktop={() => (
-          <DesktopHome
-            mangaList={props.mangaList}
-            filteredManga={props.filteredManga}
-            featuredManga={props.featuredManga}
-            favoriteIds={props.favoriteIds}
-            onToggleFavorite={props.onToggleFavorite}
-            onStartReading={props.onStartReading}
-            onSelectDetailManga={props.onSelectDetailManga}
-            selectedFilter={props.selectedFilter}
-            onSelectFilter={props.onSelectFilter}
-            searchQuery={props.searchQuery || ''}
-            onSearchChange={props.onSearchChange || NOOP}
-            onClearSearch={props.onClearSearch}
-            isVipUser={props.isVipUser}
-            ads={props.ads}
-            onOpenSubscriptionModal={props.onOpenSubscriptionModal}
-            onOpenCreatorDashboard={props.onOpenCreatorDashboard}
-            onOpenPublishModal={props.onOpenPublishModal}
-            onNavigateToAwards={props.onNavigateToAwards}
-            onNavigateToWallet={props.onNavigateToWallet || NOOP}
-            onNavigateToStudio={props.onNavigateToStudio || NOOP}
-            onNavigateToChats={props.onNavigateToChats || NOOP}
-            onNavigateToCanvas={props.onNavigateToCanvas}
-            onNavigateToFollowing={props.onNavigateToFollowing}
-            onOpenAiReport={props.onOpenAiReport}
-            onRunAiScanCatalog={props.onRunAiScanCatalog}
-            isScanningAi={props.isScanningAi}
-            activeTab={props.activeTab}
-            onOpenTasteProfileModal={props.onOpenTasteProfileModal}
-            userTasteProfile={props.userTasteProfile}
-            isAdmin={props.isAdmin}
-          />
-        )}
+    <div id="reader-hub-page" className="w-full bg-[#0A0A0A] animate-fadeIn">
+      {/* HOME SCREEN = MANGA PLUS STYLE UPDATES SCREEN */}
+      <MangaPlusUpdatesHome
+        mangaList={props.mangaList}
+        onSelectDetailManga={props.onSelectDetailManga}
+        onStartReading={props.onStartReading}
+        onOpenSubscriptionModal={props.onOpenSubscriptionModal}
+        isVipUser={props.isVipUser}
       />
     </div>
   );
 };
 
 export const ReaderPage = React.memo(ReaderPageComponent);
+
 

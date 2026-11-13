@@ -23,7 +23,7 @@ import {
   runTransaction,
   serverTimestamp,
   where,
-} from './firebase';
+} from './localDataStore';
 import { safeStorage } from '../utils/safeStorage';
 import { scheduleIdleTask } from '../utils/devicePerformance';
 import { getUserTasteProfile, saveUserTasteProfile } from './recommendationEngine';

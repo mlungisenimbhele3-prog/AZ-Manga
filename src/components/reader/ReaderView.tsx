@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -13,6 +14,11 @@ import {
   MessageSquare,
   Timer,
   MoreHorizontal,
+  Sliders,
+  Layers,
+  ArrowUpDown,
+  X,
+  Bookmark,
 } from 'lucide-react';
 import { FullScreenMenu } from '../layout/FullScreenMenu';
 import { Chapter, Manga, UserSubscription } from '../../types';
@@ -42,7 +48,12 @@ import { AdMobBanner } from '../ads/AdMobBanner';
 import { safeStorage } from '../../utils/safeStorage';
 import { getProfileConfig, scheduleIdleTask } from '../../utils/devicePerformance';
 import { recordChapterRead } from '../../utils/readingStreak';
-import { saveReadingProgress } from '../../services/userProfile';
+import {
+  saveReadingProgress,
+  saveChapterPageBookmark,
+  getChapterPageBookmark,
+  getSavedChapterResumePageIndex,
+} from '../../services/userProfile';
 import { logChapterReadingTime } from '../../services/creatorChapterStatsService';
 import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 import { RatingAverageDisplay, StarRatingInput } from '../common/StarRating';
@@ -155,12 +166,12 @@ const ReaderPageSurface = React.memo<ReaderPageSurfaceProps>(
       <div
         className={
           mode === 'vertical'
-            ? 'relative w-full max-w-[800px] mx-auto flex justify-center items-center bg-black m-0 p-0 border-0 manga-page-container min-h-[320px]'
-            : 'relative w-full max-w-[800px] mx-auto h-full flex items-center justify-center bg-black m-0 p-0'
+            ? 'relative w-full max-w-full md:max-w-4xl mx-auto flex justify-center items-center bg-[#000000] m-0 p-0 border-0 leading-none min-h-[320px]'
+            : 'relative w-full max-w-full md:max-w-4xl mx-auto h-full flex items-center justify-center bg-[#000000] m-0 p-0'
         }
       >
         {status === 'loading' && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-black/90 pointer-events-none">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[#000000] pointer-events-none">
             <div className="h-7 w-7 rounded-full border-2 border-amber-500/25 border-t-amber-400 animate-spin" />
             <span className="text-[11px] font-mono tabular-nums text-slate-400">
               Page {pageIndex + 1}
@@ -171,7 +182,7 @@ const ReaderPageSurface = React.memo<ReaderPageSurfaceProps>(
         {status === 'error' ? (
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center bg-slate-950/90 rounded-2xl border border-slate-800 max-w-xs mx-auto my-6"
+            className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center bg-[#080808] rounded-2xl border border-slate-800 max-w-xs mx-auto my-6"
           >
             <img
               src={APP_LOGO_SRC}
@@ -212,10 +223,10 @@ const ReaderPageSurface = React.memo<ReaderPageSurfaceProps>(
             }}
             className={
               mode === 'vertical'
-                ? `max-h-screen w-auto max-w-[800px] object-contain mx-auto select-none block m-0 p-0 manga-page-img reader-page-touch-vertical transition-opacity duration-150 ${
+                ? `w-full max-w-full md:max-w-4xl mx-auto h-auto object-contain block m-0 p-0 border-0 outline-none leading-none select-none transition-opacity duration-150 ${
                     status === 'loaded' ? 'opacity-100' : 'opacity-0'
                   }`
-                : `max-h-full h-full w-auto max-w-[800px] object-contain mx-auto select-none block manga-page-img reader-page-touch-pinch transition-opacity duration-150 ${
+                : `w-full max-w-full md:max-w-4xl mx-auto h-auto max-h-[100dvh] object-contain block m-0 p-0 select-none transition-opacity duration-150 ${
                     status === 'loaded' ? 'opacity-100' : 'opacity-0'
                   }`
             }
@@ -243,24 +254,59 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const totalPages = pages.length;
   const hasPages = Boolean(chapter && totalPages > 0);
 
-  // Reading mode: Mode A ('vertical') or Mode B ('horizontal_ltr')
+  // Reading mode: 'single' (Default), 'vertical', or 'page_flip'
   const [readingMode, setReadingMode] = useState<ReadingMode>(() => {
     const saved = safeStorage.getItem('az_reader_mode');
     if (saved === 'vertical') return 'vertical';
-    if (saved === 'horizontal_rtl') {
-      safeStorage.setItem('az_reader_mode', 'horizontal_ltr');
-      return 'horizontal_ltr';
-    }
-    if (saved === 'horizontal_ltr') return 'horizontal_ltr';
-    return DEFAULT_READER_CONFIG.readingMode;
+    if (saved === 'page_flip') return 'page_flip';
+    if (saved === 'single') return 'single';
+    if (saved === 'horizontal_ltr' || saved === 'horizontal_rtl') return 'single';
+    return DEFAULT_READER_CONFIG.readingMode; // 'single'
   });
 
-  const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
+  const [slideDirection, setSlideDirection] = useState<'forward' | 'backward'>('forward');
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [currentPageIndex, setCurrentPageIndex] = useState<number>(() =>
+    getSavedChapterResumePageIndex(manga?.id || '', chapter?.id || '', pages.length)
+  );
+  const [bookmarkedPageIndex, setBookmarkedPageIndex] = useState<number | null>(() => {
+    const saved = getChapterPageBookmark(manga?.id || '', chapter?.id || '');
+    return saved ? saved.pageIndex : null;
+  });
+  const [bookmarkToast, setBookmarkToast] = useState<string | null>(null);
+  const bookmarkToastTimerRef = useRef<number | null>(null);
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [showOverlay, setShowOverlay] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isCommentsOpen, setIsCommentsOpen] = useState<boolean>(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
+
+  // Auto-hide immersive mode timer (hide top/bottom bars after 2s of inactivity)
+  const autoHideTimerRef = useRef<NodeJS.Timeout | number | null>(null);
+
+  const resetAutoHideTimer = useCallback(() => {
+    if (autoHideTimerRef.current) {
+      clearTimeout(autoHideTimerRef.current as any);
+      autoHideTimerRef.current = null;
+    }
+    autoHideTimerRef.current = setTimeout(() => {
+      setShowOverlay(false);
+    }, 2000);
+  }, []);
+
+  useEffect(() => {
+    if (showOverlay) {
+      resetAutoHideTimer();
+    } else if (autoHideTimerRef.current) {
+      clearTimeout(autoHideTimerRef.current as any);
+      autoHideTimerRef.current = null;
+    }
+    return () => {
+      if (autoHideTimerRef.current) {
+        clearTimeout(autoHideTimerRef.current as any);
+      }
+    };
+  }, [showOverlay, resetAutoHideTimer]);
 
   // Reading session timer state & completion tracking
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
@@ -288,7 +334,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const scrollRafRef = useRef<number | null>(null);
   const measureRafRef = useRef<number | null>(null);
   const activeAheadWindow = useMemo(
-    () => Math.max(3, Math.min(6, getProfileConfig().imagePreloadCount)),
+    () => Math.max(5, Math.min(8, getProfileConfig().imagePreloadCount)),
     []
   );
 
@@ -392,19 +438,19 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   }, []);
 
   /**
-   * 3-Page Chapter Preloading Strategy:
-   * Always caches at least the next 3 pages (Page X+1, X+2, X+3) ahead of `currentPageIndex`
-   * using network-aware sequential/parallel scheduling + Cache Storage persistence.
+   * Proactive 5-Page Chapter Preloading Strategy:
+   * Fetches and decodes the next 5 pages (Page X+1 .. X+5) in the background ahead of `currentPageIndex`
+   * using network-aware scheduling + bounded LRU bitmap pool + Cache Storage persistence.
    */
   useEffect(() => {
     if (totalPages === 0) return;
     const profileAhead = getProfileConfig().imagePreloadCount;
-    const aheadCount = Math.max(DEFAULT_READER_CONFIG.preloadAheadCount, profileAhead, 3);
+    const aheadCount = Math.max(DEFAULT_READER_CONFIG.preloadAheadCount, profileAhead, 5);
     preloadUpcomingPages(pages, currentPageIndex, aheadCount, {
       dataSaverMode,
       nextChapterFirstPageUrl,
     });
-  }, [currentPageIndex, pages, totalPages, dataSaverMode, nextChapterFirstPageUrl]);
+  }, [chapter?.id, currentPageIndex, pages, totalPages, dataSaverMode, nextChapterFirstPageUrl]);
 
   /**
    * Recalculates vertical page offsets off the scroll hot-path (on resize / image decode)
@@ -459,26 +505,55 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   }, []);
 
   const goToNextPage = useCallback(() => {
+    setSlideDirection('forward');
     setCurrentPageIndex((prev) => Math.min(prev + 1, Math.max(0, totalPages - 1)));
   }, [totalPages]);
 
   const goToPrevPage = useCallback(() => {
+    setSlideDirection('backward');
     setCurrentPageIndex((prev) => Math.max(prev - 1, 0));
   }, []);
+
+  const handleBookmarkCurrentPage = useCallback(() => {
+    if (!manga || !chapter || !hasPages) return;
+    const cover = manga.coverImage || (manga as any).cover || '';
+    const saved = saveChapterPageBookmark({
+      mangaId: manga.id,
+      mangaTitle: manga.title,
+      mangaCover: cover,
+      chapterId: chapter.id,
+      chapterNumber: chapter.number || 1,
+      chapterTitle: chapter.title || `Chapter ${chapter.number || 1}`,
+      pageIndex: currentPageIndex,
+      pageNumber: currentPageIndex + 1,
+      totalPages: Math.max(1, totalPages),
+    });
+    setBookmarkedPageIndex(saved.pageIndex);
+    setBookmarkToast(`Bookmarked Page ${saved.pageNumber} in reading history`);
+    resetAutoHideTimer();
+    if (bookmarkToastTimerRef.current !== null) {
+      window.clearTimeout(bookmarkToastTimerRef.current);
+    }
+    bookmarkToastTimerRef.current = window.setTimeout(() => {
+      setBookmarkToast(null);
+      bookmarkToastTimerRef.current = null;
+    }, 2200);
+  }, [manga, chapter, hasPages, currentPageIndex, totalPages, resetAutoHideTimer]);
 
   const handleJumpToPage = useCallback(
     (targetPageIdx: number) => {
       const clamped = Math.max(0, Math.min(Math.max(0, totalPages - 1), targetPageIdx));
+      setSlideDirection(clamped >= currentPageIndex ? 'forward' : 'backward');
       setCurrentPageIndex(clamped);
       setIsCommentsOpen(false);
       if (readingMode === 'vertical' && pageImageRefs.current[clamped]) {
         pageImageRefs.current[clamped]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     },
-    [totalPages, readingMode]
+    [totalPages, readingMode, currentPageIndex]
   );
 
-  // Keyboard navigation for power readers / desktop (LTR) — ignores keystrokes inside comment/reply inputs
+  // Keyboard navigation for power readers / desktop — ignores keystrokes inside comment/reply inputs
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -491,6 +566,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       );
 
       if (e.key === 'Escape') {
+        if (isSettingsOpen) {
+          e.preventDefault();
+          setIsSettingsOpen(false);
+          return;
+        }
         if (isCommentsOpen) {
           e.preventDefault();
           setIsCommentsOpen(false);
@@ -504,45 +584,83 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         return;
       }
 
-      if (isEditableTarget || isCommentsOpen) {
+      if (isEditableTarget || isCommentsOpen || isSettingsOpen) {
         return;
       }
 
       if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') {
-        if (readingMode === 'horizontal_ltr') goToNextPage();
+        if (readingMode !== 'vertical') goToNextPage();
       } else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') {
-        if (readingMode === 'horizontal_ltr') goToPrevPage();
+        if (readingMode !== 'vertical') goToPrevPage();
       } else if (e.key.toLowerCase() === 'c') {
         setIsCommentsOpen(true);
       } else if (e.key === ' ' || e.key === 'Enter') {
-        setShowOverlay((prev) => !prev);
+        setShowOverlay((prev) => {
+          const next = !prev;
+          if (next) resetAutoHideTimer();
+          return next;
+        });
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goToNextPage, goToPrevPage, readingMode, onBack, isCommentsOpen]);
+  }, [goToNextPage, goToPrevPage, readingMode, onBack, isCommentsOpen, isSettingsOpen, resetAutoHideTimer]);
 
   const handleScreenClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      if (isCommentsOpen || isSettingsOpen || isMoreMenuOpen || isSummaryModalOpen) {
+        return;
+      }
+
       const rect = e.currentTarget.getBoundingClientRect();
       const xRatio = (e.clientX - rect.left) / rect.width;
       const yRatio = (e.clientY - rect.top) / rect.height;
 
-      const isCenterTap = xRatio >= 0.35 && xRatio <= 0.65 && yRatio >= 0.25 && yRatio <= 0.75;
+      // Center tap (30% to 70% horizontally, 20% to 80% vertically): toggle HUD overlay
+      const isCenterTap = xRatio >= 0.30 && xRatio <= 0.70 && yRatio >= 0.20 && yRatio <= 0.80;
       if (isCenterTap) {
-        setShowOverlay((prev) => !prev);
+        setShowOverlay((prev) => {
+          const next = !prev;
+          if (next) resetAutoHideTimer();
+          return next;
+        });
         return;
       }
 
-      if (readingMode === 'horizontal_ltr') {
-        if (xRatio < 0.35) {
+      // Left tap (< 30%): previous page
+      if (xRatio < 0.30) {
+        if (readingMode === 'vertical') {
+          if (verticalContainerRef.current) {
+            verticalContainerRef.current.scrollBy({ top: -window.innerHeight * 0.75, behavior: 'smooth' });
+          }
+        } else {
           goToPrevPage();
-        } else if (xRatio > 0.65) {
+        }
+        return;
+      }
+
+      // Right tap (> 70%): next page
+      if (xRatio > 0.70) {
+        if (readingMode === 'vertical') {
+          if (verticalContainerRef.current) {
+            verticalContainerRef.current.scrollBy({ top: window.innerHeight * 0.75, behavior: 'smooth' });
+          }
+        } else {
           goToNextPage();
         }
+        return;
       }
     },
-    [readingMode, goToPrevPage, goToNextPage]
+    [
+      readingMode,
+      goToPrevPage,
+      goToNextPage,
+      isCommentsOpen,
+      isSettingsOpen,
+      isMoreMenuOpen,
+      isSummaryModalOpen,
+      resetAutoHideTimer,
+    ]
   );
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -566,7 +684,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       touchStartYRef.current = null;
 
       if (
-        readingMode === 'horizontal_ltr' &&
+        readingMode !== 'vertical' &&
         Math.abs(deltaX) > 36 &&
         Math.abs(deltaX) > Math.abs(deltaY) &&
         timeTaken < 600
@@ -657,6 +775,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       if (measureRafRef.current !== null) {
         window.cancelAnimationFrame(measureRafRef.current);
       }
+      if (bookmarkToastTimerRef.current !== null) {
+        window.clearTimeout(bookmarkToastTimerRef.current);
+      }
       trimInactiveReaderBitmaps(false);
     };
   }, []);
@@ -702,8 +823,19 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     pageImageRefs.current = {};
     pageMidpointsRef.current = [];
     maxScrollCachedRef.current = 0;
-    setCurrentPageIndex(0);
-    setScrollProgress(0);
+
+    const savedBookmark =
+      manga?.id && chapter?.id ? getChapterPageBookmark(manga.id, chapter.id) : null;
+    setBookmarkedPageIndex(savedBookmark ? savedBookmark.pageIndex : null);
+
+    const resumeIdx =
+      manga?.id && chapter?.id
+        ? getSavedChapterResumePageIndex(manga.id, chapter.id, totalPages)
+        : 0;
+    setCurrentPageIndex(resumeIdx);
+    setScrollProgress(
+      totalPages > 0 && resumeIdx > 0 ? Math.round(((resumeIdx + 1) / totalPages) * 100) : 0
+    );
     setIsCommentsOpen(false);
     setElapsedSeconds(0);
     lastLoggedSecondsRef.current = 0;
@@ -714,7 +846,13 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     hasSavedSessionRef.current = false;
     sessionStartTimeRef.current = Date.now();
     if (verticalContainerRef.current) {
-      verticalContainerRef.current.scrollTop = 0;
+      if (resumeIdx > 0) {
+        window.setTimeout(() => {
+          pageImageRefs.current[resumeIdx]?.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }, 120);
+      } else {
+        verticalContainerRef.current.scrollTop = 0;
+      }
     }
 
     // Register active reading session in CreatorDashboard statistics
@@ -978,12 +1116,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       onClick={handleScreenClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[100] m-0 p-0 w-screen h-screen-dynamic bg-black text-white select-none overflow-hidden reader-viewport-touch"
+      className="fixed inset-0 z-[100] m-0 p-0 w-screen h-screen-dynamic bg-[#000000] text-white select-none overflow-hidden reader-viewport-touch"
     >
       {/* GPU-COMPOSITED TOP HORIZONTAL READING PROGRESS BAR */}
       <div
         id="reader-top-progress-container"
-        className="fixed top-0 left-0 right-0 z-[120] pointer-events-none"
+        className={`fixed top-0 left-0 right-0 z-[120] pointer-events-none transition-opacity duration-300 ${
+          showOverlay ? 'opacity-100' : 'opacity-0'
+        }`}
         role="progressbar"
         aria-valuenow={Math.round(currentProgress)}
         aria-valuemin={0}
@@ -1003,10 +1143,16 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
       {/* TOP BAR */}
       <div
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          resetAutoHideTimer();
+        }}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+          resetAutoHideTimer();
+        }}
         onTouchEnd={(e) => e.stopPropagation()}
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-black/85 backdrop-blur-md border-b border-white/10 transition-[transform,opacity] duration-200 ease-out safe-top-inset ${
+        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-[#000000]/90 backdrop-blur-md border-b border-white/10 transition-[transform,opacity] duration-300 ease-out safe-top-inset ${
           showOverlay
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-full opacity-0 pointer-events-none'
@@ -1036,7 +1182,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </div>
             <span className="text-[11px] text-amber-400 font-semibold block truncate">
               {manga.title} · Vol. {currentVolumeNumber} ·{' '}
-              {readingMode === 'horizontal_ltr' ? 'LTR Manga Mode' : 'AZ Vertical'}
+              {readingMode === 'vertical'
+                ? 'Continuous Scroll'
+                : readingMode === 'page_flip'
+                ? 'Page Flip'
+                : 'Single Page'}
             </span>
           </div>
         </div>
@@ -1045,8 +1195,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           <ReadingSessionTimerPill
             elapsedSeconds={elapsedSeconds}
             isRunning={isTimerRunning}
-            onTogglePause={() => setIsTimerRunning((prev) => !prev)}
-            onOpenSummary={() => setIsSummaryModalOpen(true)}
+            onTogglePause={() => {
+              setIsTimerRunning((prev) => !prev);
+              resetAutoHideTimer();
+            }}
+            onOpenSummary={() => {
+              setIsSummaryModalOpen(true);
+              resetAutoHideTimer();
+            }}
             currentPage={currentPageIndex + 1}
             totalPages={totalPages}
           />
@@ -1059,10 +1215,43 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </span>
           </div>
 
+          {/* Bookmark Current Page Button */}
+          <button
+            id="reader-bookmark-page-btn"
+            type="button"
+            onClick={handleBookmarkCurrentPage}
+            className={`min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl border transition active:scale-95 shrink-0 ${
+              bookmarkedPageIndex === currentPageIndex
+                ? 'bg-amber-500/20 border-amber-500/60 text-amber-400'
+                : 'bg-white/10 border-transparent hover:bg-white/20 text-slate-200'
+            }`}
+            title={
+              bookmarkedPageIndex === currentPageIndex
+                ? `Bookmarked Page ${currentPageIndex + 1} in reading history`
+                : `Bookmark Page ${currentPageIndex + 1} to reading history`
+            }
+            aria-label={
+              bookmarkedPageIndex === currentPageIndex
+                ? `Bookmarked Page ${currentPageIndex + 1} in reading history`
+                : `Bookmark Page ${currentPageIndex + 1} to reading history`
+            }
+          >
+            <Bookmark
+              className={`w-4 h-4 shrink-0 ${
+                bookmarkedPageIndex === currentPageIndex
+                  ? 'fill-amber-400 text-amber-400'
+                  : 'text-amber-400'
+              }`}
+            />
+          </button>
+
           <button
             id="reader-open-comments-btn"
             type="button"
-            onClick={() => setIsCommentsOpen(true)}
+            onClick={() => {
+              setIsCommentsOpen(true);
+              resetAutoHideTimer();
+            }}
             className="min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition text-slate-100 whitespace-nowrap shrink-0"
             title="Open Chapter Comments & Replies"
             aria-label={`Open chapter comments (${chapterCommentCount})`}
@@ -1072,30 +1261,34 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             <span className="font-mono tabular-nums text-amber-300">{chapterCommentCount}</span>
           </button>
 
+          {/* Reader Settings Toggle Button */}
           <button
+            id="reader-settings-btn"
             type="button"
-            onClick={() =>
-              handleToggleReadingMode(readingMode === 'vertical' ? 'horizontal_ltr' : 'vertical')
-            }
+            onClick={() => {
+              setIsSettingsOpen((prev) => !prev);
+              resetAutoHideTimer();
+            }}
             className="min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition text-slate-200 whitespace-nowrap shrink-0"
-            title="Toggle Reading Mode"
+            title="Reader Settings (Single Page, Continuous, Page Flip)"
+            aria-label="Reader Settings"
           >
-            {readingMode === 'vertical' ? (
-              <>
-                <Smartphone className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="hidden sm:inline">AZ Vertical</span>
-              </>
-            ) : (
-              <>
-                <BookOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="hidden sm:inline">LTR Manga</span>
-              </>
-            )}
+            <Sliders className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="hidden sm:inline">
+              {readingMode === 'vertical'
+                ? 'Continuous'
+                : readingMode === 'page_flip'
+                ? 'Page Flip'
+                : 'Single Page'}
+            </span>
           </button>
 
           <button
             type="button"
-            onClick={toggleFullscreen}
+            onClick={() => {
+              toggleFullscreen();
+              resetAutoHideTimer();
+            }}
             className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 transition text-slate-200"
             aria-label="Toggle Fullscreen"
           >
@@ -1106,7 +1299,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           <button
             id="reader-more-menu-btn"
             type="button"
-            onClick={() => setIsMoreMenuOpen(true)}
+            onClick={() => {
+              setIsMoreMenuOpen(true);
+              resetAutoHideTimer();
+            }}
             className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition text-slate-200"
             aria-label="More options"
             title="Menu & Controls"
@@ -1116,20 +1312,35 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </div>
       </div>
 
+      {/* BOOKMARK SAVED CONFIRMATION PILL */}
+      {bookmarkToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-20 left-1/2 -translate-x-1/2 z-[135] pointer-events-none px-4 py-2 rounded-full bg-amber-500 text-black text-xs font-bold shadow-2xl flex items-center gap-1.5 animate-fadeIn"
+        >
+          <Bookmark className="w-3.5 h-3.5 fill-black text-black shrink-0" />
+          <span>{bookmarkToast}</span>
+        </div>
+      )}
+
       {/* MAIN READER CONTENT */}
       {readingMode === 'vertical' ? (
         <div
           ref={verticalContainerRef}
           onScroll={handleVerticalScroll}
-          className="w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar flex flex-col items-center bg-black m-0 p-0 overscroll-y-contain smooth-scroll-container"
+          className="w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar flex flex-col items-center bg-[#000000] m-0 p-0 overscroll-y-contain smooth-scroll-container"
         >
+          {/* Continuous vertical scroll with strictly 0px gap between pages */}
           {pages.map((p, idx) => {
-            // Scale active decode window dynamically with device tier (3 on Lite/Balanced, 4-6 on High/Ultra)
             const isWithinActiveWindow =
               idx <= activeAheadWindow ||
               (idx >= currentPageIndex - 1 && idx <= currentPageIndex + activeAheadWindow);
             return (
-              <React.Fragment key={`row-${p.id || idx}-${idx}`}>
+              <div
+                key={`row-${p.id || idx}-${idx}`}
+                className="w-full m-0 p-0 border-0 leading-none bg-[#000000]"
+              >
                 <ReaderPageSurface
                   imageUrl={p.imageUrl}
                   pageIndex={idx}
@@ -1139,20 +1350,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                   onImageNode={registerImageNode}
                   onPageDecoded={recomputeVerticalLayoutMetrics}
                 />
-
-                {userSubscription?.tier !== 'vip' && idx === 1 && (
-                  <div className="w-full max-w-2xl px-4 py-2">
-                    <AdMobBanner bannerId="ca-app-pub-7570164094154420/3068852398" />
-                  </div>
-                )}
-              </React.Fragment>
+              </div>
             );
           })}
 
           {/* End of Chapter Unlock, Next Chapter & Threaded Reader Discussion Section */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl mx-auto px-4 pt-12 pb-32 text-center bg-black space-y-6"
+            className="w-full max-w-2xl mx-auto px-4 pt-12 pb-32 text-center bg-[#000000] space-y-6"
           >
             {/* Reading Session Live Summary Card */}
             <ReadingSessionSummaryCard
@@ -1286,35 +1491,80 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       ) : (
         <div
           dir="ltr"
-          className="w-full h-full flex items-center justify-center bg-black relative m-0 p-0 overflow-hidden reader-viewport-touch"
+          className="w-full h-full flex items-center justify-center bg-[#000000] relative m-0 p-0 overflow-hidden reader-viewport-touch"
         >
-          <div
-            ref={horizontalTrackRef}
-            className="w-full h-full flex flex-row will-change-transform transition-transform duration-200 ease-out"
-          >
-            {pages.map((p, idx) => {
-              // Mount previous page, current page, and tier-scaled preloaded pages in GPU layer
-              const isMountedSlide =
-                idx >= currentPageIndex - 1 && idx <= currentPageIndex + activeAheadWindow;
-              return (
-                <div
-                  key={`ltr-slide-${p.id || idx}-${idx}`}
-                  className="w-full h-full shrink-0 flex items-center justify-center p-0 m-0"
-                >
-                  {isMountedSlide ? (
-                    <ReaderPageSurface
-                      imageUrl={p.imageUrl}
-                      pageIndex={idx}
-                      isWithinActiveWindow
-                      isCurrentPage={idx === currentPageIndex}
-                      mode="horizontal_ltr"
-                    />
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
+          {/* Page Display with Smooth 250ms Slide + Fade (Single Page) or 3D Page Flip */}
+          <AnimatePresence mode="popLayout" custom={slideDirection}>
+            {readingMode === 'page_flip' ? (
+              <motion.div
+                key={`flip-${chapter?.id}-${currentPageIndex}`}
+                custom={slideDirection}
+                initial={{
+                  opacity: 0.8,
+                  rotateY: slideDirection === 'forward' ? 45 : -45,
+                  transformPerspective: 1200,
+                  transformOrigin: slideDirection === 'forward' ? 'left center' : 'right center',
+                }}
+                animate={{
+                  opacity: 1,
+                  rotateY: 0,
+                  transformPerspective: 1200,
+                }}
+                exit={{
+                  opacity: 0.8,
+                  rotateY: slideDirection === 'forward' ? -45 : 45,
+                  transformPerspective: 1200,
+                  transformOrigin: slideDirection === 'forward' ? 'left center' : 'right center',
+                }}
+                transition={{
+                  duration: 0.28,
+                  ease: [0.25, 1, 0.5, 1],
+                }}
+                className="w-full h-full flex items-center justify-center bg-[#000000] m-0 p-0 overflow-y-auto no-scrollbar"
+                style={{ transformStyle: 'preserve-3d' }}
+              >
+                <ReaderPageSurface
+                  imageUrl={pages[currentPageIndex]?.imageUrl}
+                  pageIndex={currentPageIndex}
+                  isWithinActiveWindow={true}
+                  isCurrentPage={true}
+                  mode="single"
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key={`single-${chapter?.id}-${currentPageIndex}`}
+                custom={slideDirection}
+                initial={{
+                  opacity: 0.7,
+                  x: slideDirection === 'forward' ? 50 : -50,
+                }}
+                animate={{
+                  opacity: 1,
+                  x: 0,
+                }}
+                exit={{
+                  opacity: 0.7,
+                  x: slideDirection === 'forward' ? -50 : 50,
+                }}
+                transition={{
+                  duration: 0.25, // 250ms smooth transition like turning a page
+                  ease: [0.25, 1, 0.5, 1],
+                }}
+                className="w-full h-full flex items-center justify-center bg-[#000000] m-0 p-0 overflow-y-auto no-scrollbar"
+              >
+                <ReaderPageSurface
+                  imageUrl={pages[currentPageIndex]?.imageUrl}
+                  pageIndex={currentPageIndex}
+                  isWithinActiveWindow={true}
+                  isCurrentPage={true}
+                  mode="single"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
+          {/* On-Screen Prev/Next Click Zones & Navigation Overlay */}
           {showOverlay && (
             <>
               <button
@@ -1323,12 +1573,13 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   goToPrevPage();
+                  resetAutoHideTimer();
                 }}
-                className="min-h-[44px] absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 px-3 py-2 rounded-xl bg-black/75 border border-white/15 text-white/90 disabled:opacity-30 text-xs font-bold flex items-center gap-1 transition hover:bg-black/90 whitespace-nowrap"
+                className="min-h-[44px] absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 px-3 py-2 rounded-xl bg-black/75 border border-white/15 text-white/90 disabled:opacity-30 text-xs font-bold flex items-center gap-1 transition hover:bg-black/90 whitespace-nowrap z-30"
                 aria-label="Previous Page"
               >
                 <ChevronLeft className="w-4 h-4 shrink-0" />
-                <span>Prev</span>
+                <span className="hidden sm:inline">Prev</span>
               </button>
               <button
                 type="button"
@@ -1336,11 +1587,12 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   goToNextPage();
+                  resetAutoHideTimer();
                 }}
-                className="min-h-[44px] absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 px-3 py-2 rounded-xl bg-black/75 border border-white/15 text-amber-400 disabled:opacity-30 text-xs font-bold flex items-center gap-1 transition hover:bg-black/90 whitespace-nowrap"
+                className="min-h-[44px] absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 px-3 py-2 rounded-xl bg-black/75 border border-white/15 text-amber-400 disabled:opacity-30 text-xs font-bold flex items-center gap-1 transition hover:bg-black/90 whitespace-nowrap z-30"
                 aria-label="Next Page"
               >
-                <span>Next</span>
+                <span className="hidden sm:inline">Next</span>
                 <ChevronRight className="w-4 h-4 shrink-0" />
               </button>
             </>
@@ -1351,7 +1603,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               onClick={(e) => e.stopPropagation()}
               className="absolute bottom-20 left-1/2 -translate-x-1/2 z-40 px-4 w-full max-w-md flex flex-col items-center gap-2.5"
             >
-              <div className="w-full rounded-2xl border border-white/15 bg-black/85 backdrop-blur-md px-4 py-3 flex flex-col items-center gap-1.5 shadow-2xl">
+              <div className="w-full rounded-2xl border border-white/15 bg-black/90 backdrop-blur-md px-4 py-3 flex flex-col items-center gap-1.5 shadow-2xl">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
                   Rate Chapter {chapter.number}
                 </span>
@@ -1370,7 +1622,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               <div className="flex flex-wrap items-center justify-center gap-2.5 w-full">
                 <button
                   type="button"
-                  onClick={() => setIsSummaryModalOpen(true)}
+                  onClick={() => {
+                    setIsSummaryModalOpen(true);
+                    resetAutoHideTimer();
+                  }}
                   className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 backdrop-blur-md text-amber-300 font-semibold px-4 py-3 text-xs shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
                 >
                   <Timer className="w-4 h-4 text-amber-400 shrink-0" />
@@ -1382,7 +1637,10 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => setIsCommentsOpen(true)}
+                  onClick={() => {
+                    setIsCommentsOpen(true);
+                    resetAutoHideTimer();
+                  }}
                   className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-black/85 hover:bg-slate-900 backdrop-blur-md text-white font-semibold px-4 py-3 text-xs shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
                 >
                   <MessageSquare className="w-4 h-4 text-amber-400 shrink-0" />
@@ -1410,10 +1668,16 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
 
       {/* BOTTOM BAR */}
       <div
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          resetAutoHideTimer();
+        }}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+          resetAutoHideTimer();
+        }}
         onTouchEnd={(e) => e.stopPropagation()}
-        className={`fixed left-0 right-0 z-50 px-4 py-3.5 bg-black/85 backdrop-blur-md border-t border-white/10 transition-[bottom,transform,opacity] duration-300 ease-in-out space-y-3 safe-bottom-inset ${
+        className={`fixed left-0 right-0 z-50 px-4 py-3 bg-[#000000]/90 backdrop-blur-md border-t border-white/10 transition-[bottom,transform,opacity] duration-300 ease-in-out space-y-2.5 safe-bottom-inset ${
           isBottomBarsVisible ? 'bottom-[50px]' : 'bottom-0'
         } ${
           showOverlay
@@ -1434,6 +1698,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           </div>
         )}
 
+        {/* Page Slider */}
         <div className="flex items-center gap-3 max-w-lg mx-auto">
           <span className="text-xs font-mono tabular-nums font-bold text-amber-400 min-w-[85px] text-right whitespace-nowrap">
             {currentPageIndex + 1}/{totalPages || 1}
@@ -1448,7 +1713,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             max={Math.max(0, totalPages - 1)}
             value={currentPageIndex}
             onChange={(e) => {
+              resetAutoHideTimer();
               const newIdx = parseInt(e.target.value, 10);
+              setSlideDirection(newIdx >= currentPageIndex ? 'forward' : 'backward');
               setCurrentPageIndex(newIdx);
               if (readingMode === 'vertical' && pageImageRefs.current[newIdx]) {
                 pageImageRefs.current[newIdx]?.scrollIntoView({ behavior: 'smooth' });
@@ -1462,44 +1729,89 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           </span>
         </div>
 
+        {/* 3 Reading Modes Selector & Controls */}
         <div className="flex flex-wrap items-center justify-between gap-2 max-w-lg mx-auto text-xs">
           <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl">
+            {/* Mode 1: Single Page (Default) */}
             <button
               type="button"
-              onClick={() => handleToggleReadingMode('horizontal_ltr')}
-              className={`min-h-[38px] px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                readingMode === 'horizontal_ltr'
+              onClick={() => {
+                handleToggleReadingMode('single');
+                resetAutoHideTimer();
+              }}
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 text-xs ${
+                readingMode === 'single' || readingMode === 'horizontal_ltr'
                   ? 'bg-amber-500 text-black shadow'
                   : 'text-slate-300 hover:text-white'
               }`}
+              title="Single Page mode (250ms smooth slide)"
             >
               <BookOpen className="w-3.5 h-3.5 shrink-0" />
-              <span>LTR Manga</span>
+              <span>Single</span>
             </button>
 
+            {/* Mode 2: Continuous Vertical Scroll */}
             <button
               type="button"
-              onClick={() => handleToggleReadingMode('vertical')}
-              className={`min-h-[38px] px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              onClick={() => {
+                handleToggleReadingMode('vertical');
+                resetAutoHideTimer();
+              }}
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 text-xs ${
                 readingMode === 'vertical'
                   ? 'bg-amber-500 text-black shadow'
                   : 'text-slate-300 hover:text-white'
               }`}
+              title="Continuous Vertical Scroll (0px gap)"
             >
-              <Smartphone className="w-3.5 h-3.5 shrink-0" />
-              <span>AZ Vertical</span>
+              <ArrowUpDown className="w-3.5 h-3.5 shrink-0" />
+              <span>Continuous</span>
+            </button>
+
+            {/* Mode 3: Page Flip */}
+            <button
+              type="button"
+              onClick={() => {
+                handleToggleReadingMode('page_flip');
+                resetAutoHideTimer();
+              }}
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 text-xs ${
+                readingMode === 'page_flip'
+                  ? 'bg-amber-500 text-black shadow'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+              title="3D Page Flip mode"
+            >
+              <Layers className="w-3.5 h-3.5 shrink-0" />
+              <span>Flip</span>
             </button>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             <button
+              type="button"
+              onClick={() => {
+                setIsSettingsOpen(true);
+                resetAutoHideTimer();
+              }}
+              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 font-semibold transition flex items-center gap-1 whitespace-nowrap shrink-0"
+              title="Reading Settings"
+            >
+              <Sliders className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline">Settings</span>
+            </button>
+
+            <button
               id="reader-bottom-comments-btn"
               type="button"
-              onClick={() => setIsCommentsOpen(true)}
-              className="min-h-[40px] px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-100 font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              onClick={() => {
+                setIsCommentsOpen(true);
+                resetAutoHideTimer();
+              }}
+              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-100 font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
             >
               <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>Discussion</span>
+              <span className="hidden sm:inline">Discussion</span>
               <span className="font-mono tabular-nums text-amber-300">
                 ({chapterCommentCount})
               </span>
@@ -1518,6 +1830,121 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* READER SETTINGS DRAWER / MODAL */}
+      {isSettingsOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reader Settings"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsSettingsOpen(false);
+          }}
+          className="fixed inset-0 z-[140] bg-black/80 backdrop-blur-sm flex items-end sm:items-center sm:justify-center p-0 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full sm:max-w-md bg-[#0a0a0a] rounded-t-3xl sm:rounded-2xl border border-white/15 p-5 space-y-5 text-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-base text-white">Reader Settings</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 3 Reading Modes at Top of Settings */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Reading Mode
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {/* 1. Single Page (Default) */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleReadingMode('single')}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition ${
+                    readingMode === 'single' || readingMode === 'horizontal_ltr'
+                      ? 'bg-amber-500/15 border-amber-500 text-amber-400 font-bold'
+                      : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  <BookOpen className="w-5 h-5 mb-1.5 shrink-0" />
+                  <span className="text-xs font-semibold leading-tight">Single Page</span>
+                  <span className="text-[9px] text-slate-400 mt-0.5">250ms slide</span>
+                </button>
+
+                {/* 2. Continuous Vertical Scroll */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleReadingMode('vertical')}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition ${
+                    readingMode === 'vertical'
+                      ? 'bg-amber-500/15 border-amber-500 text-amber-400 font-bold'
+                      : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  <ArrowUpDown className="w-5 h-5 mb-1.5 shrink-0" />
+                  <span className="text-xs font-semibold leading-tight">Continuous</span>
+                  <span className="text-[9px] text-slate-400 mt-0.5">0px gap scroll</span>
+                </button>
+
+                {/* 3. Page Flip */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleReadingMode('page_flip')}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition ${
+                    readingMode === 'page_flip'
+                      ? 'bg-amber-500/15 border-amber-500 text-amber-400 font-bold'
+                      : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  <Layers className="w-5 h-5 mb-1.5 shrink-0" />
+                  <span className="text-xs font-semibold leading-tight">Page Flip</span>
+                  <span className="text-[9px] text-slate-400 mt-0.5">3D realistic</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Page Fit Mode */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Page Fit
+              </label>
+              <div className="px-3.5 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/60 text-amber-400 text-xs font-bold text-center">
+                Fit Width (Default) · Screen Width, Auto Height
+              </div>
+              <p className="text-[10px] text-slate-400">
+                Preserves original manga aspect ratio with zero cropping or zoom cut-off. Centered vertically.
+              </p>
+            </div>
+
+            {/* Pure Black Background & Immersive Mode */}
+            <div className="space-y-2 pt-2 border-t border-white/10 text-xs text-slate-400">
+              <div className="flex items-center justify-between">
+                <span>Reader Background</span>
+                <span className="font-mono text-amber-400">Pure Black (#000000)</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Immersive Mode</span>
+                <span className="text-emerald-400">Auto-hide bars (2s)</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Touch Controls</span>
+                <span className="text-slate-300">Tap center: menu · Left/Right: turn</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SLIDE-OVER / MOBILE BOTTOM-SHEET CHAPTER COMMENTS & THREADED REPLIES DRAWER */}
       {isCommentsOpen && (

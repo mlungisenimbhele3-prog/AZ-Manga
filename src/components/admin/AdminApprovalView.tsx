@@ -16,9 +16,24 @@ import {
   ShieldAlert,
   X,
   Filter,
+  Wallet,
+  Lock,
 } from 'lucide-react';
 import { Manga, Chapter } from '../../types';
 import { SafetyReport, getAllSafetyReports, updateReportStatus } from '../../services/safetyService';
+import { getInMemoryAccessToken } from '../../services/oververseAuth';
+
+interface AdminPayoutRow {
+  id: string;
+  creatorId: string;
+  creatorEmail: string;
+  amountZar: number;
+  method: string;
+  accountReference: string;
+  status: string;
+  paidAt?: string | null;
+  createdAt: string;
+}
 
 interface AdminApprovalViewProps {
   mangaList: Manga[];
@@ -39,7 +54,7 @@ export const AdminApprovalView: React.FC<AdminApprovalViewProps> = ({
   onBackToHome,
   onBackToCatalog,
 }) => {
-  const [activeTab, setActiveTab] = useState<'pending' | 'reports' | 'approved' | 'rejected'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'reports' | 'approved' | 'rejected' | 'payouts'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewMangaId, setPreviewMangaId] = useState<string | null>(null);
   const [previewChapter, setPreviewChapter] = useState<{ manga: Manga; chapter: Chapter } | null>(null);
@@ -50,6 +65,72 @@ export const AdminApprovalView: React.FC<AdminApprovalViewProps> = ({
 
   // Safety reports state
   const [reports, setReports] = useState<SafetyReport[]>(() => getAllSafetyReports());
+
+  // Admin-only Creator Payouts Review state
+  const [adminPayouts, setAdminPayouts] = useState<AdminPayoutRow[]>([]);
+  const [loadingPayouts, setLoadingPayouts] = useState(false);
+
+  const isAdminViewer =
+    (currentUserEmail || '').trim().toLowerCase() === 'mlungisenimbhele3@gmail.com';
+
+  const loadAdminPayouts = React.useCallback(async () => {
+    if (!isAdminViewer) return;
+    const token = getInMemoryAccessToken();
+    if (!token) return;
+    setLoadingPayouts(true);
+    try {
+      const res = await fetch('/api/creator/admin/payouts', {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.payouts)) {
+          setAdminPayouts(data.payouts);
+        }
+      }
+    } catch {
+      // ignore network error
+    } finally {
+      setLoadingPayouts(false);
+    }
+  }, [isAdminViewer]);
+
+  React.useEffect(() => {
+    if (activeTab === 'payouts' && isAdminViewer) {
+      void loadAdminPayouts();
+    }
+  }, [activeTab, isAdminViewer, loadAdminPayouts]);
+
+  const handleAdminUpdatePayoutStatus = async (
+    payoutId: string,
+    nextStatus: 'Pending' | 'Approved' | 'Paid'
+  ) => {
+    const token = getInMemoryAccessToken();
+    if (!token || !isAdminViewer) return;
+    try {
+      const res = await fetch(`/api/creator/admin/payouts/${encodeURIComponent(payoutId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.payout) {
+          setAdminPayouts((prev) =>
+            prev.map((row) => (row.id === payoutId ? { ...row, ...data.payout } : row))
+          );
+          return;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const refreshReports = () => {
     setReports(getAllSafetyReports());
@@ -245,6 +326,21 @@ export const AdminApprovalView: React.FC<AdminApprovalViewProps> = ({
           <XCircle className="w-3.5 h-3.5" />
           <span>Rejected Archive ({rejectedMangas.length})</span>
         </button>
+
+        {isAdminViewer && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('payouts')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'payouts'
+                ? 'bg-emerald-500 text-slate-950 shadow'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <Wallet className="w-3.5 h-3.5" />
+            <span>Creator Payouts (ZAR)</span>
+          </button>
+        )}
       </div>
 
       {/* TAB CONTENT: PENDING MANGA SUBMISSIONS */}
@@ -538,6 +634,119 @@ export const AdminApprovalView: React.FC<AdminApprovalViewProps> = ({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB CONTENT: ADMIN-ONLY CREATOR PAYOUTS REVIEW */}
+      {activeTab === 'payouts' && isAdminViewer && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-emerald-400" />
+                <span>Creator Payouts (ZAR) · Admin Settlement Queue</span>
+              </h3>
+              <p className="text-xs text-slate-300 mt-1">
+                Review creator payout requests (7-14 working days, min R100). Bank details below are confidential and strictly visible only to the creator and admin.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300 shrink-0">
+              <Lock className="w-3.5 h-3.5" />
+              <span>Admin Private View</span>
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/60">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-800 text-[10px] uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th className="py-3 px-4">Requested Date</th>
+                  <th className="py-3 px-4">Creator &amp; Bank Details</th>
+                  <th className="py-3 px-4">Amount</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Paid Date</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/70">
+                {loadingPayouts ? (
+                  <tr>
+                    <td colSpan={6} className="py-6 px-4 text-center text-slate-400">
+                      Loading Neon payout queue...
+                    </td>
+                  </tr>
+                ) : adminPayouts.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-6 px-4 text-center text-slate-400">
+                      No creator payout requests pending review.
+                    </td>
+                  </tr>
+                ) : (
+                  adminPayouts.map((row) => {
+                    const labelStatus =
+                      row.status === 'Paid'
+                        ? 'Paid'
+                        : row.status === 'Approved'
+                        ? 'Approved'
+                        : 'Pending Review';
+
+                    return (
+                      <tr key={row.id} className="hover:bg-slate-900/60">
+                        <td className="py-3 px-4 font-mono text-slate-300">
+                          {new Date(row.createdAt).toLocaleDateString('en-ZA')}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-white">{row.creatorEmail}</div>
+                          <div className="text-[11px] text-amber-300 font-mono">
+                            {row.method}: {row.accountReference}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-mono font-bold text-amber-300">
+                          R {Number(row.amountZar || 0).toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              labelStatus === 'Paid'
+                                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                                : labelStatus === 'Approved'
+                                ? 'bg-sky-500/15 border-sky-500/40 text-sky-300'
+                                : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                            }`}
+                          >
+                            {labelStatus}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-300">
+                          {row.paidAt ? new Date(row.paidAt).toLocaleDateString('en-ZA') : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                          {labelStatus !== 'Approved' && labelStatus !== 'Paid' && (
+                            <button
+                              type="button"
+                              onClick={() => handleAdminUpdatePayoutStatus(row.id, 'Approved')}
+                              className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-bold text-[11px]"
+                            >
+                              Approve
+                            </button>
+                          )}
+                          {labelStatus !== 'Paid' && (
+                            <button
+                              type="button"
+                              onClick={() => handleAdminUpdatePayoutStatus(row.id, 'Paid')}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-[11px]"
+                            >
+                              Mark Paid
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

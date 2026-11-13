@@ -3,7 +3,7 @@
   "name": "AZ OVERVERSE",
   "short_name": "AZ OVERVERSE",
   "description": "AZ OVERVERSE: Next-generation manga publishing and reading platform. Read Left-to-Right manga chapters offline, support creators, and publish originals.",
-  "package_name": "com.azoververse.oververse",
+  "package_name": "com.azoververse.manga",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -17,8 +17,8 @@
   "related_applications": [
     {
       "platform": "play",
-      "id": "com.azoververse.oververse",
-      "url": "https://play.google.com/store/apps/details?id=com.azoververse.oververse"
+      "id": "com.azoververse.manga",
+      "url": "https://play.google.com/store/apps/details?id=com.azoververse.manga"
     }
   ],
   "icons": [

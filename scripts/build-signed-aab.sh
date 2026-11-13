@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Build and cryptographically sign AZ-OVERVERSE-signed.aab (com.azoververse.oververse v1.0.3)
+# Build and cryptographically sign AZ-OVERVERSE-signed.aab (com.azoververse.manga v1.0.3)
 # Produced by Mlungiseni Mbhele - AZ OVERVERSE
 set -e
 
 echo "========================================================================="
-echo "  AZ OVERVERSE v1.0.3 (com.azoververse.oververse) - Signed Release AAB   "
+echo "  AZ OVERVERSE v1.0.3 (com.azoververse.manga) - Signed Release AAB   "
 echo "========================================================================="
 
 KEYSTORE_FILE_NAME="upload-keystore.jks"

@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, doublePrecision, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -21,5 +21,57 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const mangas = pgTable('mangas', {
+  id: text('id').primaryKey(),
+  creatorId: text('creator_id').notNull(),
+  creatorEmail: text('creator_email').notNull(),
+  title: text('title').notNull(),
+  synopsis: text('synopsis').notNull().default(''),
+  coverUrl: text('cover_url').notNull().default(''),
+  genres: text('genres').notNull().default('["Action"]'),
+  ageRating: text('age_rating').notNull().default('13+'),
+  language: text('language').notNull().default('English'),
+  status: text('status').notNull().default('Draft'),
+  approvalStatus: text('approval_status').notNull().default('pending_review'),
+  views: integer('views').notNull().default(0),
+  likes: integer('likes').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const chapters = pgTable('chapters', {
+  id: text('id').primaryKey(),
+  mangaId: text('manga_id').notNull(),
+  creatorId: text('creator_id').notNull(),
+  number: integer('number').notNull(),
+  title: text('title').notNull(),
+  panels: text('panels').notNull().default('[]'),
+  publishStatus: text('publish_status')
+    .notNull()
+    .default('Coming Soon • Panels In Production'),
+  scheduledFor: text('scheduled_for'),
+  reads: integer('reads').notNull().default(0),
+  likes: integer('likes').notNull().default(0),
+  commentsCount: integer('comments_count').notNull().default(0),
+  releaseDate: text('release_date').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const payouts = pgTable('payouts', {
+  id: text('id').primaryKey(),
+  creatorId: text('creator_id').notNull(),
+  creatorEmail: text('creator_email').notNull(),
+  amountZar: doublePrecision('amount_zar').notNull(),
+  method: text('method').notNull(),
+  accountReference: text('account_reference').notNull().default(''),
+  status: text('status').notNull().default('Pending'),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type DbUser = typeof users.$inferSelect;
 export type NewDbUser = typeof users.$inferInsert;
+export type DbManga = typeof mangas.$inferSelect;
+export type DbChapter = typeof chapters.$inferSelect;
+export type DbPayout = typeof payouts.$inferSelect;

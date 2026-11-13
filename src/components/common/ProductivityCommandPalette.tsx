@@ -364,21 +364,6 @@ export const ProductivityCommandPalette: React.FC<ProductivityCommandPaletteProp
       },
     },
     {
-      id: 'download-release-aab',
-      title: 'Download AZ-OVERVERSE-signed.aab (Signed Play Store Bundle v1.0.3 · com.azoververse.oververse)',
-      category: 'Developer & CI/CD',
-      icon: <Smartphone className="w-4 h-4 text-cyan-400" />,
-      action: () => {
-        onClose();
-        const link = document.createElement('a');
-        link.href = '/AZ-OVERVERSE-signed.aab';
-        link.download = 'AZ-OVERVERSE-signed.aab';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      },
-    },
-    {
       id: 'admob-app-id-info',
       title: 'Copy AdMob App ID (ca-app-pub-7570164094154420~3142297870)',
       category: 'Monetization (AdMob)',

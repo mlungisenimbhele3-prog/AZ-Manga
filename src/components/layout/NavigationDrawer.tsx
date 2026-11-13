@@ -34,7 +34,6 @@ import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { SubscriptionTier, UserSubscription } from '../../types';
 import { getReadingStreak, ReadingStreakData, getWeeklyStreakDays } from '../../utils/readingStreak';
 import { isUserApprovedMangaka, getMangakaApplicationByEmail } from '../../utils/mangakaManager';
-import { PWAInstallButton } from './PWAInstallButton';
 
 interface NavigationDrawerProps {
   isOpen: boolean;
@@ -527,7 +526,11 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   type="button"
                   onClick={() => {
                     onClose();
-                    onNavigate('dashboard');
+                    if (onOpenApplyMangaka) {
+                      onOpenApplyMangaka();
+                    } else {
+                      onNavigate('creators');
+                    }
                   }}
                   className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-amber-500/10 border border-amber-500/30 text-amber-300 font-bold transition hover:border-amber-400"
                 >
@@ -537,7 +540,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     </div>
                     <div className="text-left">
                       <div className="text-sm font-semibold text-white">Become a Creator</div>
-                      <p className="text-[11px] text-amber-400/80">Start publishing original manga</p>
+                      <p className="text-[11px] text-amber-400/80">Apply to publish original manga</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-amber-400" />
@@ -707,7 +710,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     </div>
                     <div className="text-left">
                       <span className="text-sm font-semibold">Creator Wallet</span>
-                      <p className="text-[11px] text-slate-400">Live ZAR Payouts & 70% Ad Splits</p>
+                      <p className="text-[11px] text-slate-400">Creator Payouts (ZAR) & 70% Ad Splits</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition" />
@@ -802,8 +805,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 </a>
               )}
 
-              {/* Upload Manga Button (Only when Creator Account is active) */}
-              {isCreator && onOpenPublish && (
+              {/* Upload Manga Button (Only when Creator Account or Admin is active) */}
+              {(isCreator || isAdmin) && onOpenPublish && (
                 <button
                   id="drawer-upload-manga-btn"
                   onClick={() => {
@@ -837,24 +840,6 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-amber-400 group-hover:translate-x-0.5 transition" />
-                </button>
-              )}
-
-              {/* Creator Studio & Payouts */}
-              {onOpenCreatorDashboard && (
-                <button
-                  id="drawer-studio-btn"
-                  onClick={() => {
-                    onClose();
-                    onOpenCreatorDashboard();
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 text-slate-300 border border-slate-800 text-xs font-semibold transition"
-                >
-                  <span className="flex items-center gap-2">
-                    <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Studio Payouts (Google Play & AdMob)</span>
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                 </button>
               )}
             </div>
@@ -950,8 +935,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 </button>
               )}
 
-              {/* Defense ×5 Security Suite */}
-              {onOpenSecurityDefense && (
+              {/* Defense ×5 Security Suite (Admin Only) */}
+              {isAdmin && onOpenSecurityDefense && (
                 <button
                   id="drawer-security-defense-btn"
                   onClick={() => {
@@ -990,8 +975,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 </button>
               )}
 
-              {/* WebViewer Component Configuration */}
-              {onOpenWebViewerModal && (
+              {/* WebViewer Component Configuration (Admin Only) */}
+              {isAdmin && onOpenWebViewerModal && (
                 <button
                   id="drawer-webviewer-btn"
                   onClick={() => {
@@ -1010,17 +995,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 </button>
               )}
 
-              {/* Install OVERVERSE PWA & Google Play TWA Hub */}
-              <PWAInstallButton
-                fullWidth
-                alwaysShowInMenu
-                onOpenStoreModal={() => {
-                  onClose();
-                  onOpenStoreModal?.();
-                }}
-              />
-
-              {onOpenStoreModal && (
+              {/* AZ OVERVERSE Play Store Hub (Admin Only) */}
+              {isAdmin && onOpenStoreModal && (
                 <button
                   id="drawer-pwa-store-hub-btn"
                   onClick={() => {
@@ -1033,26 +1009,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     <Smartphone className="w-4 h-4 text-cyan-400 shrink-0" />
                     <span>AZ OVERVERSE Play Store Hub</span>
                   </div>
-                  <span className="text-[10px] font-mono text-cyan-300">com.azoververse.oververse</span>
+                  <span className="text-[10px] font-mono text-cyan-300">com.azoververse.manga</span>
                 </button>
-              )}
-
-              {/* Signed Google Play Bundle v1.0.2 Direct Download (Admin Only) */}
-              {isAdmin && (
-                <a
-                  id="drawer-signed-aab-link"
-                  href="/AZ-OVERVERSE-signed.aab"
-                  download="AZ-OVERVERSE-signed.aab"
-                  className="min-h-[44px] w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-emerald-500/40 text-xs text-emerald-300 hover:text-white hover:border-emerald-400 hover:bg-emerald-950/25 transition"
-                >
-                  <div className="flex items-center gap-2">
-                    <ExternalLink className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate font-bold">Download AZ-OVERVERSE-signed.aab</span>
-                  </div>
-                  <span className="text-[11px] font-mono text-emerald-300 shrink-0">
-                    v1.0.2
-                  </span>
-                </a>
               )}
             </div>
           </div>

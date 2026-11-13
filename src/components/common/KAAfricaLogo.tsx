@@ -1,7 +1,6 @@
 import React from 'react';
 
-export const APP_LOGO_SRC =
-  '/assets/aistudio/IMG-20261030-WA4361_fe49230b.jpg';
+export const APP_LOGO_SRC = '/master-logo.png';
 
 interface KAAfricaLogoProps {
   className?: string;

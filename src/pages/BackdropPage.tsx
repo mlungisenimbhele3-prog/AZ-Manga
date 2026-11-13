@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Manga, isMangaComingSoon } from '../types';
-import { USD_TO_ZAR_RATE } from '../data/paymentData';
 import { MangaCoverImage } from '../components/common/MangaCoverImage';
 import { RatingAverageDisplay } from '../components/common/StarRating';
 import {

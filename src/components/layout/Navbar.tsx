@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { SubscriptionTier, UserSubscription } from '../../types';
 import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
+import { lazyWithRetry } from '../../utils/lazyWithRetry';
 import {
   Menu,
   MoreHorizontal,
@@ -14,13 +15,15 @@ import {
   Crown,
   Smartphone,
   Users,
+  User,
   X,
+  Settings,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { FullScreenMenu } from './FullScreenMenu';
 
 const loadNavigationDrawer = () => import('./NavigationDrawer');
-const NavigationDrawer = lazy(() =>
+const NavigationDrawer = lazyWithRetry(() =>
   loadNavigationDrawer().then((m) => ({ default: m.NavigationDrawer }))
 );
 
@@ -137,18 +140,17 @@ const NavbarComponent: React.FC<NavbarProps> = ({
     <>
       <header
         id="main-navbar"
-        className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-md safe-top-inset"
+        className="sticky top-0 z-40 border-b border-zinc-800/80 bg-[#0F0F0F] backdrop-blur-md safe-top-inset"
         style={{
           paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
       >
-        {/* Super Minimal Header: Exactly 3 visible items:
-            (1) Left: Hamburger menu icon
-            (2) Center: AZ OVERVERSE logo with AZ badge
-            (3) Right: ••• 3 dots menu button */}
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 relative">
-          {/* (1) Left: Hamburger menu icon */}
-          <div className="flex items-center">
+        {/* Manga Plus Layout Header:
+            (1) Left: OVERVERSE logo (and optional drawer toggle)
+            (2) Right: VIP Subscribe pill button + Settings gear icon */}
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-3.5 py-2.5 sm:px-6 relative">
+          {/* Left: OVERVERSE Logo & Hamburger */}
+          <div className="flex items-center gap-2">
             <button
               id="hamburger-menu-btn"
               type="button"
@@ -163,67 +165,95 @@ const NavbarComponent: React.FC<NavbarProps> = ({
                 e.stopPropagation();
                 setIsDrawerOpen(true);
               }}
-              className="flex items-center justify-center p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/50 hover:bg-slate-800 transition active:scale-95 shadow-sm cursor-pointer"
+              className="flex items-center justify-center p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-amber-500/50 hover:bg-zinc-800 transition active:scale-95 shadow-sm cursor-pointer"
               aria-label="Open navigation menu drawer"
               title="Open navigation menu drawer"
             >
               <Menu className="w-5 h-5 text-amber-400" />
             </button>
+
+            <button
+              id="brand-logo-btn"
+              onClick={() => {
+                onTabChange?.('readers');
+                onSelectFilter('all');
+                onSearchChange('');
+              }}
+              className="flex items-center gap-2 group text-left transition active:scale-98"
+              title="AZ OVERVERSE"
+              aria-label="AZ OVERVERSE"
+            >
+              <div className="flex items-center justify-center p-0.5">
+                <img
+                  src={APP_LOGO_SRC}
+                  alt="AZ OVERVERSE Logo"
+                  decoding="async"
+                  width={36}
+                  height={36}
+                  {...{ fetchpriority: 'high' }}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0f0424] shadow-md shadow-amber-500/25 object-cover"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="font-['Bebas_Neue',sans-serif] text-2xl sm:text-3xl tracking-wider text-white">
+                  OVER<span className="text-amber-400">VERSE</span>
+                </span>
+              </div>
+            </button>
           </div>
 
-        {/* (2) Center: AZ OVERVERSE logo with AZ badge */}
-        <div className="flex items-center justify-center">
-          <button
-            id="brand-logo-btn"
-            onClick={() => {
-              onTabChange?.('readers');
-              onSelectFilter('all');
-              onSearchChange('');
-            }}
-            className="flex items-center gap-2 group text-center transition active:scale-98"
-            title="AZ OVERVERSE"
-            aria-label="AZ OVERVERSE"
-          >
-            <div className="flex items-center justify-center p-0.5">
-              <img
-                src={APP_LOGO_SRC}
-                alt="AZ OVERVERSE Logo"
-                decoding="async"
-                width={38}
-                height={38}
-                {...{ fetchpriority: 'high' }}
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0f0424] shadow-lg shadow-amber-500/25 object-cover"
-              />
-            </div>
+          {/* Right: VIP Subscribe Pill Button + Settings Gear Icon */}
+          <div className="relative flex items-center gap-2" ref={moreMenuRef}>
+            <PWAInstallButton compact onOpenStoreModal={onOpenStoreModal} />
 
-            <div className="flex items-center gap-1.5">
-              <span className="font-['Bebas_Neue',sans-serif] text-2xl sm:text-3xl tracking-wider text-white">
-                OVER<span className="text-amber-400">VERSE</span>
-              </span>
-            </div>
-          </button>
-        </div>
+            {/* VIP Subscribe Pill Button */}
+            <button
+              id="header-vip-btn"
+              type="button"
+              onClick={onUpgradeClick}
+              className={`min-h-[36px] flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full font-bold text-xs transition active:scale-95 shadow-md whitespace-nowrap ${
+                isVipUser
+                  ? 'bg-amber-500/20 border border-amber-500/60 text-amber-300 hover:bg-amber-500/30'
+                  : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-black font-black shadow-amber-500/20'
+              }`}
+              title="VIP Subscription"
+              aria-label="VIP Subscription"
+            >
+              <Crown className={`w-3.5 h-3.5 shrink-0 ${isVipUser ? 'fill-amber-400 text-amber-400' : 'fill-black text-black'}`} />
+              <span>{isVipUser ? 'VIP ACTIVE' : 'VIP R89/mo'}</span>
+            </button>
 
-        {/* (3) Right: Compact PWA Install action (auto-hidden when standalone) + ••• 3 dots menu button */}
-        <div className="relative flex items-center gap-2" ref={moreMenuRef}>
-          <PWAInstallButton compact onOpenStoreModal={onOpenStoreModal} />
+            {onOpenProfileModal && (
+              <button
+                id="header-profile-btn"
+                onClick={onOpenProfileModal}
+                className="hidden sm:flex min-h-[40px] min-w-[40px] items-center justify-center p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-amber-500/50 hover:bg-zinc-800 transition active:scale-95 shadow-sm"
+                aria-label="User Profile, Reading Progress & Bookmarks"
+                title="My Profile & Library"
+              >
+                <User className="w-4 h-4 text-amber-400" />
+              </button>
+            )}
 
-          <button
-            id="header-more-menu-btn"
-            onClick={() => setIsMoreMenuOpen((prev) => !prev)}
-            className={`min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl border transition active:scale-95 shadow-sm ${
-              isMoreMenuOpen
-                ? 'bg-amber-500/20 border-amber-500 text-amber-400 ring-2 ring-amber-500/30'
-                : 'bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/50 hover:bg-slate-800'
-            }`}
-            aria-label="More options"
-            title="Menu & Controls"
-          >
-            <MoreHorizontal className="w-5 h-5" />
-          </button>
+            {/* Settings Gear Icon */}
+            <button
+              id="header-settings-btn"
+              type="button"
+              onClick={() => setIsMoreMenuOpen((prev) => !prev)}
+              className={`min-h-[40px] min-w-[40px] flex items-center justify-center p-2 rounded-xl border transition active:scale-95 shadow-sm ${
+                isMoreMenuOpen
+                  ? 'bg-amber-500/20 border-amber-500 text-amber-400 ring-2 ring-amber-500/30'
+                  : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 hover:bg-zinc-800'
+              }`}
+              aria-label="Settings and Menu"
+              title="Settings"
+            >
+              <Settings className="w-5 h-5 text-zinc-300 hover:text-white" />
+            </button>
 
-          {/* Full-Screen Menu (slides in from right, covers 100% on mobile, 400px side panel on desktop) */}
-          <FullScreenMenu
+            {/* Full-Screen Menu (slides in from right, covers 100% on mobile, 400px side panel on desktop) */}
+            <FullScreenMenu
             isOpen={isMoreMenuOpen}
             onClose={() => setIsMoreMenuOpen(false)}
             currentUserEmail={currentUserEmail}
