@@ -78,45 +78,45 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "pwa-maskable-512x512.png",
-    "revision": "41283aefa0f1aa3082c5434f108fb681"
+    "revision": "1648c5dca0db7023ff36c1e9b872a588"
   }, {
     "url": "pwa-maskable-192x192.png",
-    "revision": "078d20cb810b6b942970856fd0c8e9cb"
+    "revision": "1292adf90968775ca3f34ac67d57aace"
   }, {
     "url": "pwa-512x512.png",
-    "revision": "41283aefa0f1aa3082c5434f108fb681"
+    "revision": "0d0432970c905d810560edbc8aadb4b5"
   }, {
     "url": "pwa-192x192.png",
-    "revision": "c12cb638b23b64366fbc2c60474b28c2"
+    "revision": "e7f88ad6473a84f1a9c8b7a2a1a76039"
   }, {
     "url": "playstore-icon-512.png",
-    "revision": "41283aefa0f1aa3082c5434f108fb681"
+    "revision": "5294fc6d7228ff49ab932c03d118c474"
   }, {
     "url": "placeholder.png",
     "revision": "241af57795d3e389e64848b62416e202"
   }, {
     "url": "master-logo.png",
-    "revision": "41283aefa0f1aa3082c5434f108fb681"
+    "revision": "0d0432970c905d810560edbc8aadb4b5"
   }, {
     "url": "master-logo.jpg",
-    "revision": "0479d2adfb77eefb56591b191e3029f0"
+    "revision": "aff594d5a8dc7894c809dfa2793d04c0"
   }, {
     "url": "manifest.json",
     "revision": "bf2f6ecad3df4bb71e2e0aaf04f982e2"
   }, {
     "url": "index.html",
-    "revision": "37c3902fe2d0c35fe78fd6920651d46a"
+    "revision": "c8d6a4db5f44d1f9f3302958024ce2f5"
   }, {
     "url": "icon.svg",
-    "revision": "e2522550d52c2a9be93fb57dfe0c93c1"
+    "revision": "ac17a5fde1676f42f1ea620f29962e05"
   }, {
     "url": "favicon.png",
-    "revision": "69c1b57d80f58feb20171ea0ed79ae3f"
+    "revision": "55c6919dc92a0950d74cb146b17068b2"
   }, {
     "url": "apple-touch-icon.png",
-    "revision": "0d73acf9ddb02175ebf091fa172d5c58"
+    "revision": "f0b02a74701197e3a57a507471c0c742"
   }, {
-    "url": "assets/web-BumBZQEA.js",
+    "url": "assets/web-BugljC8f.js",
     "revision": null
   }, {
     "url": "assets/vendor-supabase-BN79N3Si.js",
@@ -140,7 +140,7 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "url": "assets/schemas-CAZOdCfY.js",
     "revision": null
   }, {
-    "url": "assets/safetyService-LUABMzqj.js",
+    "url": "assets/safetyService-CxO1u-GW.js",
     "revision": null
   }, {
     "url": "assets/safeStorage-B2nYKOjp.js",
@@ -158,22 +158,22 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "url": "assets/preload-helper-B3nfOi5I.js",
     "revision": null
   }, {
-    "url": "assets/page-xNRmFmx0.js",
+    "url": "assets/page-sspUsY_V.js",
     "revision": null
   }, {
-    "url": "assets/page-w5IFbYeu.js",
+    "url": "assets/page-lsri6kTT.js",
     "revision": null
   }, {
-    "url": "assets/page-DZHMvOwU.js",
+    "url": "assets/page-EKI4vPRM.js",
     "revision": null
   }, {
-    "url": "assets/page-DYsRADgj.js",
+    "url": "assets/page-DleNhq8O.js",
     "revision": null
   }, {
-    "url": "assets/page-DSwS5QMo.js",
+    "url": "assets/page-DEeI5Q1k.js",
     "revision": null
   }, {
-    "url": "assets/page-BXNZjizC.js",
+    "url": "assets/page-DCR8bEGM.js",
     "revision": null
   }, {
     "url": "assets/oververseAuth-BJJmd_zi.js",
@@ -182,64 +182,64 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "url": "assets/mangakaManager-a8vQ-7Dw.js",
     "revision": null
   }, {
-    "url": "assets/layout-BM3BFngk.js",
-    "revision": null
-  }, {
-    "url": "assets/index-Cyk6R3GM.js",
+    "url": "assets/layout-BJHy3kS8.js",
     "revision": null
   }, {
     "url": "assets/index-CUCE8Y-l.css",
     "revision": null
   }, {
-    "url": "assets/esm-CNHyA_CQ.js",
+    "url": "assets/index-BrNzpXfc.js",
     "revision": null
   }, {
-    "url": "assets/devicePerformance-DyHGMh_n.js",
+    "url": "assets/esm-K2ky2vBP.js",
+    "revision": null
+  }, {
+    "url": "assets/devicePerformance-BpCStpek.js",
     "revision": null
   }, {
     "url": "assets/creatorChapterStatsService-CO5GdbZY.js",
     "revision": null
   }, {
-    "url": "assets/coverStorage-e1SgGqRy.js",
+    "url": "assets/coverStorage-B4PDXKyq.js",
     "revision": null
   }, {
     "url": "assets/aiDetector-VIheQF7w.js",
     "revision": null
   }, {
-    "url": "assets/WebViewerModal-CJX7dZW4.js",
+    "url": "assets/WebViewerModal-CVbRQw3f.js",
     "revision": null
   }, {
-    "url": "assets/WalletPage-Cz5bszzZ.js",
+    "url": "assets/WalletPage-qE9HoWK2.js",
     "revision": null
   }, {
-    "url": "assets/UserProfileModal-DlNfYV3Y.js",
+    "url": "assets/UserProfileModal-DMZZ_D89.js",
     "revision": null
   }, {
     "url": "assets/TermsOfService-DgVqP9el.js",
     "revision": null
   }, {
-    "url": "assets/SubscriptionModal-CxEcrojw.js",
+    "url": "assets/SubscriptionModal-BbaZeWEN.js",
     "revision": null
   }, {
-    "url": "assets/StarRating-DaskIId9.js",
+    "url": "assets/StarRating-C_XEGi6L.js",
     "revision": null
   }, {
-    "url": "assets/SettingsPage-B3sqvseV.js",
+    "url": "assets/SettingsPage-Dgc7xD4S.js",
     "revision": null
   }, {
-    "url": "assets/SecurityDefenseModal-CyPVYnwZ.js",
+    "url": "assets/SecurityDefenseModal-CdocuHjv.js",
     "revision": null
   }, {
-    "url": "assets/RewardedAdModal-CZ6ktkR0.js",
+    "url": "assets/RewardedAdModal-BGJ13WxF.js",
     "revision": null
   }, {
-    "url": "assets/RecommendationModal-B0Iu5t52.js",
+    "url": "assets/RecommendationModal-C8LvyIet.js",
     "revision": null
   }, {
-    "url": "assets/ReaderView-BHIXBMVc.js",
+    "url": "assets/ReaderView-Da-GB1vo.js",
     "revision": null
   }, {
-    "url": "assets/PublishModal-DZ11dI8l.js",
+    "url": "assets/PublishModal-Cnll5rCj.js",
     "revision": null
   }, {
     "url": "assets/ProductivityCommandPalette-BNLLeZVs.js",
@@ -251,13 +251,13 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "url": "assets/PasswordStrengthIndicator-doSdbdbC.js",
     "revision": null
   }, {
-    "url": "assets/NavigationDrawer-C7klSlhh.js",
+    "url": "assets/NavigationDrawer-xKSL6tpn.js",
     "revision": null
   }, {
     "url": "assets/MilestoneCelebrationModal-DHO2rJiq.js",
     "revision": null
   }, {
-    "url": "assets/MangakaDashboardModal-BBC_z598.js",
+    "url": "assets/MangakaDashboardModal-CD0zZgBe.js",
     "revision": null
   }, {
     "url": "assets/MangaOfTheYearAwardsPage-Bu-O2UuN.js",
@@ -266,73 +266,76 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "url": "assets/MangaOfTheYearAwardsModal-COxtfKdX.js",
     "revision": null
   }, {
-    "url": "assets/MangaDetailModal-md1QLGND.js",
+    "url": "assets/MangaDetailModal-BCF1XpUi.js",
     "revision": null
   }, {
     "url": "assets/MangaCoverImage-DCdJzv9C.js",
     "revision": null
   }, {
-    "url": "assets/KAAfricaLogo-C2KUA74Y.js",
+    "url": "assets/KAAfricaLogo-BQrHYnjX.js",
     "revision": null
   }, {
-    "url": "assets/InterstitialAdModal-D_XPieyi.js",
+    "url": "assets/InterstitialAdModal-TrZVr4AY.js",
     "revision": null
   }, {
-    "url": "assets/GlobalPublishShareModal-DyXdbXed.js",
+    "url": "assets/GlobalPublishShareModal-CO92pM1B.js",
     "revision": null
   }, {
-    "url": "assets/FcmNotificationBanner-g_wQyr0c.js",
+    "url": "assets/FcmNotificationBanner-8FuY3dHL.js",
     "revision": null
   }, {
-    "url": "assets/DevicePerformanceModal-Cs_ZtU4K.js",
+    "url": "assets/DevicePerformanceModal-D1L1es8L.js",
     "revision": null
   }, {
-    "url": "assets/CreatorEarningsView-1TToc7SE.js",
+    "url": "assets/CreatorEarningsView-OCz_lZTL.js",
     "revision": null
   }, {
-    "url": "assets/CreatorDashboardView-DiIThhqS.js",
+    "url": "assets/CreatorDashboardView-Bc3I0AP_.js",
     "revision": null
   }, {
-    "url": "assets/CreatorDashboardModal-x-AwVYr8.js",
+    "url": "assets/CreatorDashboardModal-Cm8nu2nJ.js",
     "revision": null
   }, {
     "url": "assets/CreatorChapterStatsCard-CK5RkaFb.js",
     "revision": null
   }, {
-    "url": "assets/CreatorAccountGate-Dz51ioL-.js",
+    "url": "assets/CreatorAccountGate-tqlIoKO8.js",
     "revision": null
   }, {
     "url": "assets/ContentRules-Dirr_ReV.js",
     "revision": null
   }, {
-    "url": "assets/ChatsPage-B5mek8dY.js",
+    "url": "assets/ChatsPage-sP1xQ9In.js",
     "revision": null
   }, {
-    "url": "assets/ChapterUploadManager-DYVUTWUM.js",
+    "url": "assets/ChapterUploadManager-D8OHhTzg.js",
     "revision": null
   }, {
-    "url": "assets/BackdropPage-CdjDxp-L.js",
+    "url": "assets/BackdropPage-gdTRLzPV.js",
     "revision": null
   }, {
     "url": "assets/ApplyAsMangakaModal-CeHRUcfE.js",
     "revision": null
   }, {
-    "url": "assets/AppStoreModal-DFB70gpQ.js",
+    "url": "assets/AppStoreModal-CfZSgVhD.js",
     "revision": null
   }, {
-    "url": "assets/AppOpenAdModal-Dr6eCX8v.js",
+    "url": "assets/AppOpenAdModal-wy4Vwj2T.js",
     "revision": null
   }, {
     "url": "assets/AiReportModal-BfujU5ac.js",
     "revision": null
   }, {
-    "url": "assets/AdminDashboardModal-B88K0wFc.js",
+    "url": "assets/AdminDashboardModal-B6hgm9tk.js",
     "revision": null
   }, {
-    "url": "assets/AdminApprovalView-BNDyVavK.js",
+    "url": "assets/AdminApprovalView-DTSBYeHv.js",
     "revision": null
   }, {
     "url": "assets/aistudio/az_oververse_black_silver_transparent_29ae4c4c.png",
+    "revision": null
+  }, {
+    "url": "assets/aistudio/app_icon_512_hq_50b7d64c.png",
     "revision": null
   }, {
     "url": "assets/aistudio/IMG-20261030-WA4361_fe49230b.jpg",
@@ -366,34 +369,37 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     "revision": null
   }, {
     "url": "apple-touch-icon.png",
-    "revision": "0d73acf9ddb02175ebf091fa172d5c58"
+    "revision": "f0b02a74701197e3a57a507471c0c742"
   }, {
     "url": "favicon.png",
-    "revision": "69c1b57d80f58feb20171ea0ed79ae3f"
+    "revision": "55c6919dc92a0950d74cb146b17068b2"
   }, {
     "url": "icon.svg",
-    "revision": "e2522550d52c2a9be93fb57dfe0c93c1"
+    "revision": "ac17a5fde1676f42f1ea620f29962e05"
   }, {
     "url": "master-logo.png",
-    "revision": "41283aefa0f1aa3082c5434f108fb681"
+    "revision": "0d0432970c905d810560edbc8aadb4b5"
   }, {
     "url": "playstore-icon-512.png",
-    "revision": "41283aefa0f1aa3082c5434f108fb681"
+    "revision": "5294fc6d7228ff49ab932c03d118c474"
   }, {
     "url": "pwa-192x192.png",
-    "revision": "c12cb638b23b64366fbc2c60474b28c2"
+    "revision": "e7f88ad6473a84f1a9c8b7a2a1a76039"
   }, {
     "url": "pwa-512x512.png",
-    "revision": "41283aefa0f1aa3082c5434f108fb681"
+    "revision": "0d0432970c905d810560edbc8aadb4b5"
   }, {
     "url": "pwa-maskable-192x192.png",
-    "revision": "078d20cb810b6b942970856fd0c8e9cb"
+    "revision": "1292adf90968775ca3f34ac67d57aace"
   }, {
     "url": "pwa-maskable-512x512.png",
-    "revision": "41283aefa0f1aa3082c5434f108fb681"
+    "revision": "1648c5dca0db7023ff36c1e9b872a588"
   }, {
     "url": "assets/aistudio/876507702_1790968748807516_1967466416315700542_n_aea98a38.webp",
     "revision": "359338ece339d5e385b5d8a7f01cc411"
+  }, {
+    "url": "assets/aistudio/app_icon_512_hq_50b7d64c.png",
+    "revision": "26b6a15b796c1f115247226cb76b0302"
   }, {
     "url": "manifest.json",
     "revision": "bf2f6ecad3df4bb71e2e0aaf04f982e2"

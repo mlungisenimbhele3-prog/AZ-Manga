@@ -5,7 +5,7 @@ const path = require('path');
 // Official AZ OVERVERSE emblem logo for Android Launcher, Splash & PWA Icons
 const APP_ICON_PATH = path.resolve(
   __dirname,
-  '../public/assets/aistudio/IMG-20261030-WA4361_fe49230b.jpg'
+  '../public/assets/aistudio/app_icon_512_hq_50b7d64c.png'
 );
 
 const BRAND_BG = { r: 15, g: 4, b: 36, alpha: 1 }; // #0F0424 cosmic dark backdrop

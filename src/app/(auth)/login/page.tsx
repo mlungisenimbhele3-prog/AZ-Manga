@@ -521,7 +521,7 @@ export function LoginPage({
                       type="text"
                       inputMode={useRecoveryMode ? 'text' : 'numeric'}
                       pattern={useRecoveryMode ? undefined : '[0-9]*'}
-                      autoComplete="one-time-code"
+                      autoComplete={useRecoveryMode ? 'off' : 'one-time-code'}
                       maxLength={useRecoveryMode ? 9 : 6}
                       disabled={isSubmitting}
                       value={totpCode}
@@ -728,7 +728,7 @@ export function LoginPage({
                       id="login-email"
                       name="email"
                       type="email"
-                      autoComplete="email"
+                      autoComplete="username"
                       value={values.email}
                       onChange={(e) => handleFieldChange('email', e.target.value)}
                       onBlur={() => handleBlur('email')}

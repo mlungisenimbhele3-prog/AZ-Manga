@@ -145,14 +145,14 @@ export const MOTY_CATEGORIES: AwardCategory[] = [
   {
     id: 'grand-prix',
     title: 'AZ Oververse Manga of the Year Grand Prix',
-    subtitle: 'The supreme honor in original manga publishing',
+    subtitle: 'Season 1 honors open after our first full publishing season',
     year: 2026,
-    winnerMangaId: 'nkosi-the-tale-of-myths',
-    winnerCitation: 'Awarded for groundbreaking original storytelling, unmatched visual cadence, and world-building.',
+    winnerMangaId: '',
+    winnerCitation: '',
     nominees: [
-      { mangaId: 'nkosi-the-tale-of-myths', nominationReason: 'Pioneering African mythological epic & cultural resonance', votes: 0 },
-      { mangaId: 'last-shaman-of-zambezi', nominationReason: 'Stunning supernatural folklore and spiritual world-building', votes: 0 },
-      { mangaId: 'echoes-of-the-highveld', nominationReason: 'Visionary African cyberpunk aesthetics and narrative depth', votes: 0 },
+      { mangaId: 'nkosi-the-tale-of-myths', nominationReason: 'Original African mythological epic & celestial lore', votes: 0 },
+      { mangaId: 'last-shaman-of-zambezi', nominationReason: 'Supernatural folklore and ancestral spirit world-building', votes: 0 },
+      { mangaId: 'echoes-of-the-highveld', nominationReason: 'African cyberpunk aesthetics and narrative depth', votes: 0 },
     ],
   },
 ];

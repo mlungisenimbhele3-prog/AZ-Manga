@@ -1,17 +1,16 @@
+import "dotenv/config";
 import express from "express";
 import fs from "fs";
 import path from "path";
 import zlib from "zlib";
 import cookieParser from "cookie-parser";
-import * as dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { authRouter } from './src/server/authRoutes.ts';
 import { creatorRouter } from './src/server/creatorRoutes.ts';
+import { catalogRouter } from './src/server/catalogRoutes.ts';
 import { verifyPurposeToken } from './src/server/jwt.ts';
 import { pingDatabaseWithRetry } from './src/db/index.ts';
-
-dotenv.config();
 
 const SUSPICIOUS_PAYLOAD_REGEX = /<script\b|javascript:|UNION\s+SELECT/i;
 const BINARY_SKIP_KEYS = new Set(['fileData', 'imageBase64', 'avatarData']);
@@ -302,6 +301,9 @@ async function startServer() {
 
   // AZ OVERVERSE Creator Studio & Monetization API (Role-gated to Creator/Admin + Neon Postgres)
   app.use('/api/creator', creatorRouter);
+
+  // AZ OVERVERSE Public Catalog, Views, Issues, Awards & Real Social Counts API
+  app.use('/api/catalog', catalogRouter);
 
   // Upload Cover Image endpoint (persists in public/covers and returns real https URL)
   app.post("/api/upload-cover", async (req, res) => {

@@ -473,7 +473,7 @@ export const ChatsPage: React.FC<ChatsPageProps> = ({ onOpenUserProfile }) => {
       isGroup: true,
       membersCount: 1,
       groupParticipants: 'You (Founder)',
-      followersCount: 1,
+      followersCount: 0,
     };
 
     const welcomeMsg: ChatMessage = {
@@ -797,7 +797,9 @@ export const ChatsPage: React.FC<ChatsPageProps> = ({ onOpenUserProfile }) => {
 
                       <p className="text-[11px] text-amber-400/80 truncate mt-0.5">
                         {c.isGroup
-                          ? `${(c.membersCount || 1).toLocaleString()} members • ${c.role}`
+                          ? c.membersCount && c.membersCount > 0
+                            ? `${c.membersCount.toLocaleString()} members • ${c.role}`
+                            : c.role
                           : c.role}
                       </p>
 

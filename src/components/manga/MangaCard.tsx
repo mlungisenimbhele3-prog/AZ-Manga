@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { RatingAverageDisplay } from '../common/StarRating';
 import { submitUserRating } from '../../services/ratingService';
+import { formatViews } from '../../services/catalogApi';
 
 interface MangaCardProps {
   manga: Manga;
@@ -245,12 +246,7 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
               </span>
             )}
 
-            {isComingSoon ? (
-              <span className="rounded-md bg-amber-950/90 border border-amber-500/60 px-1.5 py-0.5 text-[9px] font-black text-amber-300 flex items-center gap-1">
-                <Clock className="w-2.5 h-2.5" />
-                <span>Panels Soon</span>
-              </span>
-            ) : manga.award ? (
+            {isComingSoon ? null : manga.award ? (
               <span className="flex items-center gap-1 rounded-md bg-amber-950/90 border border-amber-500/60 px-1.5 py-0.5 text-[9px] font-black text-amber-300">
                 <Trophy className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
                 <span>MOTY &apos;26</span>
@@ -358,14 +354,12 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
             showCount
           />
 
-          <div className="flex items-center gap-1 text-slate-200 bg-black/70 px-2 py-0.5 rounded-full font-mono text-[10px]">
-            <Eye className="w-3 h-3" />
-            <span>
-              {manga.views >= 1000
-                ? `${(manga.views / 1000).toFixed(1)}k`
-                : (manga.views || 0).toLocaleString()}
-            </span>
-          </div>
+          {!isComingSoon && (
+            <div className="flex items-center gap-1 text-slate-200 bg-black/70 px-2 py-0.5 rounded-full font-mono text-[10px]">
+              <Eye className="w-3 h-3" />
+              <span>{formatViews(manga.views || 0)}</span>
+            </div>
+          )}
         </div>
       </div>
 

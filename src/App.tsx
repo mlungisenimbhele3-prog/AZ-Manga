@@ -99,6 +99,18 @@ import {
 } from './services/ratingService';
 import { sanitizePlainCommentText } from './services/chapterCommentService';
 import { initWebViewer } from './utils/webViewerConfig';
+import { isMangaComingSoon } from './types';
+import {
+  CatalogIssue,
+  CatalogAwardsState,
+  CatalogSnapshot,
+  DEFAULT_LAUNCH_ISSUE,
+  DEFAULT_AWARDS_STATE,
+  fetchCatalogSnapshot,
+  applyCatalogMetricsToMangas,
+  recordRealChapterView,
+} from './services/catalogApi';
+import { syncCreatorFollowerCountsFromDb } from './services/creatorFollowService';
 import {
   Sparkles,
   Flame,
@@ -283,11 +295,16 @@ scheduleIdleTask(() => {
     safeStorage.removeItem('ka_pulse_supabase_mangas_cache');
     safeStorage.removeItem('ka_pulse_creator_coin_payouts_zar');
     safeStorage.removeItem('ka_pulse_coin_unlocks');
-    if (safeStorage.getItem('az_oververse_app_metrics_reset_v1') !== 'true') {
+    if (safeStorage.getItem('az_oververse_app_metrics_reset_v2') !== 'true') {
       safeStorage.removeItem('ka_moty_voted_grand-prix');
       safeStorage.removeItem('ka_moty_voted_manga_id');
       safeStorage.removeItem('ka_all_comments');
+      safeStorage.removeItem('az_creator_chapter_stats_v1');
+      safeStorage.removeItem('az_oververse_followed_creators');
+      safeStorage.removeItem('ka_africa_favorites');
+      safeStorage.removeItem('ka_pulse_last_read');
       safeStorage.setItemDeferred('az_oververse_app_metrics_reset_v1', 'true');
+      safeStorage.setItemDeferred('az_oververse_app_metrics_reset_v2', 'true');
     }
     const cachedStr = safeStorage.getItem('az_oververse_mangas_cache');
     if (
@@ -331,6 +348,10 @@ export default function App() {
   const [mangaList, setMangaList] = useState<Manga[]>(INITIAL_MANGA_LIST);
   const [creatorStats, setCreatorStats] = useState<CreatorStats>(INITIAL_CREATOR_STATS);
   const [ads] = useState<AdData[]>(ADS_DATABASE);
+  const [activeIssue, setActiveIssue] = useState<CatalogIssue>(DEFAULT_LAUNCH_ISSUE);
+  const [awardsState, setAwardsState] = useState<CatalogAwardsState>(DEFAULT_AWARDS_STATE);
+  const catalogSnapshotRef = useRef<CatalogSnapshot | null>(null);
+  const lastCountedChapterOpenRef = useRef<string | null>(null);
 
   // Admin Security & RBAC Guarantee (Admin ONLY: mlungisenimbhele3@gmail.com via JWT or verified Master Password)
   const ADMIN_EMAILS = ['mlungisenimbhele3@gmail.com'];
@@ -467,9 +488,12 @@ export default function App() {
 
   // User personal favorites collection with safeStorage read-through memory cache
   const [favoriteIds, setFavoriteIds] = useState<string[]>(() => {
+    if (safeStorage.getItem('az_oververse_app_metrics_reset_v2') !== 'true') {
+      return [];
+    }
     const parsed = safeStorage.getJSON<string[] | null>('ka_africa_favorites', null);
     if (Array.isArray(parsed)) return parsed;
-    return ['manga-1', 'manga-3'];
+    return [];
   });
 
   const mangaListRef = useRef<Manga[]>(mangaList);
@@ -482,27 +506,45 @@ export default function App() {
     const cancelBootFetch = scheduleIdleTask(() => {
       if (!isMounted) return;
 
-      // 1. Fetch core mangas & chapters from Supabase (skip state update if identical to initial list)
+      // 1. Fetch core mangas & chapters from Supabase and sync real DB metrics from /api/catalog
       fetchMangasFromSupabase().then((supaMangas) => {
         if (!isMounted || !supaMangas || supaMangas.length === 0) return;
+        const hydrated = catalogSnapshotRef.current
+          ? applyCatalogMetricsToMangas(supaMangas, catalogSnapshotRef.current)
+          : supaMangas;
         startTransition(() => {
           setMangaList((prev) => {
             if (
-              prev.length === supaMangas.length &&
+              prev.length === hydrated.length &&
               prev.every(
                 (m, i) =>
-                  m.id === supaMangas[i]?.id &&
-                  m.coverImage === supaMangas[i]?.coverImage &&
-                  m.rating === supaMangas[i]?.rating &&
-                  m.views === supaMangas[i]?.views &&
-                  m.genres.join('|') === (supaMangas[i]?.genres || []).join('|') &&
-                  m.chapters.length === supaMangas[i]?.chapters.length
+                  m.id === hydrated[i]?.id &&
+                  m.coverImage === hydrated[i]?.coverImage &&
+                  m.rating === hydrated[i]?.rating &&
+                  m.views === hydrated[i]?.views &&
+                  m.genres.join('|') === (hydrated[i]?.genres || []).join('|') &&
+                  m.chapters.length === hydrated[i]?.chapters.length
               )
             ) {
               return prev;
             }
-            return supaMangas;
+            return hydrated;
           });
+        });
+      });
+
+      fetchCatalogSnapshot().then((snapshot) => {
+        if (!isMounted || !snapshot) return;
+        catalogSnapshotRef.current = snapshot;
+        syncCreatorFollowerCountsFromDb(snapshot.followerCounts);
+        startTransition(() => {
+          if (snapshot.activeIssue) {
+            setActiveIssue(snapshot.activeIssue);
+          }
+          if (snapshot.awards) {
+            setAwardsState(snapshot.awards);
+          }
+          setMangaList((prev) => applyCatalogMetricsToMangas(prev, snapshot));
         });
       });
 
@@ -965,9 +1007,15 @@ export default function App() {
   const [performanceTier, setPerformanceTier] = useState<DeviceTier>(() => getActivePerformanceTier());
   const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [lastReadProgress, setLastReadProgress] = useState<LastReadProgress>(() => {
+  const [lastReadProgress, setLastReadProgress] = useState<LastReadProgress | null>(() => {
+    if (safeStorage.getItem('az_oververse_app_metrics_reset_v2') !== 'true') {
+      return null;
+    }
     const saved = safeStorage.getJSON<LastReadProgress | null>('ka_pulse_last_read', null);
     if (saved) {
+      if (saved.mangaId === 'manga-1' && saved.mangaTitle === 'The Spear of Shaka: Origins') {
+        return null;
+      }
       if (saved.mangaId === 'nkosi-the-tale-of-myths' && saved.coverImage !== NKOSI_COVER_SRC) {
         const updated = { ...saved, coverImage: NKOSI_COVER_SRC };
         safeStorage.setJSON('ka_pulse_last_read', updated);
@@ -975,19 +1023,7 @@ export default function App() {
       }
       return saved;
     }
-    const defaultProgress: LastReadProgress = {
-      mangaId: 'manga-1',
-      mangaTitle: 'The Spear of Shaka: Origins',
-      coverImage: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80',
-      chapterId: 'chap-shaka-1',
-      chapterNumber: 1,
-      chapterTitle: 'The Awakening Spear',
-      pageIndex: 7,
-      totalPages: 28,
-      timestamp: new Date().toISOString(),
-    };
-    safeStorage.setJSON('ka_pulse_last_read', defaultProgress);
-    return defaultProgress;
+    return null;
   });
 
   // Apply device performance classes immediately on mount or tier change, prewarm chunks on High/Ultra, and subscribe to live network/battery shifts
@@ -1018,9 +1054,31 @@ export default function App() {
     (mangaId: string, chapterId: string) => {
       const target = mangaListRef.current.find((m) => m.id === mangaId);
       if (target) {
+        const resolvedChapterId = chapterId || target.chapters[0]?.id || '';
+        const chObj = target.chapters.find((c) => c.id === resolvedChapterId);
+        const isLiveChapter =
+          !isMangaComingSoon(target) &&
+          Boolean(chObj) &&
+          !resolvedChapterId.includes('__preview') &&
+          (chObj?.pages?.length || 0) > 0;
+
         setSelectedDetailManga(null);
         setActiveReaderManga(target);
-        setActiveReaderChapterId(chapterId || target.chapters[0]?.id || '');
+        setActiveReaderChapterId(resolvedChapterId);
+
+        if (isLiveChapter && chObj) {
+          const openKey = `${target.id}:${chObj.id}`;
+          if (lastCountedChapterOpenRef.current !== openKey) {
+            lastCountedChapterOpenRef.current = openKey;
+            recordRealChapterView(target.id, chObj.id).then((result) => {
+              if (result.counted && typeof result.views === 'number') {
+                setMangaList((prev) =>
+                  prev.map((m) => (m.id === target.id ? { ...m, views: result.views! } : m))
+                );
+              }
+            });
+          }
+        }
       }
     },
     []
@@ -1181,15 +1239,34 @@ export default function App() {
       setActiveReaderManga(manga);
       setActiveReaderChapterId(targetChapterId || previewChapterId);
 
-      // Track read stats
-      setCreatorStats((prev) => ({
-        ...prev,
-        totalReads: prev.totalReads + 1,
-        subscriberViews:
-          userSubscription.tier !== 'free' ? prev.subscriberViews + 1 : prev.subscriberViews,
-        adImpressions:
-          userSubscription.tier === 'free' ? prev.adImpressions + 1 : prev.adImpressions,
-      }));
+      // Only count real views for Live manga opening a real chapter with panels (never previews, Coming Soon, or refreshes)
+      const isLiveRealChapter =
+        !isMangaComingSoon(manga) &&
+        !isPreviewChapterRequest &&
+        Boolean(chObj) &&
+        (chObj?.pages?.length || 0) > 0;
+
+      if (isLiveRealChapter && chObj) {
+        const openKey = `${manga.id}:${chObj.id}`;
+        if (lastCountedChapterOpenRef.current !== openKey) {
+          lastCountedChapterOpenRef.current = openKey;
+          recordRealChapterView(manga.id, chObj.id).then((result) => {
+            if (result.counted && typeof result.views === 'number') {
+              setMangaList((prev) =>
+                prev.map((m) => (m.id === manga.id ? { ...m, views: result.views! } : m))
+              );
+            }
+          });
+        }
+        setCreatorStats((prev) => ({
+          ...prev,
+          totalReads: prev.totalReads + 1,
+          subscriberViews:
+            userSubscription.tier !== 'free' ? prev.subscriberViews + 1 : prev.subscriberViews,
+          adImpressions:
+            userSubscription.tier === 'free' ? prev.adImpressions + 1 : prev.adImpressions,
+        }));
+      }
     },
     [userSubscription.tier]
   );
@@ -1859,15 +1936,15 @@ export default function App() {
                   <span>WEEKLY</span>
                   <span>AZ STORIES</span>
                 </div>
-                {/* Right side text = "ISSUE #41 • OCTOBER 2026 EDITION" */}
+                {/* Right side text = active issue from DB (ISSUE #01 • NOVEMBER 2026 • LAUNCH EDITION) */}
                 <span className="font-extrabold text-white tracking-wide text-xs sm:text-sm font-mono">
-                  ISSUE #41 • OCTOBER 2026 EDITION
+                  {activeIssue.editionLabel}
                 </span>
               </div>
-              {/* Flame icon text below: "Weekly Simulpubs & Original Uploads Ready" */}
+              {/* Flame icon text below */}
               <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
                 <Flame className="w-3.5 h-3.5 fill-amber-400 shrink-0" />
-                <span>Weekly Simulpubs & Original Uploads Ready</span>
+                <span>{activeIssue.headline}</span>
               </div>
             </div>
           </div>
@@ -2125,6 +2202,7 @@ export default function App() {
                 <MangaOfTheYearAwardsPage
                   categories={MOTY_CATEGORIES}
                   mangaList={ratedMangaList}
+                  awardsState={awardsState}
                   onStartReading={(m, chId) => handleStartReading(m, chId)}
                   onSelectManga={handleSelectDetailManga}
                   onNavigateToReader={() => handleTabChange('readers')}
@@ -2591,6 +2669,7 @@ export default function App() {
             onClose={() => setIsAwardsModalOpen(false)}
             categories={MOTY_CATEGORIES}
             mangaList={mangaList}
+            awardsState={awardsState}
             onStartReading={(manga, chId) => {
               setIsAwardsModalOpen(false);
               handleStartReading(manga, chId);

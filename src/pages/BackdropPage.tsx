@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Manga, isMangaComingSoon } from '../types';
 import { MangaCoverImage } from '../components/common/MangaCoverImage';
 import { RatingAverageDisplay } from '../components/common/StarRating';
+import { formatViews } from '../services/catalogApi';
 import {
   Sparkles,
   TrendingUp,
@@ -273,10 +274,12 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
                       size="sm"
                       showCount
                     />
-                    <div className="flex items-center gap-1 text-slate-300 bg-black/60 px-2 py-0.5 rounded-full font-mono text-[10px]">
-                      <Eye className="w-3 h-3" />
-                      <span>{manga.views.toLocaleString()}</span>
-                    </div>
+                    {!isComingSoon && (
+                      <div className="flex items-center gap-1 text-slate-300 bg-black/60 px-2 py-0.5 rounded-full font-mono text-[10px]">
+                        <Eye className="w-3 h-3" />
+                        <span>{formatViews(manga.views || 0)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

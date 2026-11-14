@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool, PoolConfig } from 'pg';
 import * as schema from './schema.ts';
@@ -6,14 +7,38 @@ declare global {
   var _postgresPool: Pool | undefined;
 }
 
+function isPlaceholderDatabaseUrl(urlString?: string): boolean {
+  if (!urlString) return true;
+  const trimmed = urlString.trim();
+  if (!trimmed) return true;
+  if (
+    trimmed.includes('ep-bold-glitter-123456') ||
+    trimmed.includes(':npg_secret@') ||
+    /\/\/[^/]*@?base(?:[:/?]|$)/i.test(trimmed)
+  ) {
+    return true;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    const host = (parsed.hostname || '').toLowerCase();
+    if (host === 'base' || host.includes('ep-bold-glitter-123456')) {
+      return true;
+    }
+  } catch {
+    // Ignore URL parse error and fall through
+  }
+  return false;
+}
+
 /**
  * Normalizes PostgreSQL connection string for Neon pooled connections:
  * - Appends ?pgbouncer=true if using pooled endpoint (or missing)
  * - Configures connect_timeout=15 for Neon cold-start wake-up tolerance
  */
 export function formatDatabaseUrl(rawUrl?: string): string {
-  const urlString = rawUrl?.trim() || process.env.DATABASE_URL?.trim() || '';
-  if (!urlString) return '';
+  const candidate = rawUrl?.trim() || process.env.DATABASE_URL?.trim() || '';
+  if (isPlaceholderDatabaseUrl(candidate)) return '';
+  const urlString = candidate;
 
   try {
     const parsed = new URL(urlString);
@@ -39,7 +64,10 @@ export function formatDatabaseUrl(rawUrl?: string): string {
 
 export const createPool = () => {
   if (!global._postgresPool) {
-    const databaseUrl = formatDatabaseUrl(process.env.DATABASE_URL);
+    const hasCloudSqlEnv = Boolean(
+      process.env.SQL_HOST && process.env.SQL_USER && process.env.SQL_DB_NAME
+    );
+    const databaseUrl = hasCloudSqlEnv ? '' : formatDatabaseUrl(process.env.DATABASE_URL);
 
     const poolConfig: PoolConfig = databaseUrl
       ? {

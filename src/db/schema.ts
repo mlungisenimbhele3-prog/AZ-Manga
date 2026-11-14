@@ -1,4 +1,4 @@
-import { boolean, doublePrecision, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, doublePrecision, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -70,8 +70,48 @@ export const payouts = pgTable('payouts', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const issues = pgTable('issues', {
+  id: text('id').primaryKey(),
+  issueNumber: integer('issue_number').notNull(),
+  editionLabel: text('edition_label').notNull(),
+  headline: text('headline').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const awards = pgTable('awards', {
+  id: text('id').primaryKey(),
+  year: integer('year').notNull().default(2026),
+  title: text('title').notNull(),
+  subtitle: text('subtitle').notNull(),
+  status: text('status').notNull().default('coming_soon'),
+  winnerMangaId: text('winner_manga_id'),
+  winnerCitation: text('winner_citation'),
+  votesCount: integer('votes_count').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const creatorFollows = pgTable(
+  'creator_follows',
+  {
+    id: text('id').primaryKey(),
+    creatorId: text('creator_id').notNull(),
+    creatorName: text('creator_name').notNull(),
+    followerKey: text('follower_key').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('idx_creator_follows_unique').on(table.creatorId, table.followerKey),
+    index('idx_creator_follows_creator_id').on(table.creatorId),
+  ]
+);
+
 export type DbUser = typeof users.$inferSelect;
 export type NewDbUser = typeof users.$inferInsert;
 export type DbManga = typeof mangas.$inferSelect;
 export type DbChapter = typeof chapters.$inferSelect;
 export type DbPayout = typeof payouts.$inferSelect;
+export type DbIssue = typeof issues.$inferSelect;
+export type DbAward = typeof awards.$inferSelect;
+export type DbCreatorFollow = typeof creatorFollows.$inferSelect;

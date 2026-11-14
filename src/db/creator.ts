@@ -15,6 +15,13 @@ export async function ensureCreatorTables(): Promise<void> {
   tableInitPromise = (async () => {
     try {
       await withDbRetry(async () => {
+        const check = await pool.query<{ table_name: string }>(
+          `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('mangas', 'chapters', 'payouts')`
+        );
+        if (check.rows.length >= 3) {
+          return;
+        }
+
         await pool.query(`
           CREATE TABLE IF NOT EXISTS mangas (
             id TEXT PRIMARY KEY,

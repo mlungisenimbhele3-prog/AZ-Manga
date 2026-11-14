@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Manga } from '../../types';
-import { Eye, RefreshCw, Calendar, Sparkles, BookOpen, Clock } from 'lucide-react';
+import { Manga, isMangaComingSoon } from '../../types';
+import { Eye, RefreshCw, Calendar, Clock } from 'lucide-react';
+import { formatViews } from '../../services/catalogApi';
 
 export interface MangaPlusUpdatesHomeProps {
   mangaList: Manga[];
@@ -18,17 +19,6 @@ interface DaySchedule {
   isToday: boolean;
   hasUpdates: boolean;
 }
-
-const formatViews = (views?: number): string => {
-  if (!views || views === 0) return '0';
-  if (views >= 1_000_000) {
-    return `${(views / 1_000_000).toFixed(1)}M`;
-  }
-  if (views >= 1_000) {
-    return `${(views / 1_000).toFixed(1)}K`;
-  }
-  return String(views);
-};
 
 const formatChapterNum = (num?: number): string => {
   if (!num || isNaN(num)) return '001';
@@ -217,10 +207,11 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
     }, 650);
   }, []);
 
+  const isFeaturedComingSoon = isMangaComingSoon(featuredManga);
   const featuredLatestChapter =
     featuredManga?.chapters?.[featuredManga.chapters.length - 1]?.number ||
     featuredManga?.chapters?.length ||
-    2;
+    0;
 
   return (
     <div
@@ -349,15 +340,22 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
                   </h2>
                 </div>
 
-                {/* Chapter pill #002 + views 56.4K bottom-right in black pill */}
-                <div className="shrink-0 flex items-center gap-1.5 sm:gap-2 bg-black/85 backdrop-blur-md border border-white/15 px-3 py-1.5 rounded-full text-xs font-mono shadow-xl">
-                  <span className="font-bold text-white">#{formatChapterNum(featuredLatestChapter)}</span>
-                  <span className="text-zinc-600">·</span>
-                  <span className="text-zinc-300 font-sans flex items-center gap-1">
-                    <Eye className="w-3.5 h-3.5 text-zinc-400 inline" />
-                    {formatViews(featuredManga.views || 56400)}
-                  </span>
-                </div>
+                {/* Coming Soon pill only OR Live Chapter + Real Views */}
+                {isFeaturedComingSoon ? (
+                  <div className="shrink-0 inline-flex items-center gap-1.5 bg-amber-500 text-black px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-xl">
+                    <Clock className="w-3.5 h-3.5 text-black" />
+                    <span>COMING SOON</span>
+                  </div>
+                ) : (
+                  <div className="shrink-0 flex items-center gap-1.5 sm:gap-2 bg-black/85 backdrop-blur-md border border-white/15 px-3 py-1.5 rounded-full text-xs font-mono shadow-xl">
+                    <span className="font-bold text-white">#{formatChapterNum(featuredLatestChapter)}</span>
+                    <span className="text-zinc-600">·</span>
+                    <span className="text-zinc-300 font-sans flex items-center gap-1">
+                      <Eye className="w-3.5 h-3.5 text-zinc-400 inline" />
+                      {formatViews(featuredManga.views || 0)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -379,8 +377,9 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
           ) : (
             <div className="grid grid-cols-3 gap-3 sm:gap-4">
               {(gridMangaList.length > 0 ? gridMangaList : [featuredManga!]).map((manga) => {
+                const isCardComingSoon = isMangaComingSoon(manga);
                 const latestChapterNum =
-                  manga.chapters?.[manga.chapters.length - 1]?.number || manga.chapters?.length || 1;
+                  manga.chapters?.[manga.chapters.length - 1]?.number || manga.chapters?.length || 0;
                 return (
                   <div
                     key={`manga-plus-card-${manga.id}`}
@@ -404,15 +403,22 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
                       {manga.title}
                     </h3>
 
-                    {/* Below title: black pill with #037 + views 39.3K in grey */}
-                    <div className="mt-1 inline-flex items-center gap-1.5 self-start bg-[#141414] border border-zinc-800/90 px-2 py-0.5 rounded-full text-[11px] font-mono">
-                      <span className="font-bold text-white">#{formatChapterNum(latestChapterNum)}</span>
-                      <span className="text-zinc-600">·</span>
-                      <span className="text-zinc-400 font-sans flex items-center gap-0.5 text-[10px]">
-                        <Eye className="w-2.5 h-2.5 text-zinc-500 inline" />
-                        {formatViews(manga.views || 39300)}
-                      </span>
-                    </div>
+                    {/* Below title: Coming Soon badge only OR real chapter + live views */}
+                    {isCardComingSoon ? (
+                      <div className="mt-1 inline-flex items-center gap-1 self-start bg-amber-500 text-black px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
+                        <Clock className="w-2.5 h-2.5 text-black" />
+                        <span>COMING SOON</span>
+                      </div>
+                    ) : (
+                      <div className="mt-1 inline-flex items-center gap-1.5 self-start bg-[#141414] border border-zinc-800/90 px-2 py-0.5 rounded-full text-[11px] font-mono">
+                        <span className="font-bold text-white">#{formatChapterNum(latestChapterNum)}</span>
+                        <span className="text-zinc-600">·</span>
+                        <span className="text-zinc-400 font-sans flex items-center gap-0.5 text-[10px]">
+                          <Eye className="w-2.5 h-2.5 text-zinc-500 inline" />
+                          {formatViews(manga.views || 0)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}

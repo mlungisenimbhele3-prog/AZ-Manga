@@ -163,28 +163,13 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   role: 'reader',
   createdAt: new Date().toISOString(),
   lastLoginAt: new Date().toISOString(),
-  bookmarks: ['manga-1', 'manga-3'],
-  readingProgress: {
-    'manga-1': {
-      mangaId: 'manga-1',
-      mangaTitle: 'The Lost Kingdom of Mapungubwe',
-      mangaCover:
-        'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80',
-      chapterId: 'chap-1-1',
-      chapterNumber: 1,
-      chapterTitle: 'The Golden Rhino Awakens',
-      pageNumber: 3,
-      totalPages: 8,
-      progressPercent: 37,
-      updatedAt: new Date().toISOString(),
-      completed: false,
-    },
-  },
+  bookmarks: [],
+  readingProgress: {},
   preferences: DEFAULT_PREFERENCES,
-  following: ['c-1', 'c-2'],
+  following: [],
   followersCount: 0,
-  followingCount: 2,
-  streakDays: 7,
+  followingCount: 0,
+  streakDays: 0,
   coins: 0,
 };
 
@@ -227,7 +212,7 @@ function loadLocalProfile(): UserProfile {
         : DEFAULT_USER_PROFILE.bookmarks,
       readingProgress: cached.readingProgress || {},
       chapterPageBookmarks: cached.chapterPageBookmarks || {},
-      following: Array.isArray(cached.following) ? cached.following : ['c-1', 'c-2'],
+      following: Array.isArray(cached.following) ? cached.following : [],
     };
   }
   return { ...DEFAULT_USER_PROFILE };

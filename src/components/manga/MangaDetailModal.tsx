@@ -682,7 +682,9 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                           size="xs"
                           showCount
                         />
-                        <span>• {(activeManga.views || 0).toLocaleString()} reads</span>
+                        {!isMangaComingSoon(activeManga) && (
+                          <span>• {(activeManga.views || 0).toLocaleString()} reads</span>
+                        )}
                       </span>
                     </div>
                     <h2 className="text-xl sm:text-2xl font-black text-white truncate drop-shadow">

@@ -812,7 +812,7 @@ export const MangaReader: React.FC<MangaReaderProps> = ({
                   <Sparkles className="w-10 h-10 text-amber-400" />
                 </div>
                 <span className="text-xs uppercase font-bold tracking-wider text-amber-400 mb-1">
-                  Simulpub VIP Fast Pass
+                  VIP Chapter Unlock
                 </span>
                 <h3 className="text-2xl font-black text-white mb-2">
                   {currentChapter.title}

@@ -625,7 +625,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                     <span>
                       {currentSubscription.tier === 'early_access' || currentSubscription.tier === 'patron'
                         ? '⚡ Pro Early Access: 7-14 Days Fast-Pass Drop active'
-                        : 'Standard Simulpub Access (Upgrade for Early Access)'}
+                        : 'Standard VIP Access (Upgrade for Early Access)'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">

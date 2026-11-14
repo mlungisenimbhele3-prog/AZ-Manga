@@ -91,35 +91,28 @@ export const FollowedCreatorsView: React.FC<FollowedCreatorsViewProps> = ({
     });
   }, [creators, searchQuery, filterRole]);
 
-  // Curated recommendations if user has unfollowed everyone
+  // Launch creators available to follow
   const recommendedCreators = [
     {
-      name: 'Sipho Zulu',
-      role: 'Author' as const,
-      studio: 'Amadlozi Comics Lab',
-      bio: 'Author of The Spear of Shaka: Origins.',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-    },
-    {
       name: 'Mlungiseni Mbhele',
-      role: 'Producer' as const,
-      studio: 'AZ OVERVERSE Studios',
-      bio: 'Executive Producer of AZ OVERVERSE & Manga of the Year curator.',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-    },
-    {
-      name: 'Nandi Dlamini',
-      role: 'Artist' as const,
-      studio: 'Ink & Bead Studios',
-      bio: 'Lead Illustrator of The Spear of Shaka & Afro-Mythology series.',
-      avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
-    },
-    {
-      name: 'Kagiso Khumalo',
       role: 'Author' as const,
-      studio: 'Jozi Manga Ink',
-      bio: 'Author of Taxi Wars: Jozi Nights and Kasi-Punk thrillers.',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
+      studio: 'AZ OVERVERSE Studios',
+      bio: 'Creator of Nkosi the tale of Myths & Executive Producer.',
+      avatarUrl: '/assets/aistudio/876507702_1790968748807516_1967466416315700542_n_aea98a38.webp',
+    },
+    {
+      name: 'Sipho Dlamini',
+      role: 'Author' as const,
+      studio: 'AZ Backdrop Collective',
+      bio: 'Author of The Last Shaman of Zambezi.',
+      avatarUrl: '/assets/aistudio/862516203_2025904894785875_8927204788896565857_n_afa879ec.webp',
+    },
+    {
+      name: 'Tendai Moyo',
+      role: 'Author' as const,
+      studio: 'AZ Backdrop Collective',
+      bio: 'Author of Echoes of the Highveld.',
+      avatarUrl: '/assets/aistudio/858773050_1090471570458562_5763578410902289088_n_e2f7ebb3.webp',
     },
   ];
 
@@ -413,8 +406,8 @@ export const FollowedCreatorsView: React.FC<FollowedCreatorsViewProps> = ({
                         avatarUrl: rec.avatarUrl,
                         bio: rec.bio,
                         studioName: rec.studio,
-                        followersCount: 15000,
-                        seriesCount: 2,
+                        followersCount: 0,
+                        seriesCount: 1,
                         seriesTitles: [],
                         followedAt: new Date().toISOString(),
                         notifyOnNewChapter: true,

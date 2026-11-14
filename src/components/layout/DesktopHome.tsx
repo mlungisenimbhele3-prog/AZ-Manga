@@ -11,6 +11,7 @@ import { RatingAverageDisplay } from '../common/StarRating';
 import { buildPreviewChapterId } from '../../services/ratingService';
 import { UserTasteProfile } from '../../services/recommendationEngine';
 import { isLowEndOrReducedMotion } from '../../utils/devicePerformance';
+import { DEFAULT_LAUNCH_ISSUE } from '../../services/catalogApi';
 import {
   Search,
   Upload,
@@ -805,7 +806,7 @@ const DesktopHomeComponent: React.FC<DesktopHomeProps> = ({
 
             {/* Weekly Issue Notification */}
             <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-2.5 text-center text-[10px] text-amber-300 font-semibold">
-              Weekly Shonen Pulse Issue #42 Simulpub Available
+              {DEFAULT_LAUNCH_ISSUE.editionLabel} • {DEFAULT_LAUNCH_ISSUE.headline}
             </div>
           </div>
         </aside>

@@ -350,7 +350,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       }
       for (const ch of m.chapters || []) {
         const chLikes = Number(ch.likesCount || 0);
-        const chReads = Math.max(Math.round(mReads / Math.max(1, m.chapters.length)), chLikes * 14);
+        const chReads = Number((ch as any).reads || 0);
         totalLikes += chLikes;
         if (!topChapter || chReads > topChapter.reads) {
           topChapter = {
@@ -365,7 +365,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
 
     const myMangaIdSet = new Set(myMangas.map((m) => m.id));
     const commentsCount = allComments.filter((c) => myMangaIdSet.has(c.mangaId)).length;
-    const followers = Math.max(profile.followersCount || 0, Math.round(totalReads * 0.045));
+    const followers = Number(profile.followersCount || 0);
 
     // Computed ZAR earnings (overridden by Neon DB snapshot when populated)
     const computedGrossZar = Number(((totalReads * 0.042 + totalLikes * 0.35) * 0.7).toFixed(2));

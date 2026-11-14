@@ -7,6 +7,7 @@
 import { safeStorage } from '../utils/safeStorage';
 import { isUserFollowed, toggleFollowUser } from './userProfile';
 import { dispatchChapterDropPush } from './fcm';
+import { toggleCreatorFollowApi } from './catalogApi';
 import { Manga, Chapter } from '../types';
 
 export interface FollowedCreator {
@@ -32,72 +33,9 @@ export interface FollowedCreator {
 }
 
 const STORAGE_KEY = 'az_oververse_followed_creators';
+const FOLLOWS_RESET_FLAG = 'az_oververse_follows_reset_v1';
 
-const DEFAULT_CURATED_CREATORS: FollowedCreator[] = [
-  {
-    id: 'creator-sipho-zulu',
-    name: 'Sipho Zulu',
-    role: 'Author',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-    bio: 'Pioneer of Southern African mythological action manga. Creator of The Spear of Shaka: Origins.',
-    studioName: 'Amadlozi Comics Lab',
-    followersCount: 24500,
-    seriesCount: 3,
-    seriesTitles: ['The Spear of Shaka: Origins', 'Kingdom of Mapungubwe', 'Assegai of Dawn'],
-    latestRelease: {
-      mangaId: 'manga-1',
-      mangaTitle: 'The Spear of Shaka: Origins',
-      chapterNumber: 14,
-      chapterTitle: 'Echoes of Ancestral Thunder',
-      releaseDate: 'Today',
-    },
-    followedAt: new Date(Date.now() - 14 * 86400000).toISOString(),
-    notifyOnNewChapter: true,
-    notifyOnNewSeries: true,
-  },
-  {
-    id: 'creator-mlungiseni-mbhele',
-    name: 'Mlungiseni Mbhele',
-    role: 'Producer',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-    bio: 'Architect & Executive Producer of AZ OVERVERSE. Manga of the Year curator and publisher.',
-    studioName: 'AZ OVERVERSE Studios',
-    followersCount: 89000,
-    seriesCount: 8,
-    seriesTitles: ['Nkosi: The Tale of Myths', 'Chronicles of the Highveld', 'Soweto Solar Knights'],
-    latestRelease: {
-      mangaId: 'nkosi-the-tale-of-myths',
-      mangaTitle: 'Nkosi: The Tale of Myths',
-      chapterNumber: 22,
-      chapterTitle: 'The Ancestral Horizon',
-      releaseDate: 'Yesterday',
-    },
-    followedAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-    notifyOnNewChapter: true,
-    notifyOnNewSeries: true,
-  },
-  {
-    id: 'creator-nandi-dlamini',
-    name: 'Nandi Dlamini',
-    role: 'Artist',
-    avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
-    bio: 'Lead Illustrator & Concept Artist. Renowned for dynamic brushwork and vibrant African color palettes.',
-    studioName: 'Ink & Bead Studios',
-    followersCount: 18400,
-    seriesCount: 2,
-    seriesTitles: ['The Spear of Shaka: Origins', 'Queen Nandi: The Unbroken Shield'],
-    latestRelease: {
-      mangaId: 'manga-1',
-      mangaTitle: 'The Spear of Shaka: Origins',
-      chapterNumber: 14,
-      chapterTitle: 'Echoes of Ancestral Thunder',
-      releaseDate: 'Today',
-    },
-    followedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-    notifyOnNewChapter: true,
-    notifyOnNewSeries: true,
-  },
-];
+const DEFAULT_CURATED_CREATORS: FollowedCreator[] = [];
 
 type CreatorFollowListener = (creators: FollowedCreator[]) => void;
 const listeners = new Set<CreatorFollowListener>();
@@ -115,13 +53,37 @@ export function buildCreatorId(name: string): string {
 }
 
 export function getFollowedCreators(): FollowedCreator[] {
+  if (safeStorage.getItem(FOLLOWS_RESET_FLAG) !== 'true') {
+    safeStorage.setJSON(STORAGE_KEY, DEFAULT_CURATED_CREATORS);
+    safeStorage.setItem(FOLLOWS_RESET_FLAG, 'true');
+    return [];
+  }
   const cached = safeStorage.getJSON<FollowedCreator[] | null>(STORAGE_KEY, null);
   if (Array.isArray(cached)) {
-    return cached;
+    return cached.map((c) => ({
+      ...c,
+      followersCount: Number.isFinite(c.followersCount) && c.followersCount < 10000 ? c.followersCount : 0,
+    }));
   }
-  // Initialize with curated creators
   safeStorage.setJSON(STORAGE_KEY, DEFAULT_CURATED_CREATORS);
   return DEFAULT_CURATED_CREATORS;
+}
+
+export function syncCreatorFollowerCountsFromDb(counts: Record<string, number>): void {
+  const list = getFollowedCreators();
+  if (list.length === 0) return;
+  let changed = false;
+  const next = list.map((c) => {
+    const dbCount = counts[c.id];
+    if (typeof dbCount === 'number' && dbCount !== c.followersCount) {
+      changed = true;
+      return { ...c, followersCount: dbCount };
+    }
+    return c;
+  });
+  if (changed) {
+    persistFollowedCreators(next);
+  }
 }
 
 function persistFollowedCreators(creators: FollowedCreator[]): void {
@@ -176,18 +138,9 @@ export async function followCreator(creatorData: {
       `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80`,
     bio: creatorData.bio || `Official verified ${creatorData.role || 'Author'} on AZ OVERVERSE.`,
     studioName: creatorData.studioName || 'AZ Creative Collective',
-    followersCount: Math.floor(Math.random() * 5000) + 1200,
-    seriesCount: creatorData.mangaContext ? 1 : 1,
+    followersCount: 0,
+    seriesCount: creatorData.mangaContext ? 1 : 0,
     seriesTitles: creatorData.mangaContext ? [creatorData.mangaContext.title] : [],
-    latestRelease: creatorData.mangaContext
-      ? {
-          mangaId: creatorData.mangaContext.mangaId || 'manga-1',
-          mangaTitle: creatorData.mangaContext.title,
-          chapterNumber: 1,
-          chapterTitle: 'Debut Chapter',
-          releaseDate: 'Recently',
-        }
-      : undefined,
     followedAt: new Date().toISOString(),
     notifyOnNewChapter: true,
     notifyOnNewSeries: true,
@@ -195,6 +148,23 @@ export async function followCreator(creatorData: {
 
   const updated = [newCreator, ...list];
   persistFollowedCreators(updated);
+
+  // Persist real follow count in Postgres
+  try {
+    const followerKey = safeStorage.getItem('ka_africa_user_email') || 'anonymous-reader';
+    const apiRes = await toggleCreatorFollowApi({
+      creatorId: targetId,
+      creatorName: creatorData.name,
+      followerKey,
+      action: 'follow',
+    });
+    if (apiRes.success) {
+      const synced = getFollowedCreators().map((c) =>
+        c.id === targetId ? { ...c, followersCount: apiRes.followersCount } : c
+      );
+      persistFollowedCreators(synced);
+    }
+  } catch {}
 
   // Sync with user profile service
   try {
@@ -221,6 +191,16 @@ export async function unfollowCreator(nameOrId: string): Promise<boolean> {
   );
 
   persistFollowedCreators(updated);
+
+  try {
+    const followerKey = safeStorage.getItem('ka_africa_user_email') || 'anonymous-reader';
+    await toggleCreatorFollowApi({
+      creatorId: targetId,
+      creatorName: nameOrId,
+      followerKey,
+      action: 'unfollow',
+    });
+  } catch {}
 
   // Sync with user profile service
   try {

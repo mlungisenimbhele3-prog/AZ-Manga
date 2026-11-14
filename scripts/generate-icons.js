@@ -4,7 +4,7 @@ import path from 'path';
 
 async function generate() {
   const logoPath = path.resolve(
-    'public/assets/aistudio/IMG-20261030-WA4361_fe49230b.jpg'
+    'public/assets/aistudio/app_icon_512_hq_50b7d64c.png'
   );
   const logoBuffer = fs.readFileSync(logoPath);
 

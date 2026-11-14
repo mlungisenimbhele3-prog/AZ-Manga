@@ -678,7 +678,9 @@ export const FullChatView: React.FC<FullChatViewProps> = ({
     if (conversation.isGroup) {
       return (
         conversation.groupParticipants ||
-        `${(conversation.membersCount || 1).toLocaleString()} members • ${conversation.role}`
+        (conversation.membersCount && conversation.membersCount > 0
+          ? `${conversation.membersCount.toLocaleString()} members • ${conversation.role}`
+          : conversation.role)
       );
     }
     if (conversation.online) {

@@ -27,64 +27,20 @@ export interface CreatorOverallReadingStats {
 }
 
 const STORAGE_KEY = 'az_creator_chapter_stats_v1';
+const STATS_RESET_FLAG = 'az_creator_chapter_stats_reset_v1';
 const EVENT_NAME = 'az_creator_chapter_stats_updated';
 
-/**
- * Baseline sample data to ensure the Creator Dashboard displays rich, realistic metrics
- * on first launch before live reads occur.
- */
-const DEFAULT_INITIAL_METRICS: Record<string, ChapterReadingMetrics> = {
-  'nkosi-the-tale-of-myths-ch-1': {
-    chapterId: 'nkosi-the-tale-of-myths-ch-1',
-    chapterNumber: 1,
-    chapterTitle: 'Chapter 1: Awaken the Sun Staff',
-    mangaId: 'nkosi-the-tale-of-myths',
-    mangaTitle: 'Nkosi the tale of Myths',
-    mangaCover: '/assets/aistudio/876507702_1790968748807516_1967466416315700542_n_aea98a38.webp',
-    totalReadingDurationSeconds: 14820, // ~4.1 hours
-    totalSessionsCount: 42,
-    completedSessionsCount: 36,
-    uniqueReadersCount: 38,
-    lastReadAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
-    averageSecondsPerSession: 352,
-    completionRatePercent: 85.7,
-  },
-  'nkosi-the-tale-of-myths-ch-2': {
-    chapterId: 'nkosi-the-tale-of-myths-ch-2',
-    chapterNumber: 2,
-    chapterTitle: 'Chapter 2: The Whispering Highveld',
-    mangaId: 'nkosi-the-tale-of-myths',
-    mangaTitle: 'Nkosi the tale of Myths',
-    mangaCover: '/assets/aistudio/876507702_1790968748807516_1967466416315700542_n_aea98a38.webp',
-    totalReadingDurationSeconds: 9640, // ~2.6 hours
-    totalSessionsCount: 28,
-    completedSessionsCount: 23,
-    uniqueReadersCount: 26,
-    lastReadAt: new Date(Date.now() - 1000 * 60 * 95).toISOString(),
-    averageSecondsPerSession: 344,
-    completionRatePercent: 82.1,
-  },
-  'last-shaman-of-zambezi-ch-1': {
-    chapterId: 'last-shaman-of-zambezi-ch-1',
-    chapterNumber: 1,
-    chapterTitle: 'Chapter 1: The Baobab Mask',
-    mangaId: 'last-shaman-of-zambezi',
-    mangaTitle: 'The Last Shaman of Zambezi',
-    mangaCover: '/assets/aistudio/862516203_2025904894785875_8927204788896565857_n_afa879ec.webp',
-    totalReadingDurationSeconds: 11200, // ~3.1 hours
-    totalSessionsCount: 34,
-    completedSessionsCount: 29,
-    uniqueReadersCount: 31,
-    lastReadAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
-    averageSecondsPerSession: 329,
-    completionRatePercent: 85.3,
-  },
-};
+const DEFAULT_INITIAL_METRICS: Record<string, ChapterReadingMetrics> = {};
 
 /**
  * Retrieves the raw map of all chapter reading stats from local storage.
  */
 export function getRawChapterStatsMap(): Record<string, ChapterReadingMetrics> {
+  if (safeStorage.getItem(STATS_RESET_FLAG) !== 'true') {
+    safeStorage.setJSON(STORAGE_KEY, {});
+    safeStorage.setItem(STATS_RESET_FLAG, 'true');
+    return {};
+  }
   const stored = safeStorage.getJSON<Record<string, ChapterReadingMetrics> | null>(STORAGE_KEY, null);
   if (!stored || Object.keys(stored).length === 0) {
     safeStorage.setJSON(STORAGE_KEY, DEFAULT_INITIAL_METRICS);

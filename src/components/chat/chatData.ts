@@ -107,7 +107,7 @@ export const INITIAL_CONTACTS: ChatContact[] = [
     online: true,
     isCreator: true,
     isVerifiedVIP: true,
-    followersCount: 24500,
+    followersCount: 0,
   },
   {
     id: 'c-3',
@@ -125,7 +125,7 @@ export const INITIAL_CONTACTS: ChatContact[] = [
     online: true,
     isCreator: true,
     isVerifiedVIP: true,
-    followersCount: 12300,
+    followersCount: 0,
   },
   {
     id: 'c-4',
@@ -142,7 +142,7 @@ export const INITIAL_CONTACTS: ChatContact[] = [
     online: true,
     isCreator: true,
     isVerifiedVIP: true,
-    followersCount: 18400,
+    followersCount: 0,
   },
   {
     id: 'c-5',
@@ -160,7 +160,7 @@ export const INITIAL_CONTACTS: ChatContact[] = [
     online: true,
     isCreator: false,
     isVerifiedVIP: false,
-    followersCount: 9200,
+    followersCount: 0,
   },
   {
     id: 'c-2',
@@ -178,7 +178,7 @@ export const INITIAL_CONTACTS: ChatContact[] = [
     online: true,
     isCreator: false,
     isVerifiedVIP: false,
-    followersCount: 89000,
+    followersCount: 0,
   },
   {
     id: 'c-6',
@@ -196,7 +196,7 @@ export const INITIAL_CONTACTS: ChatContact[] = [
     online: false,
     isCreator: false,
     isVerifiedVIP: false,
-    followersCount: 640,
+    followersCount: 0,
   },
 ];
 
@@ -217,9 +217,9 @@ export const INITIAL_GROUPS: ChatContact[] = [
     isCreator: true,
     isVerifiedVIP: true,
     isGroup: true,
-    membersCount: 1420,
-    groupParticipants: 'Mlungiseni ✨, Thabo ✨, Ayanda ✨, You + 1,416 others',
-    followersCount: 4200,
+    membersCount: 0,
+    groupParticipants: 'Mlungiseni ✨, Thabo ✨, Ayanda ✨, You',
+    followersCount: 0,
   },
   {
     id: 'grp-2',
@@ -238,9 +238,9 @@ export const INITIAL_GROUPS: ChatContact[] = [
     isCreator: false,
     isVerifiedVIP: false,
     isGroup: true,
-    membersCount: 3890,
-    groupParticipants: 'Kofi, Sipho, Lerato, You + 3,886 Guest Readers',
-    followersCount: 11200,
+    membersCount: 0,
+    groupParticipants: 'Kofi, Sipho, Lerato, You',
+    followersCount: 0,
   },
 ];
 
@@ -259,7 +259,7 @@ export const SUGGESTED_PEOPLE_TO_FOLLOW: ChatContact[] = [
     online: true,
     isCreator: true,
     isVerifiedVIP: true,
-    followersCount: 31200,
+    followersCount: 0,
   },
   {
     id: 'p-2',
@@ -275,7 +275,7 @@ export const SUGGESTED_PEOPLE_TO_FOLLOW: ChatContact[] = [
     online: true,
     isCreator: true,
     isVerifiedVIP: true,
-    followersCount: 45800,
+    followersCount: 0,
   },
   {
     id: 'p-3',
@@ -291,7 +291,7 @@ export const SUGGESTED_PEOPLE_TO_FOLLOW: ChatContact[] = [
     online: false,
     isCreator: true,
     isVerifiedVIP: true,
-    followersCount: 16700,
+    followersCount: 0,
   },
 ];
 
@@ -635,7 +635,7 @@ export const INITIAL_MESSAGES_BY_CONVERSATION: Record<string, ChatMessage[]> = {
       dateGroup: 'Today',
       isMe: true,
       status: 'read',
-      readByName: 'Kofi & 42 Guest Readers',
+      readByName: 'Kofi',
       isReadByVIP: false,
       reactions: { '🔥': 7 },
     },

@@ -49,7 +49,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlanDefinition[] = [
     priceYearlyUSD: 47.9,
     perks: [
       '100% Ad-Free reading (Zero banner breaks or interstitials)',
-      'Instant access to all VIP Simulpub chapters',
+      'Instant access to all VIP chapters',
       'Ultra-HD uncompressed crystal-clear page scans',
       'Offline reader downloads & local cache',
       '70% routed directly to African creator payout pool',
