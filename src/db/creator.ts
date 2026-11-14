@@ -33,6 +33,7 @@ export async function ensureCreatorTables(): Promise<void> {
             genres TEXT NOT NULL DEFAULT '["Action"]',
             age_rating TEXT NOT NULL DEFAULT '13+',
             language TEXT NOT NULL DEFAULT 'English',
+            type TEXT NOT NULL DEFAULT 'backdrop',
             status TEXT NOT NULL DEFAULT 'Draft',
             approval_status TEXT NOT NULL DEFAULT 'pending_review',
             views INTEGER NOT NULL DEFAULT 0,
@@ -48,6 +49,7 @@ export async function ensureCreatorTables(): Promise<void> {
             number INTEGER NOT NULL,
             title TEXT NOT NULL,
             panels TEXT NOT NULL DEFAULT '[]',
+            page_count INTEGER NOT NULL DEFAULT 8 CHECK (page_count >= 8 AND page_count <= 50),
             publish_status TEXT NOT NULL DEFAULT 'Coming Soon • Panels In Production',
             scheduled_for TEXT,
             reads INTEGER NOT NULL DEFAULT 0,
@@ -129,10 +131,12 @@ export async function upsertCreatorManga(input: {
   genres: string[];
   ageRating: string;
   language: string;
+  type?: 'original' | 'backdrop';
   status: 'Draft' | 'Coming Soon' | 'Live';
   approvalStatus?: string;
 }): Promise<DbManga> {
   await ensureCreatorTables();
+  const seriesType: 'original' | 'backdrop' = input.type === 'original' ? 'original' : 'backdrop';
   return withDbRetry(async () => {
     const now = new Date();
     const rows = await db
@@ -147,6 +151,7 @@ export async function upsertCreatorManga(input: {
         genres: JSON.stringify(input.genres),
         ageRating: input.ageRating,
         language: input.language,
+        type: seriesType,
         status: input.status,
         approvalStatus: input.approvalStatus || (input.status === 'Live' ? 'approved' : 'pending_review'),
         createdAt: now,
@@ -161,6 +166,7 @@ export async function upsertCreatorManga(input: {
           genres: JSON.stringify(input.genres),
           ageRating: input.ageRating,
           language: input.language,
+          type: seriesType,
           status: input.status,
           approvalStatus: input.approvalStatus || (input.status === 'Live' ? 'approved' : 'pending_review'),
           updatedAt: now,
@@ -179,6 +185,7 @@ export async function updateCreatorMangaRecord(
     title: string;
     synopsis: string;
     coverUrl: string;
+    type: 'original' | 'backdrop';
     status: string;
     approvalStatus: string;
   }>
@@ -227,6 +234,9 @@ export async function createCreatorChapterRecord(input: {
   scheduledFor?: string | null;
   releaseDate: string;
 }): Promise<DbChapter> {
+  if (!Array.isArray(input.panels) || input.panels.length < 8 || input.panels.length > 50) {
+    throw new Error('Chapter must be 8-50 pages');
+  }
   await ensureCreatorTables();
   return withDbRetry(async () => {
     const now = new Date();
@@ -239,6 +249,7 @@ export async function createCreatorChapterRecord(input: {
         number: input.number,
         title: input.title,
         panels: JSON.stringify(input.panels),
+        pageCount: input.panels.length,
         publishStatus: input.publishStatus,
         scheduledFor: input.scheduledFor ?? null,
         reads: 0,

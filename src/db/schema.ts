@@ -1,4 +1,5 @@
-import { boolean, doublePrecision, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { boolean, check, doublePrecision, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -31,6 +32,7 @@ export const mangas = pgTable('mangas', {
   genres: text('genres').notNull().default('["Action"]'),
   ageRating: text('age_rating').notNull().default('13+'),
   language: text('language').notNull().default('English'),
+  type: text('type').notNull().default('backdrop'),
   status: text('status').notNull().default('Draft'),
   approvalStatus: text('approval_status').notNull().default('pending_review'),
   views: integer('views').notNull().default(0),
@@ -39,24 +41,31 @@ export const mangas = pgTable('mangas', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const chapters = pgTable('chapters', {
-  id: text('id').primaryKey(),
-  mangaId: text('manga_id').notNull(),
-  creatorId: text('creator_id').notNull(),
-  number: integer('number').notNull(),
-  title: text('title').notNull(),
-  panels: text('panels').notNull().default('[]'),
-  publishStatus: text('publish_status')
-    .notNull()
-    .default('Coming Soon • Panels In Production'),
-  scheduledFor: text('scheduled_for'),
-  reads: integer('reads').notNull().default(0),
-  likes: integer('likes').notNull().default(0),
-  commentsCount: integer('comments_count').notNull().default(0),
-  releaseDate: text('release_date').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const chapters = pgTable(
+  'chapters',
+  {
+    id: text('id').primaryKey(),
+    mangaId: text('manga_id').notNull(),
+    creatorId: text('creator_id').notNull(),
+    number: integer('number').notNull(),
+    title: text('title').notNull(),
+    panels: text('panels').notNull().default('[]'),
+    pageCount: integer('page_count').notNull().default(8),
+    publishStatus: text('publish_status')
+      .notNull()
+      .default('Coming Soon • Panels In Production'),
+    scheduledFor: text('scheduled_for'),
+    reads: integer('reads').notNull().default(0),
+    likes: integer('likes').notNull().default(0),
+    commentsCount: integer('comments_count').notNull().default(0),
+    releaseDate: text('release_date').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('chk_chapters_page_count', sql`${table.pageCount} >= 8 AND ${table.pageCount} <= 50`),
+  ]
+);
 
 export const payouts = pgTable('payouts', {
   id: text('id').primaryKey(),

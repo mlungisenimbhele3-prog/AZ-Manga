@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Manga, isMangaComingSoon } from '../../types';
-import { Eye, RefreshCw, Calendar, Clock } from 'lucide-react';
+import { Manga, isMangaComingSoon, getMangaType } from '../../types';
+import { Eye, RefreshCw, Calendar, Clock, Crown } from 'lucide-react';
 import { formatViews } from '../../services/catalogApi';
 
 export interface MangaPlusUpdatesHomeProps {
@@ -60,6 +60,9 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
   const todayDate = useMemo(() => new Date(), []);
   const todayDayIndex = todayDate.getDay();
 
+  // Original vs Backdrop filter (defaults to 'original' on Home)
+  const [seriesTypeFilter, setSeriesTypeFilter] = useState<'original' | 'backdrop' | 'all'>('original');
+
   // Selected day index (0 = Sun .. 6 = Sat). Default to today.
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(todayDayIndex);
 
@@ -70,6 +73,17 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
   const touchStartYRef = useRef<number>(0);
   const weekStripScrollRef = useRef<HTMLDivElement>(null);
 
+  const visibleCatalog = useMemo(() => {
+    return mangaList.filter((m) => {
+      if (!m || m.id === 'placeholder' || m.isBanned) return false;
+      if (m.approvalStatus && m.approvalStatus !== 'approved') return false;
+      const t = getMangaType(m);
+      if (seriesTypeFilter === 'original') return t === 'original';
+      if (seriesTypeFilter === 'backdrop') return t === 'backdrop';
+      return true;
+    });
+  }, [mangaList, seriesTypeFilter]);
+
   // Group manga by release weekday
   const mangaByDay = useMemo(() => {
     const map = new Map<number, Manga[]>();
@@ -77,7 +91,7 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
       map.set(i, []);
     }
 
-    const validManga = mangaList.filter((m) => m && m.id !== 'placeholder' && !m.isBanned);
+    const validManga = visibleCatalog;
 
     validManga.forEach((m) => {
       const day = getMangaUpdateWeekday(m);
@@ -90,7 +104,6 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
     for (let i = 0; i < 7; i++) {
       const list = map.get(i) || [];
       if (list.length === 0 && validManga.length > 0) {
-        // Pick slice from validManga deterministically
         const sliceStart = (i * 3) % validManga.length;
         const fallbackItems = validManga.slice(sliceStart, sliceStart + 4);
         map.set(i, fallbackItems.length > 0 ? fallbackItems : validManga.slice(0, 3));
@@ -98,7 +111,7 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
     }
 
     return map;
-  }, [mangaList]);
+  }, [visibleCatalog]);
 
   // Build the 7 days of the current week (Monday through Sunday)
   const weekDays: DaySchedule[] = useMemo(() => {
@@ -140,17 +153,16 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
     return list.sort((a, b) => (b.views || 0) - (a.views || 0));
   }, [mangaByDay, selectedDayIndex]);
 
-  // Top updated featured manga for the selected day
+  // Top updated featured manga for the selected day (strictly respecting active type filter)
   const featuredManga = useMemo(() => {
     if (dayMangaList.length > 0) {
       return dayMangaList[0];
     }
-    // Fallback to highest viewed manga in catalog
-    if (mangaList.length > 0) {
-      return [...mangaList].sort((a, b) => (b.views || 0) - (a.views || 0))[0];
+    if (visibleCatalog.length > 0) {
+      return [...visibleCatalog].sort((a, b) => (b.views || 0) - (a.views || 0))[0];
     }
     return null;
-  }, [dayMangaList, mangaList]);
+  }, [dayMangaList, visibleCatalog]);
 
   // Remaining manga in the 3-column grid (excluding the top featured one, or showing all)
   const gridMangaList = useMemo(() => {
@@ -230,6 +242,54 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400 bg-zinc-900/90 px-4 py-1.5 rounded-full border border-zinc-800 shadow-md">
             <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>{isRefreshing ? 'Refreshing updates...' : 'Pull to refresh'}</span>
+          </div>
+        </div>
+
+        {/* 0. ORIGINALS / BACKDROP / ALL FILTER HEADER */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex items-center gap-2">
+            <Crown className="w-4 h-4 text-amber-400" />
+            <h1 className="text-base sm:text-lg font-black tracking-wide text-white uppercase">
+              {seriesTypeFilter === 'original'
+                ? 'Originals'
+                : seriesTypeFilter === 'backdrop'
+                ? 'Backdrop'
+                : 'All Series'}
+            </h1>
+          </div>
+
+          <div
+            id="home-series-type-toggle"
+            className="inline-flex items-center rounded-xl bg-zinc-900 border border-zinc-800 p-1 gap-1"
+            role="tablist"
+            aria-label="Filter series by type"
+          >
+            {(
+              [
+                { id: 'original', label: 'Original' },
+                { id: 'backdrop', label: 'Backdrop' },
+                { id: 'all', label: 'All' },
+              ] as const
+            ).map((opt) => {
+              const active = seriesTypeFilter === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  id={`home-filter-${opt.id}-btn`}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setSeriesTypeFilter(opt.id)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                    active
+                      ? 'bg-amber-500 text-black shadow'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -332,9 +392,21 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
               <div className="flex items-end justify-between gap-3">
                 {/* Title bottom-left in white bold */}
                 <div className="min-w-0 max-w-[70%]">
-                  <span className="inline-block px-2 py-0.5 rounded-md bg-pink-500/20 text-pink-400 border border-pink-500/40 text-[10px] font-bold uppercase tracking-wider mb-1">
-                    Featured Update
-                  </span>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    {getMangaType(featuredManga) === 'original' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500 text-black text-[10px] font-black uppercase tracking-wider">
+                        <Crown className="w-2.5 h-2.5 fill-black" />
+                        <span>ORIGINAL</span>
+                      </span>
+                    ) : (
+                      <span className="inline-block px-2 py-0.5 rounded-md bg-slate-800/95 text-slate-200 border border-slate-600 text-[10px] font-bold uppercase tracking-wider">
+                        BACKDROP
+                      </span>
+                    )}
+                    <span className="inline-block px-2 py-0.5 rounded-md bg-pink-500/20 text-pink-400 border border-pink-500/40 text-[10px] font-bold uppercase tracking-wider">
+                      Featured
+                    </span>
+                  </div>
                   <h2 className="text-base sm:text-2xl md:text-3xl font-black text-white truncate drop-shadow-md">
                     {featuredManga.title}
                   </h2>
@@ -396,6 +468,18 @@ export const MangaPlusUpdatesHome: React.FC<MangaPlusUpdatesHomeProps> = React.m
                         decoding="async"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
+                      <div className="absolute top-1.5 left-1.5">
+                        {getMangaType(manga) === 'original' ? (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500 text-black px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider shadow">
+                            <Crown className="w-2 h-2 fill-black" />
+                            <span>ORIGINAL</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-black/80 border border-slate-600 text-slate-200 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider">
+                            BACKDROP
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Title below in white 13px bold, 1 line with ellipsis */}

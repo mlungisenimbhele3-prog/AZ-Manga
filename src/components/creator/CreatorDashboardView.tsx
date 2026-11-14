@@ -46,8 +46,9 @@ import {
   Building2,
   Smartphone,
   CreditCard,
+  Pencil,
 } from 'lucide-react';
-import { Manga, Chapter, ChapterPage, Comment } from '../../types';
+import { Manga, Chapter, ChapterPage, Comment, SeriesType, getMangaType } from '../../types';
 import {
   UserProfile,
   getCurrentUserProfile,
@@ -66,6 +67,7 @@ interface CreatorDashboardViewProps {
   onDeleteManga: (mangaId: string) => void;
   onViewManga?: (manga: Manga) => void;
   onOpenApplyCreator?: () => void;
+  onOpenEditProfile?: () => void;
   onBackToCatalog?: () => void;
 }
 
@@ -83,6 +85,8 @@ interface PayoutRow {
 
 interface EarningsSnapshot {
   totalZar: number;
+  originalTotalZar?: number;
+  backdropPayableZar?: number;
   thisMonthZar: number;
   availableBalanceZar: number;
   breakdown: {
@@ -174,6 +178,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
   onDeleteManga,
   onViewManga,
   onOpenApplyCreator,
+  onOpenEditProfile,
   onBackToCatalog,
 }) => {
   const [profile, setProfile] = useState<UserProfile>(() => getCurrentUserProfile());
@@ -230,6 +235,8 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
   const [newGenres, setNewGenres] = useState<string[]>(['Action']);
   const [newLanguage, setNewLanguage] = useState('English');
   const [newAgeRating, setNewAgeRating] = useState<'All Ages' | '13+' | '16+' | '18+'>('13+');
+  const [newSeriesType, setNewSeriesType] = useState<SeriesType>('backdrop');
+  const [newBackdropUnderstood, setNewBackdropUnderstood] = useState(false);
 
   // Edit Manga Modal
   const [editingManga, setEditingManga] = useState<Manga | null>(null);
@@ -335,16 +342,30 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
   }, [fetchDashboardFromApi]);
 
   // Audience & Earnings metrics derived cleanly from Neon + creator catalog
+  // Original series earn 70% rev-share; Backdrop series count as exposure-only views (never payable)
   const metrics = useMemo(() => {
-    let totalReads = 0;
+    let originalReads = 0;
+    let originalLikes = 0;
+    let backdropViews = 0;
+    let backdropSeriesCount = 0;
     let totalLikes = 0;
     let topManga: Manga | null = null;
     let topChapter: { mangaTitle: string; chapterNumber: number; title: string; reads: number } | null = null;
 
     for (const m of myMangas) {
       const mReads = Number(m.views || 0);
-      totalReads += mReads;
-      totalLikes += Number(m.bookmarksCount || 0) + Number((m as any).likes || 0);
+      const mLikes = Number(m.bookmarksCount || 0) + Number((m as any).likes || 0);
+      const isOrig = getMangaType(m) === 'original';
+
+      if (isOrig) {
+        originalReads += mReads;
+        originalLikes += mLikes;
+      } else {
+        backdropViews += mReads;
+        backdropSeriesCount += 1;
+      }
+      totalLikes += mLikes;
+
       if (!topManga || mReads >= (topManga.views || 0)) {
         topManga = m;
       }
@@ -352,6 +373,9 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
         const chLikes = Number(ch.likesCount || 0);
         const chReads = Number((ch as any).reads || 0);
         totalLikes += chLikes;
+        if (isOrig) {
+          originalLikes += chLikes;
+        }
         if (!topChapter || chReads > topChapter.reads) {
           topChapter = {
             mangaTitle: m.title,
@@ -363,12 +387,13 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       }
     }
 
+    const totalReads = originalReads + backdropViews;
     const myMangaIdSet = new Set(myMangas.map((m) => m.id));
     const commentsCount = allComments.filter((c) => myMangaIdSet.has(c.mangaId)).length;
     const followers = Number(profile.followersCount || 0);
 
-    // Computed ZAR earnings (overridden by Neon DB snapshot when populated)
-    const computedGrossZar = Number(((totalReads * 0.042 + totalLikes * 0.35) * 0.7).toFixed(2));
+    // Computed ZAR earnings from ORIGINAL series ONLY (Backdrop views are exposure only, not payable)
+    const computedGrossZar = Number(((originalReads * 0.042 + originalLikes * 0.35) * 0.7).toFixed(2));
     const totalZar = dbEarnings ? Math.max(dbEarnings.totalZar, computedGrossZar) : computedGrossZar;
     const paidOutTotal = dbPayouts.reduce(
       (sum, p) => (p.status !== 'Rejected' ? sum + Number(p.amountZar || 0) : sum),
@@ -403,6 +428,9 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
     return {
       followers,
       totalReads,
+      originalReads,
+      backdropViews,
+      backdropSeriesCount,
       totalLikes,
       commentsCount,
       topManga,
@@ -469,23 +497,32 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
   const handleCreateMangaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
+    if (newSeriesType === 'backdrop' && !newBackdropUnderstood) {
+      showToast('Please tick "I Understand" to confirm Backdrop monetization rules.');
+      return;
+    }
 
     const mangaId = `creator-${profile.uid}-${Date.now()}`;
     const defaultCover =
       newCoverImage.trim() ||
       'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80';
+    const creatorDisplayName = profile.displayName || profile.penName || 'Creator';
 
     const newManga: Manga = {
       id: mangaId,
       title: newTitle.trim(),
-      author: profile.penName || profile.displayName || 'Creator',
-      artist: profile.penName || profile.displayName || 'Creator',
+      author: creatorDisplayName,
+      artist: creatorDisplayName,
       cover: defaultCover,
       coverImage: defaultCover,
       coverUrl: defaultCover,
       bannerImage: defaultCover,
       genres: newGenres,
       status: 'ONGOING',
+      type: newSeriesType,
+      isOriginal: newSeriesType === 'original',
+      isBackdrop: newSeriesType === 'backdrop',
+      isCanvas: newSeriesType === 'backdrop',
       synopsis: newDescription.trim() || 'Original series published on AZ OVERVERSE.',
       rating: 0,
       ratingCount: 0,
@@ -505,6 +542,8 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
     setNewCoverImage('');
     setNewDescription('');
     setNewGenres(['Action']);
+    setNewSeriesType('backdrop');
+    setNewBackdropUnderstood(false);
 
     const token = getInMemoryAccessToken();
     if (token) {
@@ -523,13 +562,14 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
           genres: newManga.genres,
           ageRating: newAgeRating,
           language: newLanguage,
+          type: newSeriesType,
           status: 'Coming Soon',
           approvalStatus: 'pending_review',
         }),
       }).catch(() => {});
     }
 
-    showToast('Series created! Upload Chapter 1 below to launch.');
+    showToast('Series created! Upload Chapter 1 below (8-50 pages) to launch.');
   };
 
   // Edit Manga
@@ -570,7 +610,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
     showToast('Series updated.');
   };
 
-  // Section 2: Submit Chapter Upload
+  // Section 2: Submit Chapter Upload (strict 8-50 page count enforcement on new chapters)
   const handleUploadChapterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const targetManga = myMangas.find((m) => m.id === uploadMangaId);
@@ -579,23 +619,27 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       return;
     }
 
+    const panelCount = uploadPanels.length;
+    if (panelCount < 8) {
+      showToast(
+        `A chapter needs at least 8 pages to publish. You have ${panelCount} pages. Add ${8 - panelCount} more pages.`
+      );
+      return;
+    }
+    if (panelCount > 50) {
+      showToast(
+        `A chapter can have max 50 pages. You have ${panelCount} pages. Remove ${panelCount - 50} pages or split into 2 chapters.`
+      );
+      return;
+    }
+
     setIsUploadingChapter(true);
     try {
-      const finalPages: ChapterPage[] =
-        uploadPanels.length > 0
-          ? uploadPanels.map((url, idx) => ({
-              id: `p-${idx + 1}`,
-              pageNumber: idx + 1,
-              imageUrl: url,
-            }))
-          : [
-              {
-                id: 'p-1',
-                pageNumber: 1,
-                imageUrl: targetManga.coverUrl || targetManga.coverImage,
-                caption: 'Chapter Cover Panel',
-              },
-            ];
+      const finalPages: ChapterPage[] = uploadPanels.map((url, idx) => ({
+        id: `p-${idx + 1}`,
+        pageNumber: idx + 1,
+        imageUrl: url,
+      }));
 
       const isPublishNow = uploadMode === 'live';
       const releaseDate = isPublishNow
@@ -625,7 +669,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
 
       const token = getInMemoryAccessToken();
       if (token) {
-        await fetch('/api/creator/chapters', {
+        const res = await fetch('/api/creator/chapters', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -642,7 +686,12 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
             scheduledFor: isPublishNow ? null : releaseDate,
             releaseDate,
           }),
-        }).catch(() => {});
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast(data.error || 'Chapter must be 8-50 pages.');
+          return;
+        }
       }
 
       const updatedManga: Manga = {
@@ -918,8 +967,13 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-lg sm:text-xl font-black tracking-tight text-white truncate">
-                  {profile.penName || profile.displayName || 'Creator Studio'}
+                  {profile.displayName || profile.penName || 'Creator Studio'}
                 </h1>
+                {profile.studioName && (
+                  <span className="text-xs font-semibold text-amber-400 truncate">
+                    • {profile.studioName}
+                  </span>
+                )}
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/40 text-[10px] font-black uppercase">
                   <CheckCircle2 className="w-3 h-3 text-amber-400" />
                   <span>Verified Creator</span>
@@ -928,6 +982,9 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
               <p className="text-xs text-slate-400 truncate mt-0.5">
                 {profile.email || currentUserEmail}
               </p>
+              {profile.bio && (
+                <p className="text-[11px] text-slate-300 mt-1 line-clamp-2">{profile.bio}</p>
+              )}
               <div className="flex items-center gap-4 mt-1.5 text-xs font-mono tabular-nums">
                 <span className="text-slate-300">
                   <strong className="text-white">{metrics.followers.toLocaleString()}</strong> Followers
@@ -945,6 +1002,18 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
 
           {/* Primary Header CTAs */}
           <div className="flex flex-wrap items-center gap-2">
+            {onOpenEditProfile && (
+              <button
+                type="button"
+                id="creator-dashboard-edit-profile-btn"
+                onClick={onOpenEditProfile}
+                className="px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-500/50 text-white font-bold text-xs transition flex items-center gap-1.5"
+              >
+                <Pencil className="w-3.5 h-3.5 text-amber-400" />
+                <span>Edit Profile</span>
+              </button>
+            )}
+
             <button
               type="button"
               id="creator-dashboard-content-rules-btn"
@@ -1135,7 +1204,18 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                       <div className="flex-1 min-w-0 w-full space-y-2.5">
                         <div className="flex items-start justify-between flex-wrap gap-2">
                           <div className="min-w-0">
-                            <h3 className="text-base font-black text-white truncate">{manga.title}</h3>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-base font-black text-white truncate">{manga.title}</h3>
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded border text-[9px] font-black uppercase tracking-wider ${
+                                  getMangaType(manga) === 'original'
+                                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                                    : 'bg-sky-500/15 border-sky-500/40 text-sky-300'
+                                }`}
+                              >
+                                {getMangaType(manga) === 'original' ? 'ORIGINAL · 70% PAYABLE' : 'BACKDROP · EXPOSURE ONLY'}
+                              </span>
+                            </div>
                             <span className="text-xs text-slate-400">
                               {manga.genres?.join(', ') || 'Action'}
                             </span>
@@ -1229,49 +1309,55 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                           {manga.chapters.map((chapter) => {
                             const chStatus = (chapter as any).publishStatus || (manga.approvalStatus === 'approved' ? 'Live' : 'Coming Soon • Panels In Production');
                             const isInProduction = chStatus !== 'Live';
+                            const panelCount = chapter.pages?.length ?? chapter.pageCount ?? 0;
+                            const isLegacyShortChapter = panelCount > 0 && panelCount < 8;
                             return (
-                              <div
-                                key={chapter.id}
-                                className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 text-xs"
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <span className="font-mono font-bold text-amber-400 text-[11px] bg-slate-900 px-2 py-0.5 rounded shrink-0">
-                                    Ch. {chapter.number}
-                                  </span>
-                                  <span className="font-semibold text-white truncate">{chapter.title}</span>
-                                  <span className="text-[10px] text-slate-400 shrink-0">
-                                    ({chapter.pages?.length || chapter.pageCount} panels)
-                                  </span>
-                                </div>
+                              <div key={chapter.id} className="space-y-1">
+                                <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 text-xs">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className="font-mono font-bold text-amber-400 text-[11px] bg-slate-900 px-2 py-0.5 rounded shrink-0">
+                                      Ch. {chapter.number}
+                                    </span>
+                                    <span className="font-semibold text-white truncate">{chapter.title}</span>
+                                    <span className="text-[10px] text-slate-400 shrink-0">
+                                      ({panelCount} pages)
+                                    </span>
+                                  </div>
 
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                                      isInProduction
-                                        ? 'bg-amber-950/50 border-amber-500/40 text-amber-300'
-                                        : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
-                                    }`}
-                                  >
-                                    {chStatus}
-                                  </span>
-                                  {isInProduction && (
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                                        isInProduction
+                                          ? 'bg-amber-950/50 border-amber-500/40 text-amber-300'
+                                          : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                                      }`}
+                                    >
+                                      {chStatus}
+                                    </span>
+                                    {isInProduction && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePublishChapterLive(manga, chapter)}
+                                        className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] transition"
+                                      >
+                                        Publish Now
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
-                                      onClick={() => handlePublishChapterLive(manga, chapter)}
-                                      className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] transition"
+                                      onClick={() => setChapterToDelete({ manga, chapter })}
+                                      className="p-1 rounded-lg hover:bg-rose-950/80 text-slate-500 hover:text-rose-400 transition"
+                                      title="Delete chapter"
                                     >
-                                      Publish Now
+                                      <Trash2 className="w-3.5 h-3.5" />
                                     </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => setChapterToDelete({ manga, chapter })}
-                                    className="p-1 rounded-lg hover:bg-rose-950/80 text-slate-500 hover:text-rose-400 transition"
-                                    title="Delete chapter"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  </div>
                                 </div>
+                                {isLegacyShortChapter && (
+                                  <p className="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-500/30 rounded-lg px-2.5 py-1.5">
+                                    This chapter is below the new 8-page minimum. It will stay live, but your next chapter must be 8-50 pages.
+                                  </p>
+                                )}
                               </div>
                             );
                           })}
@@ -1368,16 +1454,38 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
               </div>
             </div>
 
-            {/* 4. Panel Images Upload & Reordering */}
+            {/* 4. Panel Images Upload & Reordering (8-50 pages required) */}
             <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase text-slate-400 block">
-                4. Upload Panel Images (Multiple, Reorderable in Reading Sequence)
-              </label>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <label className="text-[11px] font-bold uppercase text-slate-400 block">
+                  4. Upload Panel Images (Multiple, Reorderable in Reading Sequence)
+                </label>
+                <span
+                  id="dashboard-upload-page-counter"
+                  className={`text-[11px] font-mono font-bold px-2.5 py-0.5 rounded border ${
+                    uploadPanels.length >= 8 && uploadPanels.length <= 50
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                      : 'bg-rose-500/15 border-rose-500/40 text-rose-300'
+                  }`}
+                >
+                  Pages: {uploadPanels.length} / 50
+                </span>
+              </div>
+
+              <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-200/90 space-y-1">
+                <p className="font-semibold">
+                  Rule: 8 pages minimum, 50 pages maximum per chapter. This keeps reading quality high.
+                </p>
+                <p className="text-slate-300">
+                  If you use vertical scroll, 1 long image = 1 page. You still need 8 images.
+                </p>
+              </div>
+
               <label className="flex flex-col items-center justify-center p-5 border-2 border-dashed border-slate-800 hover:border-orange-500/60 rounded-2xl bg-slate-950/60 cursor-pointer transition">
                 <UploadCloud className="w-7 h-7 text-amber-400 mb-1" />
                 <span className="text-xs font-bold text-white">Select Panel Images (JPG, PNG, WEBP)</span>
                 <span className="text-[10px] text-slate-400 mt-0.5">
-                  Sorted automatically or reorder below using arrows
+                  Sorted automatically or reorder below using arrows (8 to 50 pages)
                 </span>
                 <input
                   type="file"
@@ -1387,6 +1495,17 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                   className="hidden"
                 />
               </label>
+
+              {uploadPanels.length < 8 && (
+                <p id="dashboard-upload-page-error-min" className="text-xs text-rose-400 font-semibold">
+                  A chapter needs at least 8 pages to publish. You have {uploadPanels.length} pages. Add {8 - uploadPanels.length} more pages.
+                </p>
+              )}
+              {uploadPanels.length > 50 && (
+                <p id="dashboard-upload-page-error-max" className="text-xs text-rose-400 font-semibold">
+                  A chapter can have max 50 pages. You have {uploadPanels.length} pages. Remove {uploadPanels.length - 50} pages or split into 2 chapters.
+                </p>
+              )}
 
               {uploadPanels.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 p-3 rounded-2xl bg-slate-950 border border-slate-800 max-h-64 overflow-y-auto">
@@ -1474,8 +1593,14 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
 
               <button
                 type="submit"
-                disabled={isUploadingChapter || myMangas.length === 0}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-400 text-black font-black text-xs shadow-lg hover:brightness-105 disabled:opacity-50 transition"
+                id="dashboard-upload-chapter-submit-btn"
+                disabled={
+                  isUploadingChapter ||
+                  myMangas.length === 0 ||
+                  uploadPanels.length < 8 ||
+                  uploadPanels.length > 50
+                }
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-400 text-black font-black text-xs shadow-lg hover:brightness-105 disabled:opacity-45 disabled:cursor-not-allowed transition"
               >
                 {isUploadingChapter
                   ? 'Saving Chapter...'
@@ -1521,23 +1646,35 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
             </div>
           </div>
 
-          {/* KPI Summary Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* KPI Summary Row: Original Payable Earnings vs Backdrop Exposure Views */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <div className="lg:col-span-2 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/30 to-slate-950 p-4">
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
-                Total Earnings (ZAR)
+                Original Earnings (70% — payable)
               </span>
               <span className="text-2xl font-black text-white font-mono tabular-nums mt-1 block">
                 {formatZar(metrics.totalZar)}
               </span>
               <span className="text-[11px] text-slate-400 mt-1 block">
-                70% Creator Share Active
+                {metrics.originalReads.toLocaleString()} Original reads · 70% Creator Share Active
+              </span>
+            </div>
+
+            <div className="rounded-2xl border border-sky-500/30 bg-slate-950/80 p-4">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300 block">
+                Backdrop Views (exposure only — not payable)
+              </span>
+              <span className="text-xl font-black text-sky-200 font-mono tabular-nums mt-1 block">
+                {metrics.backdropViews.toLocaleString()}
+              </span>
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                {metrics.backdropSeriesCount} Backdrop series · R0.00 payable
               </span>
             </div>
 
             <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                This Month
+                This Month (Originals)
               </span>
               <span className="text-lg font-black text-orange-400 font-mono tabular-nums mt-1 block">
                 {formatZar(metrics.thisMonthZar)}
@@ -2035,6 +2172,51 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                   </div>
                 </div>
 
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block">
+                    Series Category *
+                  </label>
+                  <select
+                    id="dashboard-new-series-type"
+                    value={newSeriesType}
+                    onChange={(e) => {
+                      const nextType = e.target.value === 'original' ? 'original' : 'backdrop';
+                      setNewSeriesType(nextType);
+                      if (nextType === 'original') {
+                        setNewBackdropUnderstood(true);
+                      } else {
+                        setNewBackdropUnderstood(false);
+                      }
+                    }}
+                    className="w-full rounded-xl bg-slate-900 border border-slate-800 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-amber-400 font-bold"
+                  >
+                    <option value="backdrop">Upload as Backdrop</option>
+                    <option value="original">Upload as Original</option>
+                  </select>
+
+                  {newSeriesType === 'backdrop' ? (
+                    <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 p-3 space-y-2 text-[11px] text-slate-300">
+                      <p className="font-semibold text-sky-200 leading-relaxed">
+                        Backdrop is for open creator uploads and community exposure. Backdrop series do NOT earn money yet. Ads still show in Backdrop, and revenue goes to platform hosting until you promote to Originals.
+                      </p>
+                      <label className="flex items-start gap-2 cursor-pointer text-white font-semibold">
+                        <input
+                          id="dashboard-backdrop-understand-checkbox"
+                          type="checkbox"
+                          checked={newBackdropUnderstood}
+                          onChange={(e) => setNewBackdropUnderstood(e.target.checked)}
+                          className="mt-0.5 h-3.5 w-3.5 rounded border-sky-500 accent-sky-400"
+                        />
+                        <span>I Understand (Backdrop series are exposure only &amp; not payable)</span>
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-2.5 text-[11px] text-amber-200 font-medium">
+                      AZ Originals earn 70% creator revenue share from AdMob ads + Google Play VIP, and are eligible for Issue highlights &amp; Manga of the Year Awards.
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-slate-400 block">Language</label>
@@ -2113,7 +2295,9 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-400 text-slate-950 font-black text-xs shadow-lg hover:brightness-105 transition"
+                    id="dashboard-create-series-submit-btn"
+                    disabled={newSeriesType === 'backdrop' && !newBackdropUnderstood}
+                    className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-400 text-slate-950 font-black text-xs shadow-lg hover:brightness-105 disabled:opacity-45 disabled:cursor-not-allowed transition"
                   >
                     Create Series
                   </button>

@@ -1,23 +1,14 @@
 import React, { useState } from 'react';
-import { Manga, isMangaComingSoon } from '../types';
+import { Manga, isMangaComingSoon, getMangaType } from '../types';
 import { MangaCoverImage } from '../components/common/MangaCoverImage';
 import { RatingAverageDisplay } from '../components/common/StarRating';
-import { formatViews } from '../services/catalogApi';
 import {
   Sparkles,
   TrendingUp,
   Clock,
-  Coins,
-  Crown,
   Eye,
-  Star,
   BookOpen,
-  Send,
-  CheckCircle2,
-  Filter,
   Plus,
-  ArrowRight,
-  ShieldCheck,
   AlertCircle,
   Search,
 } from 'lucide-react';
@@ -25,7 +16,7 @@ import {
 export interface BackdropPageProps {
   mangaList: Manga[];
   onSelectManga: (manga: Manga) => void;
-  onStartReading: (manga: Manga, chapterId?: string) => void;
+  onStartReading?: (manga: Manga, chapterId?: string) => void;
   onOpenPublishModal: () => void;
   onNavigateToHome: () => void;
   currentUserEmail?: string;
@@ -34,19 +25,14 @@ export interface BackdropPageProps {
 export const BackdropPage: React.FC<BackdropPageProps> = ({
   mangaList,
   onSelectManga,
-  onStartReading,
   onOpenPublishModal,
   onNavigateToHome,
-  currentUserEmail = 'reader@example.com',
 }) => {
   const [filterType, setFilterType] = useState<'trending' | 'new' | 'top_earners'>('trending');
   const [searchQuery, setSearchQuery] = useState('');
-  const [applyingManga, setApplyingManga] = useState<Manga | null>(null);
-  const [applicationPitch, setApplicationPitch] = useState('');
-  const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null);
 
-  // All Backdrop series (isOriginal is false or isBackdrop/isCanvas is true)
-  const backdropSeries = mangaList.filter((m) => !m.isOriginal || m.isBackdrop || m.isCanvas);
+  // All Backdrop series (type === 'backdrop')
+  const backdropSeries = mangaList.filter((m) => getMangaType(m) === 'backdrop');
 
   // Filter & Sort
   const processedSeries = backdropSeries
@@ -74,56 +60,31 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
       return 0;
     });
 
-  const handleApplyToOriginal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!applyingManga) return;
-
-    // Save application to localStorage for admin review
-    try {
-      const stored = localStorage.getItem('az_backdrop_original_applications') || localStorage.getItem('ka_canvas_original_applications') || '[]';
-      const parsed = JSON.parse(stored);
-      parsed.push({
-        id: `app-orig-${Date.now()}`,
-        mangaId: applyingManga.id,
-        mangaTitle: applyingManga.title,
-        author: applyingManga.author,
-        applicantEmail: currentUserEmail,
-        pitch: applicationPitch || 'Submitted for AZ ORIGINAL promotion.',
-        views: applyingManga.views,
-        submittedAt: new Date().toISOString(),
-        status: 'pending',
-      });
-      localStorage.setItem('az_backdrop_original_applications', JSON.stringify(parsed));
-      window.dispatchEvent(new CustomEvent('az_backdrop_app_submitted'));
-    } catch (err) {
-      console.error(err);
-    }
-
-    setApplicationSuccess(
-      `Application for "${applyingManga.title}" submitted to Admin Mlungiseni Mbhele (mlungisenimbhele3@gmail.com)! We will evaluate your art and storytelling for AZ ORIGINALS 👑 promotion.`
-    );
-    setApplyingManga(null);
-    setApplicationPitch('');
-
-    setTimeout(() => {
-      setApplicationSuccess(null);
-    }, 6000);
-  };
-
   return (
-    <div id="backdrop-page-container" className="mx-auto w-full max-w-7xl pb-24 space-y-8">
+    <div id="backdrop-page-container" className="mx-auto w-full max-w-5xl pb-24 space-y-5">
       {/* Top Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-950 to-black p-6 sm:p-10 shadow-2xl">
-        <div className="relative z-10 max-w-2xl space-y-4">
-          <h1 className="font-['Bebas_Neue',sans-serif] text-4xl sm:text-6xl tracking-wide text-white leading-none">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-950 to-black p-5 sm:p-8 shadow-2xl">
+        <div className="relative z-10 max-w-2xl space-y-3.5">
+          <h1 className="font-['Bebas_Neue',sans-serif] text-3xl sm:text-5xl tracking-wide text-white leading-none">
             AZ <span className="text-slate-400">BACKDROP</span> <span className="text-amber-400">OVERVERSE</span>
           </h1>
 
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            The launchpad for Africa's next manga stars. Self-publish your original IP, grow a loyal fanbase, earn 70% from ads & VIP passes, and get promoted to <strong className="text-amber-400">AZ ORIGINALS</strong>.
-          </p>
+          <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300 leading-relaxed">
+            <p className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                Backdrop — Side stories, lore &amp; world-building. Not main canon. Not eligible for Awards / VIP payouts unless marked otherwise.
+              </span>
+            </p>
+            <p className="flex items-start gap-2 text-slate-400">
+              <Sparkles className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+              <span>
+                Ads may show on Backdrop stories. Backdrop stories earn exposure, not rev-share payouts.
+              </span>
+            </p>
+          </div>
 
-          <div className="flex flex-wrap items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
               onClick={onOpenPublishModal}
               className="flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black px-5 py-2.5 text-xs font-black transition shadow-lg shadow-amber-500/20 active:scale-95"
@@ -140,26 +101,10 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
             </button>
           </div>
         </div>
-
-        {/* Ambient background watermark */}
-        <div className="absolute -right-8 -bottom-8 pointer-events-none select-none text-[140px] font-black text-slate-800/20 font-['Bebas_Neue',sans-serif]">
-          BACKDROP
-        </div>
       </div>
 
-      {/* Success Banner if application was submitted */}
-      {applicationSuccess && (
-        <div className="rounded-2xl border border-emerald-500/50 bg-emerald-950/60 p-4 text-xs text-emerald-200 flex items-start gap-3 shadow-lg animate-fadeIn">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <span className="font-bold text-white block">Application Dispatched Successfully</span>
-            <p>{applicationSuccess}</p>
-          </div>
-        </div>
-      )}
-
       {/* Filter Tabs & Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
         {/* Filter Pills */}
         <div className="flex items-center gap-2">
           <button
@@ -194,8 +139,8 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
                 : 'bg-slate-900 border border-slate-800 text-slate-300 hover:text-white'
             }`}
           >
-            <Coins className="w-3.5 h-3.5" />
-            <span>Top Earners</span>
+            <Eye className="w-3.5 h-3.5" />
+            <span>Most Viewed</span>
           </button>
         </div>
 
@@ -212,7 +157,7 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
         </div>
       </div>
 
-      {/* Backdrop Series Grid */}
+      {/* Backdrop Series Grid — 3 columns across mobile & desktop, matching Originals grid */}
       {processedSeries.length === 0 ? (
         <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-12 text-center space-y-3">
           <BookOpen className="w-10 h-10 text-slate-600 mx-auto" />
@@ -228,116 +173,66 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        <div
+          id="backdrop-series-grid"
+          className="grid grid-cols-3 gap-3 sm:gap-4"
+        >
           {processedSeries.map((manga, idx) => {
             const isComingSoon = isMangaComingSoon(manga);
-            // Earnings reduced to R0
-            const earningsZAR = 0;
 
             return (
               <div
                 key={`backdrop-series-${manga.id}-${idx}`}
-                className="group flex flex-col rounded-2xl border border-slate-800 bg-slate-900/80 overflow-hidden hover:border-slate-600 hover:shadow-2xl transition duration-300"
+                onClick={() => onSelectManga(manga)}
+                className="group flex flex-col h-full cursor-pointer transition active:scale-[0.98]"
               >
-                {/* Fixed height h-48 cover container */}
-                <div
-                  onClick={() => onSelectManga(manga)}
-                  className="relative h-48 w-full overflow-hidden rounded-t-xl bg-slate-950 cursor-pointer"
-                >
+                {/* 2:3 Portrait Cover matching Original cards */}
+                <div className="relative aspect-[2/3] w-full rounded-[12px] overflow-hidden bg-zinc-900 border border-zinc-800/90 shadow-md shrink-0">
                   <MangaCoverImage
-                    src={manga.cover || manga.coverImage}
+                    src={manga.cover || manga.coverImage || manga.coverUrl || ''}
                     alt={manga.title}
                     title={manga.title}
-                    className="h-48 w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
 
-                  {/* Top-left Badges */}
-                  <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 flex-wrap">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-800/95 border border-slate-600 text-slate-300 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow">
-                      <span>BACKDROP</span>
+                  {/* Top-left badge: BACKDROP */}
+                  <div className="absolute top-1 left-1 sm:top-1.5 sm:left-1.5 z-10">
+                    <span className="inline-flex items-center rounded-full bg-black/80 border border-slate-600 text-slate-200 px-1 sm:px-1.5 py-0.5 text-[7px] sm:text-[8px] font-bold uppercase tracking-wider shadow">
+                      BACKDROP
                     </span>
-                    {isComingSoon && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-400 text-black px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-md">
-                        <Clock className="w-2.5 h-2.5" />
+                  </div>
+
+                  {/* Top-right badge: COMING SOON if not published yet */}
+                  {isComingSoon && (
+                    <div className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 z-10">
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-400 text-black px-1 sm:px-1.5 py-0.5 text-[7px] sm:text-[8px] font-black uppercase tracking-wider shadow">
+                        <Clock className="w-2 h-2 text-black hidden sm:inline shrink-0" />
                         <span>COMING SOON</span>
                       </span>
-                    )}
-                  </div>
-
-                  {/* Bottom Stats */}
-                  <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between text-[11px] text-slate-300 z-10 tabular-nums">
-                    <RatingAverageDisplay
-                      rating={manga.rating ?? 0}
-                      ratingCount={manga.ratingCount ?? 0}
-                      size="sm"
-                      showCount
-                    />
-                    {!isComingSoon && (
-                      <div className="flex items-center gap-1 text-slate-300 bg-black/60 px-2 py-0.5 rounded-full font-mono text-[10px]">
-                        <Eye className="w-3 h-3" />
-                        <span>{formatViews(manga.views || 0)}</span>
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Content */}
-                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                  <div>
-                    <h3
-                      onClick={() => onSelectManga(manga)}
-                      className="text-sm font-bold text-white hover:text-amber-400 transition cursor-pointer line-clamp-1"
-                    >
+                {/* Compact Info Below Cover — aligned equal card height */}
+                <div className="flex-1 flex flex-col justify-between pt-1.5 min-w-0">
+                  <div className="min-w-0">
+                    <h3 className="text-[13px] font-bold text-white line-clamp-2 leading-tight group-hover:text-amber-400 transition-colors">
                       {manga.title}
                     </h3>
-                    <p className="text-[11px] text-slate-400">By {manga.author}</p>
-                    <p className="text-xs text-slate-300 line-clamp-2 mt-1.5 leading-relaxed">
-                      {manga.synopsis}
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                      By {manga.author}
                     </p>
                   </div>
 
-                  {/* Earnings Preview */}
-                  <div className="rounded-xl bg-slate-950/90 border border-slate-800 p-2.5 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-semibold block">Earnings Preview</span>
-                      <span className="font-mono tabular-nums text-xs font-black text-emerald-400">
-                        R{earningsZAR}
-                      </span>
-                    </div>
-                    <span className="text-[9px] text-slate-500 font-bold bg-slate-900 px-1.5 py-0.5 rounded">
-                      70% Share
-                    </span>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="space-y-1.5 pt-1">
-                    <button
-                      onClick={() => setApplyingManga(manga)}
-                      className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 py-2 px-3 text-xs font-bold transition"
-                    >
-                      <Crown className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Apply to become ORIGINAL</span>
-                    </button>
-
-                    {isComingSoon ? (
-                      <button
-                        onClick={() => onSelectManga(manga)}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-amber-500/15 border border-amber-500/40 hover:bg-amber-500/25 text-amber-300 py-2 px-3 text-xs font-bold transition shadow-sm"
-                      >
-                        <Clock className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Coming Soon • Panels in Production</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => onStartReading(manga, manga.chapters[0]?.id)}
-                        className="w-full flex items-center justify-center gap-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-1.5 px-3 text-xs font-semibold transition"
-                      >
-                        <span>Read Episode 1</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                  {/* Star rating ☆ 0.0 */}
+                  <div className="mt-1 pt-0.5 flex items-center">
+                    <RatingAverageDisplay
+                      rating={manga.rating ?? 0}
+                      ratingCount={manga.ratingCount ?? 0}
+                      size="xs"
+                      showCount={false}
+                    />
                   </div>
                 </div>
               </div>
@@ -346,81 +241,11 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
         </div>
       )}
 
-      {/* Modal: Apply to Become AZ ORIGINAL */}
-      {applyingManga && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
-          <div className="relative w-full max-w-lg rounded-3xl border border-amber-500/50 bg-slate-950 p-6 sm:p-7 text-white shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Crown className="w-5 h-5 text-amber-400" />
-                <h3 className="font-['Bebas_Neue',sans-serif] text-2xl text-white">
-                  Apply for AZ ORIGINAL Status
-                </h3>
-              </div>
-              <button
-                onClick={() => setApplyingManga(null)}
-                className="text-slate-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs text-slate-300">
-              <p>
-                Series: <strong className="text-white">{applyingManga.title}</strong>
-              </p>
-              <p>
-                Creator: <strong className="text-amber-400">{applyingManga.author}</strong> ({currentUserEmail})
-              </p>
-              <p className="text-slate-400 leading-relaxed">
-                AZ ORIGINALS receive front-page hero spotlight, dedicated marketing, premium serialization contracts, and prioritized treasury payouts from admin <strong className="text-amber-300">Mlungiseni Mbhele (mlungisenimbhele3@gmail.com)</strong>.
-              </p>
-            </div>
-
-            <form onSubmit={handleApplyToOriginal} className="space-y-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-300 block mb-1">
-                  Why should this series graduate to AZ ORIGINAL?
-                </label>
-                <textarea
-                  rows={3}
-                  value={applicationPitch}
-                  onChange={(e) => setApplicationPitch(e.target.value)}
-                  placeholder="Tell admin Mlungiseni about your weekly publishing cadence, narrative arc, and art craftsmanship..."
-                  className="w-full rounded-xl border border-slate-800 bg-slate-900 p-3 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 shrink-0 text-amber-400" />
-                <span>Admin review guarantees 100% human artisan verification and original African storytelling.</span>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setApplyingManga(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-xs font-black text-black transition flex items-center gap-1.5 shadow"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Submit Application</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
       {/* Official IP & Backdrop License Mandate */}
-      <div className="pt-6 border-t border-slate-800 text-slate-400 text-xs text-center leading-relaxed">
+      <div className="pt-4 border-t border-slate-800 text-slate-400 text-xs text-center leading-relaxed">
         All AZ Originals are © AZ Oververse / Mlungiseni Mbhele. All Canvas works remain © their respective creators. AZ Oververse has non-exclusive license to display Backdrop works. Any re-upload without permission is prohibited.
       </div>
     </div>
   );
 };
+

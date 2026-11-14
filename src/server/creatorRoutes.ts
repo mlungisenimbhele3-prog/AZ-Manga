@@ -130,13 +130,38 @@ creatorRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response)
       listCreatorPayouts(user.id),
     ]);
 
-    const totalReads = dbMangas.reduce((acc, m) => acc + (Number(m.views) || 0), 0) +
-      dbChapters.reduce((acc, c) => acc + (Number(c.reads) || 0), 0);
-    const totalLikes = dbMangas.reduce((acc, m) => acc + (Number(m.likes) || 0), 0) +
+    const originalMangas = dbMangas.filter((m) => m.type === 'original');
+    const backdropMangas = dbMangas.filter((m) => m.type !== 'original');
+    const originalMangaIds = new Set(originalMangas.map((m) => m.id));
+
+    const originalMangaReads = originalMangas.reduce((acc, m) => acc + (Number(m.views) || 0), 0);
+    const originalChapterReads = dbChapters.reduce(
+      (acc, c) => (originalMangaIds.has(c.mangaId) ? acc + (Number(c.reads) || 0) : acc),
+      0
+    );
+    const originalReads = originalMangaReads + originalChapterReads;
+
+    const originalLikes =
+      originalMangas.reduce((acc, m) => acc + (Number(m.likes) || 0), 0) +
+      dbChapters.reduce(
+        (acc, c) => (originalMangaIds.has(c.mangaId) ? acc + (Number(c.likes) || 0) : acc),
+        0
+      );
+
+    const backdropViews =
+      backdropMangas.reduce((acc, m) => acc + (Number(m.views) || 0), 0) +
+      dbChapters.reduce(
+        (acc, c) => (!originalMangaIds.has(c.mangaId) ? acc + (Number(c.reads) || 0) : acc),
+        0
+      );
+
+    const totalReads = originalReads + backdropViews;
+    const totalLikes =
+      dbMangas.reduce((acc, m) => acc + (Number(m.likes) || 0), 0) +
       dbChapters.reduce((acc, c) => acc + (Number(c.likes) || 0), 0);
 
-    // 70% creator rev-share ZAR estimation from reads & VIP engagement
-    const grossZar = Number(((totalReads * 0.042 + totalLikes * 0.35) * 0.7).toFixed(2));
+    // 70% creator rev-share ZAR estimation from ORIGINAL series ONLY (Backdrop is exposure only, not payable)
+    const grossZar = Number(((originalReads * 0.042 + originalLikes * 0.35) * 0.7).toFixed(2));
     const adsZar = Number((grossZar * 0.56).toFixed(2));
     const vipZar = Number((grossZar * 0.31).toFixed(2));
     const tipsZar = Number((grossZar * 0.13).toFixed(2));
@@ -152,6 +177,7 @@ creatorRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response)
       dbConnected: true,
       mangas: dbMangas.map((m) => ({
         ...m,
+        type: m.type === 'original' ? 'original' : 'backdrop',
         genres: (() => {
           try {
             return JSON.parse(m.genres || '["Action"]');
@@ -175,6 +201,8 @@ creatorRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response)
       ),
       earnings: {
         totalZar: grossZar,
+        originalTotalZar: grossZar,
+        backdropPayableZar: 0,
         thisMonthZar,
         availableBalanceZar,
         breakdown: { adsZar, vipZar, tipsZar },
@@ -182,6 +210,8 @@ creatorRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response)
       },
       audience: {
         totalReads,
+        originalReads,
+        backdropViews,
         totalLikes,
       },
     });
@@ -212,6 +242,7 @@ creatorRouter.post('/mangas', async (req: AuthenticatedRequest, res: Response) =
     genres,
     ageRating,
     language,
+    type,
     status,
     approvalStatus,
   } = req.body || {};
@@ -220,6 +251,8 @@ creatorRouter.post('/mangas', async (req: AuthenticatedRequest, res: Response) =
     return res.status(400).json({ error: 'Manga title is required.' });
   }
 
+  const seriesType: 'original' | 'backdrop' =
+    type === 'original' ? 'original' : 'backdrop';
   const mangaId = typeof id === 'string' && id.trim() ? id.trim() : `creator-${user.id}-${Date.now()}`;
   const cleanGenres = Array.isArray(genres) && genres.length > 0 ? genres.map(String) : ['Action'];
   const cleanStatus: 'Draft' | 'Coming Soon' | 'Live' =
@@ -236,6 +269,7 @@ creatorRouter.post('/mangas', async (req: AuthenticatedRequest, res: Response) =
       genres: cleanGenres,
       ageRating: typeof ageRating === 'string' ? ageRating : '13+',
       language: typeof language === 'string' ? language : 'English',
+      type: seriesType,
       status: cleanStatus,
       approvalStatus: typeof approvalStatus === 'string' ? approvalStatus : undefined,
     });
@@ -251,6 +285,7 @@ creatorRouter.post('/mangas', async (req: AuthenticatedRequest, res: Response) =
         creatorId: user.id,
         creatorEmail: user.email,
         title: title.trim(),
+        type: seriesType,
         status: cleanStatus,
       },
     });
@@ -263,13 +298,14 @@ creatorRouter.post('/mangas', async (req: AuthenticatedRequest, res: Response) =
 creatorRouter.patch('/mangas/:id', async (req: AuthenticatedRequest, res: Response) => {
   const user = req.authUser!;
   const mangaId = req.params.id;
-  const { title, synopsis, coverUrl, status, approvalStatus } = req.body || {};
+  const { title, synopsis, coverUrl, type, status, approvalStatus } = req.body || {};
 
   try {
     const updated = await updateCreatorMangaRecord(mangaId, user.id, {
       ...(typeof title === 'string' ? { title: title.trim().slice(0, 140) } : {}),
       ...(typeof synopsis === 'string' ? { synopsis: synopsis.trim().slice(0, 2000) } : {}),
       ...(typeof coverUrl === 'string' ? { coverUrl: coverUrl.trim() } : {}),
+      ...(type === 'original' || type === 'backdrop' ? { type } : {}),
       ...(typeof status === 'string' ? { status } : {}),
       ...(typeof approvalStatus === 'string' ? { approvalStatus } : {}),
     });
@@ -300,7 +336,7 @@ creatorRouter.delete('/mangas/:id', async (req: AuthenticatedRequest, res: Respo
 /**
  * POST /api/creator/chapters
  * Saves ordered chapter panels to Neon `chapters` table.
- * Status is "Coming Soon • Panels In Production" when scheduled/in production, or "Live" when published.
+ * Enforces 8-50 pages minimum/maximum on every new chapter upload.
  */
 creatorRouter.post('/chapters', async (req: AuthenticatedRequest, res: Response) => {
   const user = req.authUser!;
@@ -334,6 +370,10 @@ creatorRouter.post('/chapters', async (req: AuthenticatedRequest, res: Response)
           imageUrl: String(p.imageUrl),
         }))
     : [];
+
+  if (cleanPanels.length < 8 || cleanPanels.length > 50) {
+    return res.status(400).json({ error: 'Chapter must be 8-50 pages' });
+  }
 
   const isLive = publishMode === 'live';
   const publishStatus: 'Coming Soon • Panels In Production' | 'Live' | 'Scheduled' = isLive
@@ -378,6 +418,7 @@ creatorRouter.post('/chapters', async (req: AuthenticatedRequest, res: Response)
         number: chapterNum,
         title: chapterTitle,
         panels: cleanPanels,
+        pageCount: cleanPanels.length,
         publishStatus,
         scheduledFor: scheduledFor || null,
         releaseDate: cleanReleaseDate,

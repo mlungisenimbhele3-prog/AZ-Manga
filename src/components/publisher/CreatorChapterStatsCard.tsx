@@ -26,7 +26,7 @@ interface CreatorChapterStatsCardProps {
   compact?: boolean;
 }
 
-export const CreatorChapterStatsCard: React.FC<CreatorChapterStatsCardProps> = ({
+export const CreatorChapterStatsCard: React.FC<CreatorChapterStatsCardProps> = React.memo(({
   mangaIdFilter,
   className = '',
   compact = false,
@@ -256,6 +256,8 @@ export const CreatorChapterStatsCard: React.FC<CreatorChapterStatsCardProps> = (
       </div>
     </div>
   );
-};
+});
+
+CreatorChapterStatsCard.displayName = 'CreatorChapterStatsCard';
 
 export default CreatorChapterStatsCard;

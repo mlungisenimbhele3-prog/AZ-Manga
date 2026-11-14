@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Manga } from '../../types';
+import { Manga, getMangaType } from '../../types';
 import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
 import {
   Coins,
@@ -59,8 +59,11 @@ export const CreatorEarningsView: React.FC<CreatorEarningsViewProps> = ({
     return false;
   });
 
-  const effectiveSeries = mySeries.length > 0 ? mySeries : [mangaList[0]];
-  const totalReads = effectiveSeries.reduce((acc, m) => acc + (m.views || 0), 0);
+  const effectiveSeries = mySeries.length > 0 ? mySeries : mangaList.slice(0, 1);
+  const originalSeries = effectiveSeries.filter((m) => m && getMangaType(m) === 'original');
+  const backdropSeries = effectiveSeries.filter((m) => m && getMangaType(m) === 'backdrop');
+  const originalReads = originalSeries.reduce((acc, m) => acc + (m.views || 0), 0);
+  const backdropViews = backdropSeries.reduce((acc, m) => acc + (m.views || 0), 0);
 
   // All earnings reduced to R0 across Pending / Payable / Paid
   const pendingZAR = 0;
@@ -335,38 +338,52 @@ export const CreatorEarningsView: React.FC<CreatorEarningsViewProps> = ({
         </div>
       </div>
 
-      {/* Core Creator Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Metric 1: Total Reads */}
+      {/* Core Creator Metrics — Original Payable vs Backdrop Exposure */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Metric 1: Original Earnings (70% — payable) */}
+        <div className="rounded-2xl border border-emerald-500/40 bg-emerald-950/20 p-5 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-emerald-300 font-bold">Original Earnings (70% — payable)</span>
+            <Coins className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-2xl font-black text-white font-mono tabular-nums">R{payableZAR.toFixed(2)}</div>
+          <p className="text-[11px] text-slate-400">
+            {originalReads.toLocaleString()} Original reads · Payable via Google AdMob &amp; Play VIP
+          </p>
+        </div>
+
+        {/* Metric 2: Backdrop Views (exposure only — not payable) */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-semibold">Total Reads</span>
+            <span className="text-xs text-slate-300 font-bold">Backdrop Views (exposure only — not payable)</span>
             <Eye className="w-4 h-4 text-blue-400" />
           </div>
           <div className="text-2xl font-black text-white font-mono tabular-nums">
-            {totalReads.toLocaleString()}
+            {backdropViews.toLocaleString()}
           </div>
-          <p className="text-[11px] text-slate-400">Across your {effectiveSeries.length} published series</p>
+          <p className="text-[11px] text-slate-400">
+            Across {backdropSeries.length} Backdrop series · Exposure only, R0.00 payable
+          </p>
         </div>
 
-        {/* Metric 2: 70% Ad Share */}
+        {/* Metric 3: 70% Ad Share */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-amber-400 font-semibold">70% Ad Share</span>
+            <span className="text-xs text-amber-400 font-semibold">70% Ad Share (Originals)</span>
             <Coins className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="text-2xl font-black text-white font-mono tabular-nums">R0</div>
-          <p className="text-[11px] text-slate-400">From chapter breaks & rewarded ads</p>
+          <div className="text-2xl font-black text-white font-mono tabular-nums">R0.00</div>
+          <p className="text-[11px] text-slate-400">From Original chapter breaks &amp; rewarded ads</p>
         </div>
 
-        {/* Metric 3: 70% VIP Pool */}
+        {/* Metric 4: 70% VIP Pool */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-purple-400 font-semibold">70% VIP Pool</span>
+            <span className="text-xs text-purple-400 font-semibold">70% VIP Pool (Originals)</span>
             <Sparkles className="w-4 h-4 text-purple-400" />
           </div>
-          <div className="text-2xl font-black text-white font-mono tabular-nums">R0</div>
-          <p className="text-[11px] text-slate-400">Proportional VIP subscriber read-time</p>
+          <div className="text-2xl font-black text-white font-mono tabular-nums">R0.00</div>
+          <p className="text-[11px] text-slate-400">Proportional VIP subscriber read-time on Originals</p>
         </div>
       </div>
 
@@ -414,14 +431,14 @@ export const CreatorEarningsView: React.FC<CreatorEarningsViewProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <h5 className="font-bold text-sm text-white">{manga.title}</h5>
-                      {manga.isOriginal ? (
-                        <span className="text-[11px] font-semibold text-amber-400">· AZ Original</span>
+                      {getMangaType(manga) === 'original' ? (
+                        <span className="text-[11px] font-semibold text-amber-400">· AZ Original (70% Payable)</span>
                       ) : (
-                        <span className="text-[11px] font-medium text-slate-400">· Backdrop</span>
+                        <span className="text-[11px] font-medium text-slate-400">· Backdrop (Exposure only · Not payable)</span>
                       )}
                     </div>
                     <p className="text-xs text-slate-400 mt-0.5 tabular-nums">
-                      {manga.chapters.length} Chapters · {manga.views.toLocaleString()} Total Reads
+                      {manga.chapters.length} Chapters · {(manga.views || 0).toLocaleString()} {getMangaType(manga) === 'original' ? 'Reads' : 'Exposure Views'}
                     </p>
                   </div>
                 </div>

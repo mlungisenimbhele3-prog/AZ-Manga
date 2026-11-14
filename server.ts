@@ -9,6 +9,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { authRouter } from './src/server/authRoutes.ts';
 import { creatorRouter } from './src/server/creatorRoutes.ts';
 import { catalogRouter } from './src/server/catalogRoutes.ts';
+import { usersRouter } from './src/server/usersRoutes.ts';
 import { verifyPurposeToken } from './src/server/jwt.ts';
 import { pingDatabaseWithRetry } from './src/db/index.ts';
 
@@ -140,11 +141,21 @@ async function startServer() {
     return next(err);
   });
 
-  // Serve public/covers directory statically with strong caching
+  // Serve public/covers & public/avatars directories statically with strong caching
   const coversStaticPath = path.join(process.cwd(), 'public', 'covers');
   app.use(
     '/covers',
     express.static(coversStaticPath, {
+      maxAge: '7d',
+      etag: true,
+      immutable: false,
+    })
+  );
+
+  const avatarsStaticPath = path.join(process.cwd(), 'public', 'avatars');
+  app.use(
+    '/avatars',
+    express.static(avatarsStaticPath, {
       maxAge: '7d',
       etag: true,
       immutable: false,
@@ -299,8 +310,25 @@ async function startServer() {
   // AZ OVERVERSE Custom Production Auth System (PostgreSQL + bcrypt 12 + JWT 15m/7d + Resend + Zod)
   app.use('/api/auth', authRouter);
 
+  // AZ OVERVERSE Authenticated User Self-Profile Update (/api/users/me)
+  app.use('/api/users', usersRouter);
+
   // AZ OVERVERSE Creator Studio & Monetization API (Role-gated to Creator/Admin + Neon Postgres)
   app.use('/api/creator', creatorRouter);
+
+  // Canonical REST aliases for chapter & manga endpoints
+  app.post('/api/chapters', (req, res, next) => {
+    req.url = '/chapters';
+    creatorRouter(req, res, next);
+  });
+  app.post('/api/manga', (req, res, next) => {
+    req.url = '/mangas';
+    creatorRouter(req, res, next);
+  });
+  app.post('/api/mangas', (req, res, next) => {
+    req.url = '/mangas';
+    creatorRouter(req, res, next);
+  });
 
   // AZ OVERVERSE Public Catalog, Views, Issues, Awards & Real Social Counts API
   app.use('/api/catalog', catalogRouter);

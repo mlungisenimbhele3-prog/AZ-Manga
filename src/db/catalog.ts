@@ -24,6 +24,7 @@ const CORE_LAUNCH_MANGAS = [
     genres: JSON.stringify(['Afro-Fantasy', 'Action', 'Fantasy', 'Shonen', 'Adventure']),
     ageRating: '13+',
     language: 'English',
+    type: 'original',
     status: 'Coming Soon',
     approvalStatus: 'approved',
   },
@@ -38,6 +39,7 @@ const CORE_LAUNCH_MANGAS = [
     genres: JSON.stringify(['Ancestral Horror', 'Afro-Fantasy', 'Fantasy', 'Adventure', 'Action', 'Supernatural']),
     ageRating: '13+',
     language: 'English',
+    type: 'backdrop',
     status: 'Coming Soon',
     approvalStatus: 'approved',
   },
@@ -52,6 +54,7 @@ const CORE_LAUNCH_MANGAS = [
     genres: JSON.stringify(['Kasi-Punk', 'Sci-Fi', 'Adventure', 'Drama', 'Historical', 'Seinen']),
     ageRating: '13+',
     language: 'English',
+    type: 'backdrop',
     status: 'Coming Soon',
     approvalStatus: 'approved',
   },
@@ -120,9 +123,9 @@ export async function ensureCatalogTables(): Promise<void> {
             `
               INSERT INTO mangas (
                 id, creator_id, creator_email, title, synopsis, cover_url,
-                genres, age_rating, language, status, approval_status, views, likes
+                genres, age_rating, language, type, status, approval_status, views, likes
               )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, 0)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0)
               ON CONFLICT (id) DO NOTHING
             `,
             [
@@ -135,6 +138,7 @@ export async function ensureCatalogTables(): Promise<void> {
               m.genres,
               m.ageRating,
               m.language,
+              m.type,
               m.status,
               m.approvalStatus,
             ]
@@ -274,8 +278,8 @@ export async function getActiveAwardsState(): Promise<DbAward> {
 }
 
 export async function getPublicCatalogMetrics(): Promise<{
-  mangas: Array<{ id: string; views: number; likes: number; status: string; approvalStatus: string }>;
-  chapters: Array<{ id: string; mangaId: string; reads: number; likes: number; publishStatus: string }>;
+  mangas: Array<{ id: string; type: 'original' | 'backdrop'; views: number; likes: number; status: string; approvalStatus: string }>;
+  chapters: Array<{ id: string; mangaId: string; reads: number; likes: number; pageCount: number; publishStatus: string }>;
   activeIssue: DbIssue;
   awards: DbAward;
   followerCounts: Record<string, number>;
@@ -286,6 +290,7 @@ export async function getPublicCatalogMetrics(): Promise<{
       db
         .select({
           id: mangas.id,
+          type: mangas.type,
           views: mangas.views,
           likes: mangas.likes,
           status: mangas.status,
@@ -298,6 +303,7 @@ export async function getPublicCatalogMetrics(): Promise<{
           mangaId: chapters.mangaId,
           reads: chapters.reads,
           likes: chapters.likes,
+          pageCount: chapters.pageCount,
           publishStatus: chapters.publishStatus,
         })
         .from(chapters),
@@ -318,7 +324,10 @@ export async function getPublicCatalogMetrics(): Promise<{
     }
 
     return {
-      mangas: dbMangas,
+      mangas: dbMangas.map((m) => ({
+        ...m,
+        type: m.type === 'original' ? 'original' : 'backdrop',
+      })),
       chapters: dbChapters,
       activeIssue,
       awards: awardState,

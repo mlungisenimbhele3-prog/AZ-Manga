@@ -19,6 +19,7 @@ import {
   LogOut,
   Search,
   ChevronRight,
+  Pencil,
 } from 'lucide-react';
 import { UserSubscription, SubscriptionTier } from '../../types';
 import {
@@ -41,6 +42,7 @@ export interface FullScreenMenuProps {
   onUpgradeClick: () => void;
   onQuickToggleTier: (tier: SubscriptionTier, cycle?: 'monthly' | 'yearly') => void;
   onOpenProfileModal?: () => void;
+  onOpenEditProfile?: () => void;
   onOpenCreatorDashboard?: () => void;
   onOpenAdminDashboard?: () => void;
   onOpenStoreModal?: () => void;
@@ -65,6 +67,7 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
   onUpgradeClick,
   onQuickToggleTier,
   onOpenProfileModal,
+  onOpenEditProfile,
   onOpenCreatorDashboard,
   onOpenAdminDashboard,
   onOpenStoreModal,
@@ -273,6 +276,21 @@ export const FullScreenMenu: React.FC<FullScreenMenuProps> = ({
                   </p>
                 </div>
               </div>
+
+              {user && onOpenEditProfile && (
+                <button
+                  type="button"
+                  id="menu-item-edit-profile"
+                  onClick={() => {
+                    onClose();
+                    onOpenEditProfile();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-xs font-bold text-amber-300 transition"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Edit Profile</span>
+                </button>
+              )}
 
               {/* 2. CREATOR STUDIO (Only shown if user.is_creator == true or admin) */}
               {(isCreator || isAdmin) && (

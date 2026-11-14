@@ -13,6 +13,7 @@ import {
   loginOververseUser,
   verifyOververseLoginTwoFactor,
   patchOververseCreatorProfile,
+  updateMyProfileViaApi,
   logoutOververseSession,
 } from './oververseAuth';
 
@@ -322,11 +323,16 @@ function mapOververseUserToProfile(user: OververseAuthUser): UserProfile {
     email: user.email,
     backupEmail: user.backup_email !== undefined ? user.backup_email : activeProfile.backupEmail ?? null,
     displayName: user.pen_name || user.email.split('@')[0] || (isCreator ? 'OVERVERSE Creator' : 'OVERVERSE Reader'),
-    avatarUrl: user.avatar_url || activeProfile.avatarUrl || DEFAULT_USER_PROFILE.avatarUrl,
-    bio: user.bio || (isCreator ? `Creator at ${user.studio_name || DEFAULT_CREATOR_STUDIO_NAME}.` : 'Manga reader on AZ OVERVERSE.'),
+    avatarUrl: user.avatar_url || DEFAULT_USER_PROFILE.avatarUrl,
+    bio: user.bio || '',
     isCreator,
     penName: isCreator ? user.pen_name : undefined,
-    studioName: isCreator ? (user.studio_name || draft.studioName || `${user.pen_name} Studio`) : undefined,
+    studioName:
+      typeof user.studio_name === 'string'
+        ? user.studio_name
+        : isCreator
+        ? draft.studioName || `${user.pen_name} Studio`
+        : '',
     primaryGenres: draft.primaryGenres || ['Action', 'Fantasy'],
     role: isAdmin ? 'admin' : isCreator ? 'creator' : 'reader',
     createdAt: user.created_at || activeProfile.createdAt,
@@ -812,13 +818,56 @@ export async function logoutUser(): Promise<void> {
   await logoutOververseSession();
 }
 
+export async function saveMyProfileChanges(input: {
+  displayName: string;
+  studioName?: string;
+  bio?: string;
+  avatarData?: string;
+  avatarFileName?: string;
+  removeAvatar?: boolean;
+}): Promise<{
+  success: boolean;
+  profile?: UserProfile;
+  user?: OververseAuthUser;
+  error?: string;
+}> {
+  const cleanDisplayName = sanitizeBoundedString(input.displayName, 30);
+  if (!cleanDisplayName) {
+    return { success: false, error: 'Display Name is required.' };
+  }
+  const cleanStudioName = sanitizeBoundedString(input.studioName ?? '', 30);
+  const cleanBio = sanitizeBoundedString(input.bio ?? '', 150);
+
+  const res = await updateMyProfileViaApi({
+    display_name: cleanDisplayName,
+    studio_name: cleanStudioName,
+    bio: cleanBio,
+    avatarData: input.avatarData,
+    avatarFileName: input.avatarFileName,
+    removeAvatar: input.removeAvatar,
+  });
+
+  if (!res.success || !res.user) {
+    return {
+      success: false,
+      error: res.error || 'Could not update profile.',
+    };
+  }
+
+  return {
+    success: true,
+    profile: activeProfile,
+    user: res.user,
+  };
+}
+
 export async function updateUserBioAndAvatar(
   displayName: string,
   bio: string,
   avatarUrl?: string
 ): Promise<UserProfile> {
-  const cleanName = sanitizeBoundedString(displayName, 60, activeProfile.displayName || 'Creator');
-  const cleanBio = sanitizeBoundedString(bio, 500, activeProfile.bio || '');
+  const cleanName = sanitizeBoundedString(displayName, 30, activeProfile.displayName || 'Creator');
+  const cleanBio = sanitizeBoundedString(bio, 150, activeProfile.bio || '');
   const cleanAvatar = sanitizeBoundedString(
     avatarUrl || activeProfile.avatarUrl,
     1000,

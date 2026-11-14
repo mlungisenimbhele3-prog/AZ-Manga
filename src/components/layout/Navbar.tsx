@@ -17,7 +17,7 @@ import {
   Users,
   User,
   X,
-  Settings,
+  MoreVertical,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { FullScreenMenu } from './FullScreenMenu';
@@ -35,6 +35,7 @@ interface NavbarProps {
   userSubscription: UserSubscription;
   currentUserEmail?: string;
   onOpenProfileModal?: () => void;
+  onOpenEditProfile?: () => void;
   onUpgradeClick: () => void;
   onQuickToggleTier: (tier: SubscriptionTier, cycle?: 'monthly' | 'yearly') => void;
   onOpenPublish: () => void;
@@ -78,6 +79,7 @@ const NavbarComponent: React.FC<NavbarProps> = ({
   isAdmin = false,
   isCreator = false,
   onOpenProfileModal,
+  onOpenEditProfile,
   onUpgradeClick,
   onQuickToggleTier,
   onOpenPublish,
@@ -236,7 +238,7 @@ const NavbarComponent: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Settings Gear Icon */}
+            {/* 3-Dots Menu Icon */}
             <button
               id="header-settings-btn"
               type="button"
@@ -246,10 +248,10 @@ const NavbarComponent: React.FC<NavbarProps> = ({
                   ? 'bg-amber-500/20 border-amber-500 text-amber-400 ring-2 ring-amber-500/30'
                   : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 hover:bg-zinc-800'
               }`}
-              aria-label="Settings and Menu"
-              title="Settings"
+              aria-label="Open menu"
+              title="Menu"
             >
-              <Settings className="w-5 h-5 text-zinc-300 hover:text-white" />
+              <MoreVertical className="w-5 h-5 text-zinc-300 hover:text-white" />
             </button>
 
             {/* Full-Screen Menu (slides in from right, covers 100% on mobile, 400px side panel on desktop) */}
@@ -267,6 +269,7 @@ const NavbarComponent: React.FC<NavbarProps> = ({
             onUpgradeClick={onUpgradeClick}
             onQuickToggleTier={onQuickToggleTier}
             onOpenProfileModal={onOpenProfileModal}
+            onOpenEditProfile={onOpenEditProfile}
             onOpenCreatorDashboard={onOpenCreatorDashboard}
             onOpenAdminDashboard={onOpenAdminDashboard}
             onOpenStoreModal={onOpenStoreModal}

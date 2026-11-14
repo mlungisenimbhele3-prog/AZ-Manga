@@ -72,26 +72,8 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
     new Date().toISOString().split('T')[0]
   );
 
-  // Uploaded Pages state
-  const [pages, setPages] = useState<DraftPage[]>([
-    {
-      id: `draft-p-1`,
-      imageUrl: DEFAULT_SAMPLE_PAGES[0],
-      fileName: 'page_01_cover_art.jpg',
-      dialogs: [
-        {
-          speaker: 'Narrator',
-          text: 'The celestial seal has shattered after a millennium.',
-          position: 'top-left',
-        },
-      ],
-    },
-    {
-      id: `draft-p-2`,
-      imageUrl: DEFAULT_SAMPLE_PAGES[1],
-      fileName: 'page_02_action.jpg',
-    },
-  ]);
+  // Uploaded Pages state (requires 8–50 pages per new chapter)
+  const [pages, setPages] = useState<DraftPage[]>([]);
 
   // Direct image URL input state
   const [urlInput, setUrlInput] = useState<string>('');
@@ -257,6 +239,14 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
     setActiveDialogPageId(null);
   };
 
+  const isBelowMinPages = pages.length < 8;
+  const isAboveMaxPages = pages.length > 50;
+  const pageCountErrorMessage = isBelowMinPages
+    ? `A chapter needs at least 8 pages to publish. You have ${pages.length} pages. Add ${8 - pages.length} more pages.`
+    : isAboveMaxPages
+    ? `A chapter can have max 50 pages. You have ${pages.length} pages. Remove ${pages.length - 50} pages or split into 2 chapters.`
+    : null;
+
   // Handle Publishing Action
   const handlePublish = (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,8 +255,8 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
       return;
     }
 
-    if (pages.length === 0) {
-      setValidationError('Please upload at least 1 manga page for this chapter.');
+    if (pageCountErrorMessage) {
+      setValidationError(pageCountErrorMessage);
       return;
     }
 
@@ -563,16 +553,22 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
               />
             </div>
 
-            {/* Total Pages Counter Indicator */}
+            {/* Total Pages Counter Indicator (8-50 Pages) */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-slate-400" />
-                <span>Uploaded Page Count</span>
+                <span>Uploaded Page Count (8–50 Required)</span>
               </label>
-              <div className="rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2 text-xs text-slate-300 flex items-center justify-between">
-                <span>{pages.length} Pages Queued</span>
-                <span className="text-[11px] text-amber-400 font-mono">
-                  {pages.length >= 1 ? 'Ready for render' : 'Upload required'}
+              <div
+                className={`rounded-xl border px-3.5 py-2 text-xs flex items-center justify-between font-mono tabular-nums ${
+                  pageCountErrorMessage
+                    ? 'border-rose-500/50 bg-rose-950/30 text-rose-200'
+                    : 'border-emerald-500/40 bg-emerald-950/20 text-emerald-200'
+                }`}
+              >
+                <span className="font-bold">Pages: {pages.length} / 50</span>
+                <span className="text-[11px] font-sans font-bold">
+                  {pageCountErrorMessage ? 'Needs 8–50 pages' : 'Ready to publish'}
                 </span>
               </div>
             </div>
@@ -665,6 +661,15 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              <span
+                className={`font-mono text-xs font-black px-2.5 py-1 rounded-lg border ${
+                  pageCountErrorMessage
+                    ? 'bg-rose-950/50 border-rose-500/50 text-rose-300'
+                    : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                }`}
+              >
+                Pages: {pages.length} / 50
+              </span>
               <button
                 type="button"
                 onClick={handleAddSamplePages}
@@ -676,6 +681,23 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Chapter Page Count Rules Notice */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3 space-y-1 text-xs">
+            <p className="text-amber-300 font-semibold">
+              Rule: 8 pages minimum, 50 pages maximum per chapter. This keeps reading quality high.
+            </p>
+            <p className="text-slate-400 text-[11px]">
+              If you use vertical scroll, 1 long image = 1 page. You still need 8 images.
+            </p>
+          </div>
+
+          {pageCountErrorMessage && (
+            <div className="rounded-xl border border-rose-500/50 bg-rose-950/40 px-3.5 py-2.5 text-xs text-rose-300 font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{pageCountErrorMessage}</span>
+            </div>
+          )}
 
           {/* Drag & Drop File Area */}
           <div
@@ -949,14 +971,14 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
             <button
               id="submit-publish-chapter-btn"
               type="submit"
-              disabled={isSubmitting || pages.length === 0}
+              disabled={isSubmitting || Boolean(pageCountErrorMessage)}
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black px-6 py-2.5 text-xs font-bold transition shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <UploadCloud className="w-4 h-4" />
               <span>
                 {isSubmitting
                   ? 'Publishing...'
-                  : `Publish Chapter ${chapterNumber} (${pages.length} Pages)`}
+                  : `Publish Chapter ${chapterNumber} (${pages.length} / 50 Pages)`}
               </span>
             </button>
           </div>

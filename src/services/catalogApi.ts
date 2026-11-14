@@ -21,8 +21,8 @@ export interface CatalogAwardsState {
 
 export interface CatalogSnapshot {
   dbConnected: boolean;
-  mangas: Array<{ id: string; views: number; likes: number; status: string; approvalStatus: string }>;
-  chapters: Array<{ id: string; mangaId: string; reads: number; likes: number; publishStatus: string }>;
+  mangas: Array<{ id: string; type?: 'original' | 'backdrop'; views: number; likes: number; status: string; approvalStatus: string }>;
+  chapters: Array<{ id: string; mangaId: string; reads: number; likes: number; pageCount?: number; publishStatus: string }>;
   activeIssue: CatalogIssue;
   awards: CatalogAwardsState;
   followerCounts: Record<string, number>;
@@ -104,8 +104,21 @@ export function applyCatalogMetricsToMangas(
       };
     }
 
+    const resolvedType: 'original' | 'backdrop' =
+      dbM.type === 'original'
+        ? 'original'
+        : dbM.type === 'backdrop'
+        ? 'backdrop'
+        : manga.type === 'original' || (manga.isOriginal && !manga.isBackdrop)
+        ? 'original'
+        : 'backdrop';
+
     return {
       ...manga,
+      type: resolvedType,
+      isOriginal: resolvedType === 'original',
+      isBackdrop: resolvedType === 'backdrop',
+      isCanvas: resolvedType === 'backdrop',
       views: Number(dbM.views || 0),
       chapters: updatedChapters,
     };

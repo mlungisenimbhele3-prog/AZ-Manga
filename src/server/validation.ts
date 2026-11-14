@@ -32,7 +32,10 @@ export const registerInputSchema = z
     password: z
       .string()
       .min(8, 'Password must be at least 8 characters long.')
-      .max(128, 'Password must be 128 characters or fewer.'),
+      .max(128, 'Password must be 128 characters or fewer.')
+      .regex(/[A-Z]/, 'Password must include at least one uppercase letter.')
+      .regex(/[0-9]/, 'Password must include at least one number.')
+      .regex(/[^A-Za-z0-9]/, 'Password must include at least one special character.'),
     confirmPassword: z.string().optional(),
   })
   .refine(
@@ -97,7 +100,10 @@ export const resetPasswordSchema = z
     password: z
       .string()
       .min(8, 'New password must be at least 8 characters long.')
-      .max(128, 'Password must be 128 characters or fewer.'),
+      .max(128, 'Password must be 128 characters or fewer.')
+      .regex(/[A-Z]/, 'Password must include at least one uppercase letter.')
+      .regex(/[0-9]/, 'Password must include at least one number.')
+      .regex(/[^A-Za-z0-9]/, 'Password must include at least one special character.'),
     confirmPassword: z.string().optional(),
   })
   .refine(
@@ -129,4 +135,30 @@ export const updateProfileSchema = z.object({
     .nullable()
     .optional()
     .or(z.literal('')),
+});
+
+export const editMyProfileSchema = z.object({
+  display_name: z
+    .string()
+    .trim()
+    .min(1, 'Display Name is required.')
+    .max(30, 'Display Name must be 30 characters or fewer.')
+    .regex(/^[^<>]+$/, 'Display Name contains invalid characters.'),
+  studio_name: z
+    .string()
+    .trim()
+    .max(30, 'Studio Name must be 30 characters or fewer.')
+    .regex(/^[^<>]*$/, 'Studio Name contains invalid characters.')
+    .optional()
+    .default(''),
+  bio: z
+    .string()
+    .trim()
+    .max(150, 'Bio must be 150 characters or fewer.')
+    .regex(/^[^<>]*$/, 'Bio contains invalid characters.')
+    .optional()
+    .default(''),
+  avatarData: z.string().optional(),
+  avatarFileName: z.string().max(120).optional(),
+  removeAvatar: z.boolean().optional(),
 });

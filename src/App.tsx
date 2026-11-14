@@ -39,6 +39,7 @@ import { OfflineIndicator } from './components/layout/OfflineIndicator';
 import type { MilestoneCelebrationData } from './components/common/MilestoneCelebrationModal';
 import {
   CreatorAuthState,
+  UserProfile,
   getCreatorAuthState,
   subscribeToCreatorAuth,
   signOutCreatorAccount,
@@ -47,6 +48,7 @@ import {
   DEFAULT_CREATOR_PEN_NAME,
   DEFAULT_CREATOR_STUDIO_NAME,
 } from './services/userProfile';
+import type { OververseAuthUser } from './services/oververseAuth';
 import { syncOfflineProgressWithServer } from './services/offlineCache';
 import { ResumeReadingBanner, LastReadProgress } from './components/common/ResumeReadingBanner';
 import { FollowedCreatorsView } from './components/creators/FollowedCreatorsView';
@@ -99,7 +101,7 @@ import {
 } from './services/ratingService';
 import { sanitizePlainCommentText } from './services/chapterCommentService';
 import { initWebViewer } from './utils/webViewerConfig';
-import { isMangaComingSoon } from './types';
+import { isMangaComingSoon, getMangaType } from './types';
 import {
   CatalogIssue,
   CatalogAwardsState,
@@ -123,6 +125,7 @@ import {
   UploadCloud,
   LogOut,
   Lock,
+  Pencil,
 } from 'lucide-react';
 
 // Lazy-loaded Full-Screen Reader & Secondary Routes (keeps initial Reader home bundle fast & resilient)
@@ -257,6 +260,9 @@ const WebViewerModal = lazyWithRetry(() =>
 );
 const UserProfileModal = lazyWithRetry(() =>
   import('./components/common/UserProfileModal').then((m) => ({ default: m.UserProfileModal }))
+);
+const EditProfileModal = lazyWithRetry(() =>
+  import('./components/common/EditProfileModal').then((m) => ({ default: m.EditProfileModal }))
 );
 const ApplyAsMangakaModal = lazyWithRetry(() =>
   import('./components/modals/ApplyAsMangakaModal').then((m) => ({
@@ -956,9 +962,10 @@ export default function App() {
     setMangaList((prev) => {
       const next = prev.map((m) => {
         if (m.id === mangaId) {
-          const newOriginal = !m.isOriginal;
+          const newOriginal = getMangaType(m) !== 'original';
           return {
             ...m,
+            type: newOriginal ? ('original' as const) : ('backdrop' as const),
             isOriginal: newOriginal,
             isBackdrop: !newOriginal,
             isCanvas: !newOriginal,
@@ -988,6 +995,7 @@ export default function App() {
   const [isWebViewerModalOpen, setIsWebViewerModalOpen] = useState(false);
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isApplyMangakaOpen, setIsApplyMangakaOpen] = useState(false);
   const [isMangakaDashboardOpen, setIsMangakaDashboardOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
@@ -1542,6 +1550,7 @@ export default function App() {
     if (!cleanText) return;
 
     const authorName =
+      (creatorAuthState.authUser && creatorAuthState.profile.displayName) ||
       safeStorage.getItem('ka_reader_username') ||
       (isAdmin ? 'Mlungiseni Mbhele (Producer)' : 'Reader');
     const cleanAuthor = sanitizePlainCommentText(authorName, 80) || 'Reader';
@@ -1572,7 +1581,7 @@ export default function App() {
     const newComment: Comment = {
       id: `comm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       mangaId: selectedDetailManga.id,
-      userId: `user-${Date.now()}`,
+      userId: creatorAuthState.authUser?.id || `user-${Date.now()}`,
       userName: cleanAuthor,
       text: cleanText,
       timestamp: new Date().toISOString(),
@@ -1723,6 +1732,60 @@ export default function App() {
   const handleToggleOledMode = useCallback(() => setIsOledMode((prev) => !prev), []);
   const handleToggleDataSaver = useCallback(() => setDataSaverMode((prev) => !prev), []);
   const handleOpenProfileModal = useCallback(() => setIsProfileModalOpen(true), []);
+  const handleOpenEditProfile = useCallback(() => {
+    if (creatorAuthState.authUser) {
+      setIsEditProfileOpen(true);
+    }
+  }, [creatorAuthState.authUser]);
+
+  const handleProfileSaved = useCallback(
+    (updatedProfile: UserProfile, updatedUser: OververseAuthUser) => {
+      const newDisplayName = updatedProfile.displayName || updatedProfile.penName;
+      const emailLower = (updatedProfile.email || updatedUser.email || '').trim().toLowerCase();
+
+      if (newDisplayName) {
+        safeStorage.setItemDeferred('ka_reader_username', newDisplayName);
+      }
+
+      setMangaList((prev) => {
+        const next = prev.map((m) => {
+          const isOwned =
+            (m.submittedByEmail && m.submittedByEmail.trim().toLowerCase() === emailLower) ||
+            (updatedUser.id && m.id.startsWith(`creator-${updatedUser.id}`));
+          return isOwned
+            ? { ...m, author: newDisplayName, artist: newDisplayName }
+            : m;
+        });
+        safeStorage.setJSONDeferred('ka_africa_manga_list', next);
+        return next;
+      });
+
+      setSelectedDetailManga((prev) => {
+        if (!prev) return null;
+        const isOwned =
+          (prev.submittedByEmail && prev.submittedByEmail.trim().toLowerCase() === emailLower) ||
+          (updatedUser.id && prev.id.startsWith(`creator-${updatedUser.id}`));
+        return isOwned
+          ? { ...prev, author: newDisplayName, artist: newDisplayName }
+          : prev;
+      });
+
+      setAllComments((prev) => {
+        const next = prev.map((c) =>
+          c.userId === updatedUser.id || c.userId === updatedProfile.uid
+            ? { ...c, userName: newDisplayName }
+            : c
+        );
+        safeStorage.setJSONDeferred('ka_all_comments', next);
+        return next;
+      });
+
+      setSyncToastMessage('Profile updated');
+      setTimeout(() => setSyncToastMessage(null), 3500);
+    },
+    []
+  );
+
   const handleOpenSubscriptionModal = useCallback(() => setIsSubscriptionModalOpen(true), []);
   const handleOpenApplyMangaka = useCallback(() => setIsApplyMangakaOpen(true), []);
   const handleOpenAdminDashboard = useCallback(() => {
@@ -1811,11 +1874,30 @@ export default function App() {
     });
   }, [ratedMangaList, deferredSearchQuery, selectedFilter, favoriteIdSet, currentUserEmail, isAdmin]);
 
+  // Awards only feature Original series (never Backdrop)
+  const originalRatedMangaList = useMemo(
+    () => ratedMangaList.filter((m) => getMangaType(m) === 'original'),
+    [ratedMangaList]
+  );
+
+  const originalMangaList = useMemo(
+    () => mangaList.filter((m) => getMangaType(m) === 'original'),
+    [mangaList]
+  );
+
   const featuredManga = useMemo(
     () =>
       ratedMangaList.find(
         (m) =>
+          getMangaType(m) === 'original' &&
           m.featured &&
+          m.approvalStatus !== 'pending_review' &&
+          m.approvalStatus !== 'rejected' &&
+          m.approvalStatus !== 'draft'
+      ) ||
+      ratedMangaList.find(
+        (m) =>
+          getMangaType(m) === 'original' &&
           m.approvalStatus !== 'pending_review' &&
           m.approvalStatus !== 'rejected' &&
           m.approvalStatus !== 'draft'
@@ -1892,6 +1974,7 @@ export default function App() {
         userSubscription={userSubscription}
         currentUserEmail={currentUserEmail}
         onOpenProfileModal={handleOpenProfileModal}
+        onOpenEditProfile={creatorAuthState.authUser ? handleOpenEditProfile : undefined}
         onUpgradeClick={handleOpenSubscriptionModal}
         onQuickToggleTier={handleQuickToggleTier}
         onOpenPublish={handleOpenPublishDefault}
@@ -2139,6 +2222,7 @@ export default function App() {
                   onDeleteManga={handleDeleteManga}
                   onViewManga={handleSelectDetailManga}
                   onOpenApplyCreator={handleOpenApplyMangaka}
+                  onOpenEditProfile={handleOpenEditProfile}
                   onBackToCatalog={() => handleTabChange('readers')}
                 />
               </Suspense>
@@ -2196,12 +2280,12 @@ export default function App() {
                 />
               </Suspense>
             )}
-            {/* Route: /awards (Manga of the Year Awards Page) */}
+            {/* Route: /awards (Manga of the Year Awards Page — Originals only) */}
             {activeTab === 'awards' && (
               <Suspense fallback={<RouteLoadingFallback />}>
                 <MangaOfTheYearAwardsPage
                   categories={MOTY_CATEGORIES}
-                  mangaList={ratedMangaList}
+                  mangaList={originalRatedMangaList}
                   awardsState={awardsState}
                   onStartReading={(m, chId) => handleStartReading(m, chId)}
                   onSelectManga={handleSelectDetailManga}
@@ -2309,13 +2393,77 @@ export default function App() {
                       </p>
                     </div>
                   ) : !hasCreatorAccount ? (
-                    <CreatorAccountGate
-                      authState={creatorAuthState}
-                      onBackToReader={() => handleTabChange('readers')}
-                      onNavigateAuthRoute={handleNavigateAuthRoute}
-                      onNavigateToTerms={() => handleTabChange('terms')}
-                      onNavigateToPrivacy={() => handleTabChange('privacy')}
-                    />
+                    <div className="space-y-6">
+                      {creatorAuthState.authUser && (
+                        <div
+                          id="reader-account-header-bar"
+                          className="rounded-2xl border border-slate-800 bg-slate-950 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                        >
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <img
+                              src={creatorAuthState.profile.avatarUrl || APP_LOGO_SRC}
+                              alt={creatorAuthState.profile.displayName || 'Account avatar'}
+                              decoding="async"
+                              className="h-12 w-12 rounded-xl object-cover border border-slate-800 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-white truncate">
+                                {[
+                                  creatorAuthState.profile.displayName || creatorAuthState.profile.penName || 'Reader',
+                                  creatorAuthState.profile.studioName,
+                                  creatorAuthState.profile.email || creatorAuthState.authUser.email,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' • ')}
+                              </p>
+                              {creatorAuthState.profile.bio && (
+                                <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">
+                                  {creatorAuthState.profile.bio}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+                            <button
+                              id="account-edit-profile-btn"
+                              type="button"
+                              onClick={handleOpenEditProfile}
+                              className="min-h-[42px] inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-bold text-xs px-4 py-2 transition"
+                            >
+                              <Pencil className="w-3.5 h-3.5 shrink-0" />
+                              <span>Edit Profile</span>
+                            </button>
+
+                            <button
+                              id="reader-signout-account-btn"
+                              type="button"
+                              onClick={async () => {
+                                await signOutCreatorAccount();
+                                safeStorage.removeItem(ADMIN_UNLOCK_STORAGE_KEY);
+                                safeStorage.removeItem(ADMIN_MASTER_SECRET_CACHE_KEY);
+                                setIsAdminUnlocked(false);
+                                setCurrentUserEmail('reader@azoververse.com');
+                                safeStorage.setItemDeferred('ka_africa_user_email', 'reader@azoververse.com');
+                                setAppMode('reader');
+                              }}
+                              className="min-h-[42px] inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-white font-medium text-xs px-3.5 py-2 transition"
+                            >
+                              <LogOut className="w-3.5 h-3.5 shrink-0" />
+                              <span>Sign Out</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <CreatorAccountGate
+                        authState={creatorAuthState}
+                        onBackToReader={() => handleTabChange('readers')}
+                        onNavigateAuthRoute={handleNavigateAuthRoute}
+                        onNavigateToTerms={() => handleTabChange('terms')}
+                        onNavigateToPrivacy={() => handleTabChange('privacy')}
+                      />
+                    </div>
                   ) : (
                     <>
                       {/* Authenticated Creator Studio Header Bar */}
@@ -2326,27 +2474,45 @@ export default function App() {
                         <div className="flex items-center gap-3.5 min-w-0">
                           <img
                             src={creatorAuthState.profile.avatarUrl || APP_LOGO_SRC}
-                            alt={creatorAuthState.profile.penName || 'Creator'}
+                            alt={creatorAuthState.profile.displayName || creatorAuthState.profile.penName || 'Creator'}
                             decoding="async"
                             className="h-12 w-12 rounded-xl object-cover border border-slate-800 shrink-0"
                           />
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <h2 className="text-base font-bold text-white truncate">
-                                {creatorAuthState.profile.penName}
+                                {[
+                                  creatorAuthState.profile.displayName || creatorAuthState.profile.penName,
+                                  creatorAuthState.profile.studioName || 'OVERVERSE Creator Studio',
+                                  creatorAuthState.profile.email || creatorAuthState.authUser?.email,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' • ')}
                               </h2>
-                              <span className="text-xs text-slate-400">·</span>
-                              <span className="text-xs font-medium text-amber-400 truncate">
-                                {creatorAuthState.profile.studioName || 'OVERVERSE Creator Studio'}
-                              </span>
                             </div>
-                            <p className="text-xs text-slate-400 truncate mt-0.5">
-                              Creator Account · {creatorAuthState.profile.phone || creatorAuthState.profile.email}
-                            </p>
+                            {creatorAuthState.profile.bio ? (
+                              <p className="text-xs text-slate-300 mt-0.5 line-clamp-2">
+                                {creatorAuthState.profile.bio}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-slate-400 truncate mt-0.5">
+                                Creator Account · {creatorAuthState.profile.phone || creatorAuthState.profile.email}
+                              </p>
+                            )}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2.5 flex-wrap">
+                          <button
+                            id="account-edit-profile-btn"
+                            type="button"
+                            onClick={handleOpenEditProfile}
+                            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-bold text-xs px-4 py-2 transition"
+                          >
+                            <Pencil className="w-3.5 h-3.5 shrink-0" />
+                            <span>Edit Profile</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => handleTabChange('dashboard')}
@@ -2668,7 +2834,7 @@ export default function App() {
             isOpen={isAwardsModalOpen}
             onClose={() => setIsAwardsModalOpen(false)}
             categories={MOTY_CATEGORIES}
-            mangaList={mangaList}
+            mangaList={originalMangaList}
             awardsState={awardsState}
             onStartReading={(manga, chId) => {
               setIsAwardsModalOpen(false);
@@ -2855,6 +3021,15 @@ export default function App() {
                 handleStartReading(targetManga, chapId || targetManga.chapters[0]?.id);
               }
             }}
+          />
+        )}
+
+        {isEditProfileOpen && creatorAuthState.authUser && (
+          <EditProfileModal
+            isOpen={isEditProfileOpen}
+            onClose={() => setIsEditProfileOpen(false)}
+            profile={creatorAuthState.profile}
+            onSaved={handleProfileSaved}
           />
         )}
 

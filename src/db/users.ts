@@ -41,7 +41,7 @@ export function toPublicUser(row: DbUser): PublicUser {
     email: row.email,
     backup_email: row.backupEmail ?? null,
     pen_name: row.penName,
-    studio_name: row.studioName || `${row.penName} Studio`,
+    studio_name: typeof row.studioName === 'string' ? row.studioName : '',
     bio: row.bio || '',
     avatar_url: row.avatarUrl ?? null,
     email_verified: Boolean(row.emailVerified),
@@ -220,7 +220,7 @@ export async function updateUserCreatorProfile(
       const patch: Partial<NewDbUser> = {
         updatedAt: new Date(),
       };
-      if (typeof updates.penName === 'string' && updates.penName.trim().length >= 2) {
+      if (typeof updates.penName === 'string' && updates.penName.trim().length >= 1) {
         patch.penName = updates.penName.trim();
       }
       if (typeof updates.studioName === 'string') {

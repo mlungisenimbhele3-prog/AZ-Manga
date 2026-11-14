@@ -708,6 +708,59 @@ export async function patchOververseCreatorProfile(updates: {
   }
 }
 
+export async function updateMyProfileViaApi(input: {
+  display_name: string;
+  studio_name?: string;
+  bio?: string;
+  avatarData?: string;
+  avatarFileName?: string;
+  removeAvatar?: boolean;
+}): Promise<{
+  success: boolean;
+  user?: OververseAuthUser;
+  error?: string;
+}> {
+  try {
+    const res = await fetchWithBearerRetry('/api/users/me', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    });
+    if (!res) {
+      return {
+        success: false,
+        error: 'Please sign in again to save your profile.',
+      };
+    }
+    const data = await res.json();
+    if (!res.ok || !data?.user) {
+      return {
+        success: false,
+        error: data?.error || 'Failed to update profile.',
+      };
+    }
+
+    const activeToken = data.accessToken || inMemoryAccessToken;
+    if (activeToken) {
+      setAuthenticatedSession(activeToken, data.user);
+    } else {
+      currentAuthUser = data.user;
+      emitAuthSnapshot();
+    }
+    return {
+      success: true,
+      user: data.user,
+    };
+  } catch {
+    return {
+      success: false,
+      error: 'Network error while saving profile.',
+    };
+  }
+}
+
 export async function logoutOververseSession(): Promise<void> {
   try {
     await fetch('/api/auth/logout', {

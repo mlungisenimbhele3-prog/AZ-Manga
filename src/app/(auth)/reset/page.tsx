@@ -368,7 +368,7 @@ export function ResetPasswordPage({
                     ? 'reset-password-error reset-password-strength'
                     : 'reset-password-strength'
                 }
-                placeholder="Min. 8 chars (letter + number)"
+                placeholder="Min. 8 chars (upper, number & special char)"
                 className={`min-h-[46px] w-full rounded-xl border bg-slate-900/90 pl-10 ${
                   isNewPasswordValid && !fieldErrors.password ? 'pr-20' : 'pr-12'
                 } py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none transition ${

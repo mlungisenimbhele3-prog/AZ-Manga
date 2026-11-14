@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Chapter, Manga, MonetizationModel, AccessType, AiDetectionResult } from '../../types';
+import { Chapter, Manga, MonetizationModel, SeriesType, AiDetectionResult } from '../../types';
 import {
   UploadCloud,
   Plus,
@@ -63,6 +63,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [newGenres, setNewGenres] = useState<string>('Afro-Fantasy, Action, Fantasy');
   const [newSynopsis, setNewSynopsis] = useState<string>('');
   const [newMonetization, setNewMonetization] = useState<MonetizationModel>('hybrid');
+  const [seriesType, setSeriesType] = useState<SeriesType>('backdrop');
+  const [backdropAcknowledged, setBackdropAcknowledged] = useState<boolean>(false);
   const [declaredAi, setDeclaredAi] = useState<boolean>(false);
   const [strictAutoBan, setStrictAutoBan] = useState<boolean>(true);
   const [isOwnedIP, setIsOwnedIP] = useState<boolean>(true);
@@ -122,6 +124,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
   const handleLaunchSeries = (e: React.FormEvent) => {
     e.preventDefault();
+    if (seriesType === 'backdrop' && !backdropAcknowledged) {
+      return;
+    }
 
     // Run final auto-detection scan on submission
     const scan = detectAiContent(
@@ -140,6 +145,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
     const isBanned = scan.bannedStatus === 'auto_banned';
     const isAi = scan.isAiGenerated;
+    const isOrig = seriesType === 'original';
 
     const createdManga: Manga = {
       id: `manga-${Date.now()}`,
@@ -157,50 +163,21 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       views: 0,
       bookmarksCount: 0,
       monetizationModel: newMonetization,
+      type: seriesType,
       isAiGenerated: isAi,
       aiConfidenceScore: scan.confidenceScore,
       isBanned: isBanned,
       banReason: isBanned ? scan.banReason : undefined,
       aiDetection: scan,
       isOwnedIP: isOwnedIP,
-      isBackdrop: isOwnedIP ? true : false,
-      isCanvas: isOwnedIP ? true : false,
-      isOriginal: false,
+      isBackdrop: !isOrig,
+      isCanvas: !isOrig,
+      isOriginal: isOrig,
       approvalStatus: 'approved',
       submittedAt: new Date().toISOString(),
       publishedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
-      chapters: [
-        {
-          id: `ch-${Date.now()}-1`,
-          mangaId: `manga-${Date.now()}`,
-          number: 1,
-          title: 'Chapter 1: The First Resonance',
-          releaseDate: new Date().toISOString().split('T')[0],
-          pageCount: 3,
-          accessType: 'free',
-          likesCount: 0,
-          commentsCount: 0,
-          pages: [
-            {
-              id: `p1`,
-              pageNumber: 1,
-              imageUrl: SAMPLE_PAGE_IMAGES[0],
-              dialogs: [{ speaker: 'Protagonist', text: 'My journey begins here.', position: 'top-left' }],
-            },
-            {
-              id: `p2`,
-              pageNumber: 2,
-              imageUrl: SAMPLE_PAGE_IMAGES[1],
-            },
-            {
-              id: `p3`,
-              pageNumber: 3,
-              imageUrl: SAMPLE_PAGE_IMAGES[2],
-            },
-          ],
-        },
-      ],
+      chapters: [],
     };
 
     onPublishManga(createdManga);
@@ -471,6 +448,49 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             </div>
 
             <div>
+              <label htmlFor="publish-series-type-select" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Series Category *
+              </label>
+              <select
+                id="publish-series-type-select"
+                value={seriesType}
+                onChange={(e) => {
+                  const nextType = e.target.value as SeriesType;
+                  setSeriesType(nextType);
+                  if (nextType === 'original') {
+                    setBackdropAcknowledged(false);
+                  }
+                }}
+                className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
+              >
+                <option value="backdrop">Upload as Backdrop (Default — Side stories &amp; lore)</option>
+                <option value="original">Upload as Original (Main canon series)</option>
+              </select>
+
+              {seriesType === 'backdrop' ? (
+                <div className="mt-2.5 rounded-2xl border border-amber-500/40 bg-amber-950/25 p-3.5 space-y-2.5 text-xs">
+                  <p className="text-slate-200 leading-relaxed">
+                    <strong>Backdrop Monetization Rule:</strong> Backdrop — Side stories, lore &amp; world-building. Ads may show on Backdrop stories. Backdrop stories earn exposure, not rev-share payouts, and are not eligible for Awards unless promoted to Original.
+                  </p>
+                  <label className="flex items-center gap-2.5 cursor-pointer font-bold text-amber-300">
+                    <input
+                      id="publish-backdrop-understand-checkbox"
+                      type="checkbox"
+                      checked={backdropAcknowledged}
+                      onChange={(e) => setBackdropAcknowledged(e.target.checked)}
+                      className="accent-amber-500 rounded h-4 w-4 shrink-0"
+                    />
+                    <span>I Understand</span>
+                  </label>
+                </div>
+              ) : (
+                <div className="mt-2.5 rounded-2xl border border-emerald-500/40 bg-emerald-950/20 p-3 text-xs text-emerald-200">
+                  <strong>Original Monetization Rule:</strong> Eligible for Awards and 70% payable creator rev-share from AdMob + Google Play VIP.
+                </div>
+              )}
+            </div>
+
+            <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Monetization Model
               </label>
@@ -497,12 +517,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-white">This is original IP owned by me</span>
-                    <span className="rounded bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold px-1.5 py-0.2">
-                      BACKDROP
+                    <span className="rounded bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold px-1.5 py-0.2 uppercase">
+                      {seriesType}
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    If checked, your title is published as a <strong>BACKDROP</strong> series. Admin <strong className="text-amber-400">mlungisenimbhele3@gmail.com</strong> can review and promote your series to <strong className="text-amber-300">AZ ORIGINAL 👑</strong>.
+                    Series launches as Coming Soon until you upload a chapter (8–50 pages). Admin <strong className="text-amber-400">mlungisenimbhele3@gmail.com</strong> can review Backdrop series for promotion to <strong className="text-amber-300">AZ ORIGINAL</strong>.
                   </p>
                 </div>
               </label>
@@ -624,7 +644,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               <button
                 id="submit-launch-series-btn"
                 type="submit"
-                className="flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black px-5 py-2 text-xs font-bold transition shadow-md"
+                disabled={seriesType === 'backdrop' && !backdropAcknowledged}
+                className="flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black px-5 py-2 text-xs font-bold transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <UploadCloud className="w-4 h-4" />
                 <span>Publish Series (With AI Guard)</span>

@@ -145,6 +145,8 @@ export interface MangakaApplication {
   adminNotes?: string;
 }
 
+export type SeriesType = 'original' | 'backdrop';
+
 export interface Manga {
   id: string;
   title: string;
@@ -166,6 +168,7 @@ export interface Manga {
   chapters: Chapter[];
   volumes?: MangaVolume[];
   featured?: boolean;
+  type?: SeriesType;
   isOriginal?: boolean; // AZ Originals vs Backdrop
   isBackdrop?: boolean;
   isCanvas?: boolean; // backward compatibility alias
@@ -188,6 +191,14 @@ export interface Manga {
   isComingSoon?: boolean;
   bonusContent?: BonusContentItem[];
 }
+
+export const getMangaType = (manga?: Partial<Manga> | null): SeriesType => {
+  if (!manga) return 'backdrop';
+  if (manga.type === 'original') return 'original';
+  if (manga.type === 'backdrop') return 'backdrop';
+  if (manga.isOriginal === true && manga.isBackdrop !== true) return 'original';
+  return 'backdrop';
+};
 
 export const isMangaComingSoon = (manga?: Manga | null): boolean => {
   if (!manga) return false;

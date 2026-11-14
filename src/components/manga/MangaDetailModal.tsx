@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Chapter, Manga, UserSubscription, Comment, BonusContentItem, isMangaComingSoon } from '../../types';
+import { Chapter, Manga, UserSubscription, Comment, BonusContentItem, isMangaComingSoon, getMangaType } from '../../types';
 import { BonusContentViewerModal } from '../modals/BonusContentViewerModal';
 import { getSimilarManga } from '../../services/recommendationEngine';
 import { MangaCoverImage } from '../common/MangaCoverImage';
@@ -16,7 +16,7 @@ import {
 } from '../../services/ratingService';
 import { uploadCoverFile } from '../../services/coverStorage';
 import { publishMangaToSupabase } from '../../services/supabase';
-import { isMangaBookmarked, toggleMangaBookmark } from '../../services/userProfile';
+import { getCurrentUserProfile, isMangaBookmarked, toggleMangaBookmark } from '../../services/userProfile';
 import {
   isFollowingCreator,
   toggleFollowCreator,
@@ -57,6 +57,7 @@ import {
   CornerDownRight,
   ChevronDown,
   ChevronUp,
+  ShieldCheck,
 } from 'lucide-react';
 import { isMangaRecentlyPublished } from './MangaCard';
 import {
@@ -148,10 +149,44 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
   const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [coverUploadToast, setCoverUploadToast] = useState<string | null>(null);
+  const [showApplyOriginalModal, setShowApplyOriginalModal] = useState(false);
+  const [applicationPitch, setApplicationPitch] = useState('');
+  const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null);
   const modalId = React.useId();
   const ratingRevision = useRatingRevision();
 
   const activeManga = manga || cachedManga;
+
+  useEffect(() => {
+    setShowApplyOriginalModal(false);
+    setApplicationPitch('');
+    setApplicationSuccess(null);
+  }, [activeManga?.id, isOpen]);
+
+  const handleApplyToOriginal = () => {
+    if (!activeManga) return;
+    const applicantEmail = getCurrentUserProfile()?.email || 'creator@azoververse.com';
+    const existingApps = JSON.parse(localStorage.getItem('az_backdrop_original_applications') || '[]');
+    const newApp = {
+      id: `app-${Date.now()}`,
+      mangaId: activeManga.id,
+      mangaTitle: activeManga.title,
+      author: activeManga.author,
+      applicantEmail,
+      pitch: applicationPitch.trim() || 'Submitted for AZ ORIGINAL promotion.',
+      views: activeManga.views,
+      submittedAt: new Date().toISOString(),
+      status: 'pending',
+    };
+    localStorage.setItem('az_backdrop_original_applications', JSON.stringify([newApp, ...existingApps]));
+    window.dispatchEvent(new Event('az_backdrop_app_submitted'));
+    setApplicationSuccess(
+      `Application sent for "${activeManga.title}"! Admin review takes 48h to grant official AZ ORIGINAL status.`
+    );
+    setShowApplyOriginalModal(false);
+    setApplicationPitch('');
+    setTimeout(() => setApplicationSuccess(null), 6000);
+  };
 
   // Author Follow System
   const [isFollowingAuthor, setIsFollowingAuthor] = useState(() => {
@@ -813,6 +848,30 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                     {activeManga.synopsis}
                   </p>
                 </div>
+
+                {/* Backdrop -> Apply to become ORIGINAL CTA (detail page only) */}
+                {getMangaType(activeManga) === 'backdrop' && (
+                  <div className="space-y-2.5">
+                    {applicationSuccess && (
+                      <div
+                        id="detail-apply-original-success"
+                        className="flex items-start gap-2.5 rounded-xl border border-emerald-500/40 bg-emerald-950/50 p-3 text-xs font-medium text-emerald-200"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>{applicationSuccess}</span>
+                      </div>
+                    )}
+                    <button
+                      id="detail-apply-original-btn"
+                      type="button"
+                      onClick={() => setShowApplyOriginalModal(true)}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-950/35 hover:bg-amber-900/50 px-4 py-2.5 text-xs font-black text-amber-300 transition shadow-sm active:scale-[0.99]"
+                    >
+                      <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Apply to become ORIGINAL</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Banned Alert Banner */}
                 {activeManga.isBanned && (
@@ -1920,6 +1979,69 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
       userSubscription={userSubscription}
       onUpgradeClick={onUpgradeClick}
     />
+
+    {/* Apply to Become AZ ORIGINAL Modal */}
+    {showApplyOriginalModal && activeManga && (
+      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="w-full max-w-md rounded-3xl border border-amber-500/40 bg-slate-900 p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Crown className="w-5 h-5 text-amber-400" />
+              <h3 className="text-base font-black text-white">Apply for AZ ORIGINAL Status</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowApplyOriginalModal(false)}
+              className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="rounded-xl bg-amber-950/30 border border-amber-500/20 p-3 space-y-1 text-xs text-amber-200">
+            <p className="font-bold text-white">Series: {activeManga.title}</p>
+            <p className="text-slate-300">
+              Promoting from Backdrop to official AZ ORIGINAL unlocks:
+            </p>
+            <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-amber-300/90">
+              <li>70% creator revenue share from Google Play Billing VIP &amp; AdMob</li>
+              <li>Gold AZ ORIGINAL crown badge &amp; Awards eligibility</li>
+              <li>Featured placement on the Home carousel</li>
+            </ul>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-300 block">
+              Creator Pitch &amp; Serialization Schedule
+            </label>
+            <textarea
+              value={applicationPitch}
+              onChange={(e) => setApplicationPitch(e.target.value)}
+              placeholder="Tell AZ Editors about your story arc, update frequency (e.g. Weekly), and visual quality..."
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none min-h-[100px]"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowApplyOriginalModal(false)}
+              className="flex-1 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 py-2.5 text-xs font-bold text-slate-300 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleApplyToOriginal}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black py-2.5 text-xs font-black transition shadow-md"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Submit Application</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   </>
 );
 };

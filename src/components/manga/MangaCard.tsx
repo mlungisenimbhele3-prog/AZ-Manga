@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Manga, isMangaComingSoon } from '../../types';
+import { Manga, isMangaComingSoon, getMangaType } from '../../types';
 import { MangaCoverImage } from '../common/MangaCoverImage';
 import {
   prewarmReaderChunk,
@@ -207,7 +207,7 @@ const MangaCardComponent: React.FC<MangaCardProps> = ({
         {/* Top Badges & Favorite Heart Button */}
         <div className="absolute top-2 inset-x-2 flex items-center justify-between pointer-events-none z-10 overflow-visible">
           <div className="flex items-center gap-1.5 pointer-events-none flex-wrap">
-            {manga.isOriginal ? (
+            {getMangaType(manga) === 'original' ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 text-black px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-sm">
                 <Crown className="w-2.5 h-2.5 fill-black stroke-black" />
                 <span>ORIGINAL</span>

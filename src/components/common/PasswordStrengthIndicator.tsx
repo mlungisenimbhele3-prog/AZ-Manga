@@ -3,8 +3,10 @@ import { Check, ShieldAlert, ShieldCheck } from 'lucide-react';
 
 export type PasswordStrengthLevel = 'empty' | 'weak' | 'fair' | 'good' | 'strong';
 
+export type PasswordCriterionKey = 'length' | 'uppercase' | 'number' | 'special';
+
 export interface PasswordCriterion {
-  key: 'length' | 'alphanumeric' | 'mixedCase' | 'symbolOrLong';
+  key: PasswordCriterionKey;
   label: string;
   met: boolean;
   required: boolean;
@@ -23,11 +25,9 @@ export interface PasswordStrengthAnalysis {
 export function evaluatePasswordStrength(password: string): PasswordStrengthAnalysis {
   const hasMinLength = password.length >= 8;
   const exceedsMaxLength = password.length > 128;
-  const hasLetter = /[A-Za-z]/.test(password);
-  const hasNumber = /[0-9]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasUpper = /[A-Z]/.test(password);
-  const hasMixedCase = hasLower && hasUpper;
+  const hasNumber = /[0-9]/.test(password);
   const hasSymbol = /[^A-Za-z0-9]/.test(password);
   const hasLongLength = password.length >= 12;
 
@@ -39,22 +39,22 @@ export function evaluatePasswordStrength(password: string): PasswordStrengthAnal
       required: true,
     },
     {
-      key: 'alphanumeric',
-      label: 'Letter & number',
-      met: hasLetter && hasNumber,
+      key: 'uppercase',
+      label: '1 uppercase (A-Z)',
+      met: hasUpper,
       required: true,
     },
     {
-      key: 'mixedCase',
-      label: 'Upper & lowercase',
-      met: hasMixedCase,
-      required: false,
+      key: 'number',
+      label: '1 number (0-9)',
+      met: hasNumber,
+      required: true,
     },
     {
-      key: 'symbolOrLong',
-      label: 'Symbol or 12+ chars',
-      met: hasSymbol || hasLongLength,
-      required: false,
+      key: 'special',
+      label: '1 special (!@#$)',
+      met: hasSymbol,
+      required: true,
     },
   ];
 
@@ -63,7 +63,8 @@ export function evaluatePasswordStrength(password: string): PasswordStrengthAnal
       score: 0,
       level: 'empty',
       label: 'Not entered',
-      helperText: 'Use 8+ characters with at least one letter and one number.',
+      helperText:
+        'Use 8+ characters with at least one uppercase letter, one number, and one special character.',
       meetsMinimumRequirements: false,
       exceedsMaxLength: false,
       criteria,
@@ -82,43 +83,32 @@ export function evaluatePasswordStrength(password: string): PasswordStrengthAnal
     };
   }
 
-  const meetsMinimumRequirements = hasMinLength && hasLetter && hasNumber;
+  const meetsMinimumRequirements = hasMinLength && hasUpper && hasNumber && hasSymbol;
+  const metRequiredCount =
+    (hasMinLength ? 1 : 0) +
+    (hasUpper ? 1 : 0) +
+    (hasNumber ? 1 : 0) +
+    (hasSymbol ? 1 : 0);
 
   if (!meetsMinimumRequirements) {
     return {
-      score: 1,
-      level: 'weak',
-      label: 'Weak',
-      helperText: 'Add 8+ characters including both a letter and a number.',
+      score: metRequiredCount >= 3 ? 2 : 1,
+      level: metRequiredCount >= 3 ? 'fair' : 'weak',
+      label: metRequiredCount >= 3 ? 'Fair' : 'Weak',
+      helperText:
+        'Must include 8+ characters, an uppercase letter, a number, and a special character.',
       meetsMinimumRequirements: false,
       exceedsMaxLength: false,
       criteria,
     };
   }
 
-  const bonusCount = (hasMixedCase ? 1 : 0) + (hasSymbol || hasLongLength ? 1 : 0);
-
-  if (bonusCount === 0) {
+  if (hasLower && hasLongLength) {
     return {
-      score: 2,
-      level: 'fair',
-      label: 'Fair',
-      helperText: 'Meets minimum rules. Add uppercase letters or a symbol for stronger protection.',
-      meetsMinimumRequirements: true,
-      exceedsMaxLength: false,
-      criteria,
-    };
-  }
-
-  if (bonusCount === 1) {
-    return {
-      score: 3,
-      level: 'good',
-      label: 'Good',
-      helperText:
-        hasMixedCase
-          ? 'Add a symbol or extend to 12+ characters for maximum strength.'
-          : 'Mix uppercase and lowercase letters for maximum strength.',
+      score: 4,
+      level: 'strong',
+      label: 'Strong',
+      helperText: 'Strong password ready for your AZ OVERVERSE account.',
       meetsMinimumRequirements: true,
       exceedsMaxLength: false,
       criteria,
@@ -126,10 +116,10 @@ export function evaluatePasswordStrength(password: string): PasswordStrengthAnal
   }
 
   return {
-    score: 4,
-    level: 'strong',
-    label: 'Strong',
-    helperText: 'Strong password ready for your AZ OVERVERSE account.',
+    score: 3,
+    level: 'good',
+    label: 'Good',
+    helperText: 'Meets all strict password rules. Extend to 12+ characters for maximum strength.',
     meetsMinimumRequirements: true,
     exceedsMaxLength: false,
     criteria,

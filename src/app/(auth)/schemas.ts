@@ -35,8 +35,9 @@ export const registerFormSchema = z
       .string()
       .min(8, 'Password must be at least 8 characters.')
       .max(128, 'Password must be 128 characters or fewer.')
-      .regex(/[A-Za-z]/, 'Password must include at least one letter.')
-      .regex(/[0-9]/, 'Password must include at least one number.'),
+      .regex(/[A-Z]/, 'Password must include at least one uppercase letter.')
+      .regex(/[0-9]/, 'Password must include at least one number.')
+      .regex(/[^A-Za-z0-9]/, 'Password must include at least one special character.'),
     confirmPassword: z.string().min(1, 'Please confirm your password.'),
     agreeToTerms: z.boolean().refine((val) => val === true, {
       message: 'You must agree to the Terms of Service and Privacy Policy.',
@@ -147,8 +148,9 @@ export const resetPasswordFormSchema = z
       .string()
       .min(8, 'New password must be at least 8 characters.')
       .max(128, 'Password must be 128 characters or fewer.')
-      .regex(/[A-Za-z]/, 'Password must include at least one letter.')
-      .regex(/[0-9]/, 'Password must include at least one number.'),
+      .regex(/[A-Z]/, 'Password must include at least one uppercase letter.')
+      .regex(/[0-9]/, 'Password must include at least one number.')
+      .regex(/[^A-Za-z0-9]/, 'Password must include at least one special character.'),
     confirmPassword: z.string().min(1, 'Please confirm your new password.'),
   })
   .refine((data) => data.password === data.confirmPassword, {
