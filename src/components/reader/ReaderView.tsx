@@ -5,9 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   BookOpen,
-  Smartphone,
-  Maximize2,
-  Minimize2,
   Play,
   Sparkles,
   RefreshCw,
@@ -19,6 +16,7 @@ import {
   ArrowUpDown,
   X,
   Bookmark,
+  Star,
 } from 'lucide-react';
 import { FullScreenMenu } from '../layout/FullScreenMenu';
 import { Chapter, Manga, UserSubscription } from '../../types';
@@ -34,7 +32,6 @@ import {
   DEFAULT_READER_CONFIG,
 } from './ReaderConfig';
 import {
-  ReadingSessionTimerPill,
   ReadingSessionSummaryCard,
   ReadingSessionSummaryModal,
   ChapterReadingSessionSummary,
@@ -42,9 +39,7 @@ import {
   calculateSessionRewards,
   saveReadingSessionToHistory,
   formatDigitalTimer,
-  formatHumanDuration,
 } from './ReadingSessionTimer';
-import { AdMobBanner } from '../ads/AdMobBanner';
 import { safeStorage } from '../../utils/safeStorage';
 import { getProfileConfig, scheduleIdleTask } from '../../utils/devicePerformance';
 import { recordChapterRead } from '../../utils/readingStreak';
@@ -56,7 +51,7 @@ import {
 } from '../../services/userProfile';
 import { logChapterReadingTime } from '../../services/creatorChapterStatsService';
 import { APP_LOGO_SRC } from '../common/KAAfricaLogo';
-import { RatingAverageDisplay, StarRatingInput } from '../common/StarRating';
+import { StarRatingInput } from '../common/StarRating';
 import {
   buildVolumeTargetId,
   getChapterRatingStats,
@@ -190,9 +185,9 @@ const ReaderPageSurface = React.memo<ReaderPageSurfaceProps>(
               className="w-10 h-10 rounded-xl object-cover opacity-90"
             />
             <div className="space-y-1">
-              <p className="text-xs font-bold text-white">Page {pageIndex + 1} paused on slow network</p>
+              <p className="text-xs font-bold text-white">Image not available</p>
               <p className="text-[11px] text-slate-400">
-                Check your connection and tap below to reload this panel.
+                Page {pageIndex + 1} could not load from CDN. Tap below to retry.
               </p>
             </div>
             <button
@@ -210,7 +205,7 @@ const ReaderPageSurface = React.memo<ReaderPageSurfaceProps>(
             src={effectiveSrc}
             alt={`Page ${pageIndex + 1}`}
             referrerPolicy="no-referrer"
-            loading={isWithinActiveWindow ? 'eager' : 'lazy'}
+            loading="lazy"
             decoding="async"
             {...{ fetchpriority: isCurrentPage ? 'high' : isWithinActiveWindow ? 'auto' : 'low' }}
             onLoad={() => {
@@ -277,11 +272,12 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const bookmarkToastTimerRef = useRef<number | null>(null);
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [showOverlay, setShowOverlay] = useState<boolean>(false);
+  const [isRatingBarOpen, setIsRatingBarOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isCommentsOpen, setIsCommentsOpen] = useState<boolean>(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
 
-  // Auto-hide immersive mode timer (hide top/bottom bars after 2s of inactivity)
+  // Auto-hide immersive mode timer (hide top/bottom bars after 3s of inactivity)
   const autoHideTimerRef = useRef<NodeJS.Timeout | number | null>(null);
 
   const resetAutoHideTimer = useCallback(() => {
@@ -291,15 +287,19 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     }
     autoHideTimerRef.current = setTimeout(() => {
       setShowOverlay(false);
-    }, 2000);
+      setIsRatingBarOpen(false);
+    }, 3000);
   }, []);
 
   useEffect(() => {
     if (showOverlay) {
       resetAutoHideTimer();
-    } else if (autoHideTimerRef.current) {
-      clearTimeout(autoHideTimerRef.current as any);
-      autoHideTimerRef.current = null;
+    } else {
+      setIsRatingBarOpen(false);
+      if (autoHideTimerRef.current) {
+        clearTimeout(autoHideTimerRef.current as any);
+        autoHideTimerRef.current = null;
+      }
     }
     return () => {
       if (autoHideTimerRef.current) {
@@ -333,10 +333,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   showOverlayRef.current = showOverlay;
   const scrollRafRef = useRef<number | null>(null);
   const measureRafRef = useRef<number | null>(null);
-  const activeAheadWindow = useMemo(
-    () => Math.max(5, Math.min(8, getProfileConfig().imagePreloadCount)),
-    []
-  );
+  const activeAheadWindow = 1;
 
   const currentChapterIndex = useMemo(
     () => (manga?.chapters ? manga.chapters.findIndex((c) => c.id === chapter?.id) : -1),
@@ -444,8 +441,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
    */
   useEffect(() => {
     if (totalPages === 0) return;
-    const profileAhead = getProfileConfig().imagePreloadCount;
-    const aheadCount = Math.max(DEFAULT_READER_CONFIG.preloadAheadCount, profileAhead, 5);
+    const aheadCount = 1;
     preloadUpcomingPages(pages, currentPageIndex, aheadCount, {
       dataSaverMode,
       nextChapterFirstPageUrl,
@@ -1110,10 +1106,17 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     }
   };
 
+  const isSingleEndOfChapter = readingMode !== 'vertical' && currentPageIndex >= totalPages - 1;
+
   return (
     <div
       id="az-manga-reader-viewport"
       onClick={handleScreenClick}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        setShowOverlay(true);
+        resetAutoHideTimer();
+      }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       className="fixed inset-0 z-[100] m-0 p-0 w-screen h-screen-dynamic bg-[#000000] text-white select-none overflow-hidden reader-viewport-touch"
@@ -1141,8 +1144,9 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         </div>
       </div>
 
-      {/* TOP BAR */}
+      {/* TOP BAR — Clean 3-slot header ONLY: Back, Chapter Title (1 line truncated), 3-dot menu */}
       <div
+        id="reader-top-bar"
         onClick={(e) => {
           e.stopPropagation();
           resetAutoHideTimer();
@@ -1152,164 +1156,43 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
           resetAutoHideTimer();
         }}
         onTouchEnd={(e) => e.stopPropagation()}
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-[#000000]/90 backdrop-blur-md border-b border-white/10 transition-[transform,opacity] duration-300 ease-out safe-top-inset ${
+        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-2 px-3 py-2.5 bg-[#000000]/95 backdrop-blur-md border-b border-white/10 transition-[transform,opacity] duration-300 ease-out safe-top-inset ${
           showOverlay
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-full opacity-0 pointer-events-none'
         }`}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <button
-            type="button"
-            onClick={onBack}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition text-white shrink-0"
-            aria-label="Exit Reader"
-            title="Back to Manga Details"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-white truncate max-w-[170px] sm:max-w-md">
-                {chapter.title || `Chapter ${chapter.number}`}
-              </h2>
-              <RatingAverageDisplay
-                rating={chapterRatingStats.averageRating}
-                ratingCount={chapterRatingStats.ratingCount}
-                size="xs"
-                showCount
-              />
-            </div>
-            <span className="text-[11px] text-amber-400 font-semibold block truncate">
-              {manga.title} · Vol. {currentVolumeNumber} ·{' '}
-              {readingMode === 'vertical'
-                ? 'Continuous Scroll'
-                : readingMode === 'page_flip'
-                ? 'Page Flip'
-                : 'Single Page'}
-            </span>
-          </div>
-        </div>
+        <button
+          id="reader-top-back-btn"
+          type="button"
+          onClick={onBack}
+          className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition text-white shrink-0"
+          aria-label="Exit Reader"
+          title="Back to Manga Details"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <ReadingSessionTimerPill
-            elapsedSeconds={elapsedSeconds}
-            isRunning={isTimerRunning}
-            onTogglePause={() => {
-              setIsTimerRunning((prev) => !prev);
-              resetAutoHideTimer();
-            }}
-            onOpenSummary={() => {
-              setIsSummaryModalOpen(true);
-              resetAutoHideTimer();
-            }}
-            currentPage={currentPageIndex + 1}
-            totalPages={totalPages}
-          />
+        <h2
+          id="reader-top-chapter-title"
+          className="flex-1 min-w-0 text-center text-xs sm:text-sm font-bold text-white truncate px-2"
+        >
+          {chapter.title || `Chapter ${chapter.number}`}
+        </h2>
 
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-mono tabular-nums font-bold text-amber-300">
-            <span>{Math.round(currentProgress)}%</span>
-            <span className="text-slate-600">·</span>
-            <span className="text-slate-300 text-[11px] font-normal">
-              Pg {currentPageIndex + 1}/{totalPages || 1}
-            </span>
-          </div>
-
-          {/* Bookmark Current Page Button */}
-          <button
-            id="reader-bookmark-page-btn"
-            type="button"
-            onClick={handleBookmarkCurrentPage}
-            className={`min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl border transition active:scale-95 shrink-0 ${
-              bookmarkedPageIndex === currentPageIndex
-                ? 'bg-amber-500/20 border-amber-500/60 text-amber-400'
-                : 'bg-white/10 border-transparent hover:bg-white/20 text-slate-200'
-            }`}
-            title={
-              bookmarkedPageIndex === currentPageIndex
-                ? `Bookmarked Page ${currentPageIndex + 1} in reading history`
-                : `Bookmark Page ${currentPageIndex + 1} to reading history`
-            }
-            aria-label={
-              bookmarkedPageIndex === currentPageIndex
-                ? `Bookmarked Page ${currentPageIndex + 1} in reading history`
-                : `Bookmark Page ${currentPageIndex + 1} to reading history`
-            }
-          >
-            <Bookmark
-              className={`w-4 h-4 shrink-0 ${
-                bookmarkedPageIndex === currentPageIndex
-                  ? 'fill-amber-400 text-amber-400'
-                  : 'text-amber-400'
-              }`}
-            />
-          </button>
-
-          <button
-            id="reader-open-comments-btn"
-            type="button"
-            onClick={() => {
-              setIsCommentsOpen(true);
-              resetAutoHideTimer();
-            }}
-            className="min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition text-slate-100 whitespace-nowrap shrink-0"
-            title="Open Chapter Comments & Replies"
-            aria-label={`Open chapter comments (${chapterCommentCount})`}
-          >
-            <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="hidden md:inline">Comments</span>
-            <span className="font-mono tabular-nums text-amber-300">{chapterCommentCount}</span>
-          </button>
-
-          {/* Reader Settings Toggle Button */}
-          <button
-            id="reader-settings-btn"
-            type="button"
-            onClick={() => {
-              setIsSettingsOpen((prev) => !prev);
-              resetAutoHideTimer();
-            }}
-            className="min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition text-slate-200 whitespace-nowrap shrink-0"
-            title="Reader Settings (Single Page, Continuous, Page Flip)"
-            aria-label="Reader Settings"
-          >
-            <Sliders className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="hidden sm:inline">
-              {readingMode === 'vertical'
-                ? 'Continuous'
-                : readingMode === 'page_flip'
-                ? 'Page Flip'
-                : 'Single Page'}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              toggleFullscreen();
-              resetAutoHideTimer();
-            }}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 transition text-slate-200"
-            aria-label="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
-
-          {/* 3-dots Menu Button */}
-          <button
-            id="reader-more-menu-btn"
-            type="button"
-            onClick={() => {
-              setIsMoreMenuOpen(true);
-              resetAutoHideTimer();
-            }}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition text-slate-200"
-            aria-label="More options"
-            title="Menu & Controls"
-          >
-            <MoreHorizontal className="w-5 h-5 text-amber-400" />
-          </button>
-        </div>
+        <button
+          id="reader-more-menu-btn"
+          type="button"
+          onClick={() => {
+            setIsMoreMenuOpen(true);
+            resetAutoHideTimer();
+          }}
+          className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition text-slate-200 shrink-0"
+          aria-label="More options"
+          title="Menu & Controls"
+        >
+          <MoreHorizontal className="w-5 h-5 text-amber-400" />
+        </button>
       </div>
 
       {/* BOOKMARK SAVED CONFIRMATION PILL */}
@@ -1598,12 +1481,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             </>
           )}
 
-          {currentPageIndex === totalPages - 1 && (
+          {isSingleEndOfChapter && (
             <div
+              id="reader-end-of-chapter-screen"
               onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-20 left-1/2 -translate-x-1/2 z-40 px-4 w-full max-w-md flex flex-col items-center gap-2.5"
+              className="absolute inset-x-0 bottom-6 z-40 px-4 w-full max-w-sm mx-auto flex flex-col items-center gap-3"
             >
-              <div className="w-full rounded-2xl border border-white/15 bg-black/90 backdrop-blur-md px-4 py-3 flex flex-col items-center gap-1.5 shadow-2xl">
+              {/* 1. Rate Chapter */}
+              <div className="w-full rounded-2xl border border-white/15 bg-black/95 backdrop-blur-md px-4 py-3 flex flex-col items-center gap-1.5 shadow-2xl">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
                   Rate Chapter {chapter.number}
                 </span>
@@ -1619,217 +1504,271 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 />
               </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-2.5 w-full">
+              {/* 2. Session Summary */}
+              <button
+                id="reader-end-session-summary-btn"
+                type="button"
+                onClick={() => {
+                  setIsSummaryModalOpen(true);
+                }}
+                className="w-full min-h-[46px] flex items-center justify-center gap-2 rounded-xl border border-amber-500/35 bg-black/90 hover:bg-amber-500/15 backdrop-blur-md text-amber-300 font-semibold px-4 py-2.5 text-xs shadow-xl transition active:scale-[0.98]"
+              >
+                <Timer className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Session Summary</span>
+                <span className="font-mono tabular-nums text-amber-300">
+                  ({formatDigitalTimer(elapsedSeconds)})
+                </span>
+              </button>
+
+              {/* 3. Chapter Discussion */}
+              <button
+                id="reader-end-discussion-btn"
+                type="button"
+                onClick={() => {
+                  setIsCommentsOpen(true);
+                }}
+                className="w-full min-h-[46px] flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-black/90 hover:bg-slate-900 backdrop-blur-md text-white font-semibold px-4 py-2.5 text-xs shadow-xl transition active:scale-[0.98]"
+              >
+                <MessageSquare className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Chapter Discussion</span>
+                <span className="font-mono tabular-nums text-amber-300">
+                  ({chapterCommentCount})
+                </span>
+              </button>
+
+              {/* 4. Watch ad button (or next chapter if unlocked) */}
+              {!isTargetUnlocked && onRequestRewardedAd ? (
+                <button
+                  id="reader-end-watch-ad-btn"
+                  type="button"
+                  onClick={handleWatchAdUnlockNext}
+                  className="w-full min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold px-5 py-3 text-sm shadow-2xl transition active:scale-[0.98]"
+                >
+                  <Play className="w-4 h-4 fill-black shrink-0" />
+                  <span>Watch ad to unlock next chapter</span>
+                </button>
+              ) : isTargetUnlocked && nextChapter && onChapterChange ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsSummaryModalOpen(true);
-                    resetAutoHideTimer();
-                  }}
-                  className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 backdrop-blur-md text-amber-300 font-semibold px-4 py-3 text-xs shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
+                  onClick={() => onChapterChange(nextChapter.id)}
+                  className="w-full min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold px-5 py-3 text-sm shadow-2xl transition active:scale-[0.98]"
                 >
-                  <Timer className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Session Summary</span>
-                  <span className="font-mono tabular-nums text-amber-300">
-                    ({formatDigitalTimer(elapsedSeconds)})
-                  </span>
+                  <span>Read Next Chapter</span>
+                  <ChevronRight className="w-4 h-4 shrink-0" />
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCommentsOpen(true);
-                    resetAutoHideTimer();
-                  }}
-                  className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-black/85 hover:bg-slate-900 backdrop-blur-md text-white font-semibold px-4 py-3 text-xs shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
-                >
-                  <MessageSquare className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Chapter Discussion</span>
-                  <span className="font-mono tabular-nums text-amber-300">
-                    ({chapterCommentCount})
-                  </span>
-                </button>
-
-                {!isTargetUnlocked && onRequestRewardedAd && (
-                  <button
-                    type="button"
-                    onClick={handleWatchAdUnlockNext}
-                    className="min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold px-5 py-3 text-sm shadow-2xl transition active:scale-[0.98] whitespace-nowrap shrink-0"
-                  >
-                    <Play className="w-4 h-4 fill-black shrink-0" />
-                    <span>Watch ad to unlock next chapter</span>
-                  </button>
-                )}
-              </div>
+              ) : null}
             </div>
           )}
         </div>
       )}
 
-      {/* BOTTOM BAR */}
-      <div
-        onClick={(e) => {
-          e.stopPropagation();
-          resetAutoHideTimer();
-        }}
-        onTouchStart={(e) => {
-          e.stopPropagation();
-          resetAutoHideTimer();
-        }}
-        onTouchEnd={(e) => e.stopPropagation()}
-        className={`fixed left-0 right-0 z-50 px-4 py-3 bg-[#000000]/90 backdrop-blur-md border-t border-white/10 transition-[bottom,transform,opacity] duration-300 ease-in-out space-y-2.5 safe-bottom-inset ${
-          isBottomBarsVisible ? 'bottom-[50px]' : 'bottom-0'
-        } ${
-          showOverlay
-            ? 'translate-y-0 opacity-100 pointer-events-auto'
-            : 'translate-y-full opacity-0 pointer-events-none'
-        }`}
-      >
-        {!isTargetUnlocked && onRequestRewardedAd && (
-          <div className="flex justify-center max-w-lg mx-auto">
-            <button
-              type="button"
-              onClick={handleWatchAdUnlockNext}
-              className="min-h-[44px] w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2.5 text-xs transition whitespace-nowrap"
-            >
-              <Play className="w-3.5 h-3.5 fill-black shrink-0" />
-              <span>Watch ad to unlock next chapter</span>
-            </button>
-          </div>
-        )}
+      {/* BOTTOM BAR — Clean 4-row vertical layout with 16px gaps, hidden on end-of-chapter screen */}
+      {!isSingleEndOfChapter && (
+        <div
+          id="reader-bottom-bar"
+          onClick={(e) => {
+            e.stopPropagation();
+            resetAutoHideTimer();
+          }}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+            resetAutoHideTimer();
+          }}
+          onTouchEnd={(e) => e.stopPropagation()}
+          className={`fixed bottom-0 left-0 right-0 z-50 px-3 py-3.5 bg-[#000000]/95 backdrop-blur-md border-t border-white/10 transition-[transform,opacity] duration-300 ease-in-out safe-bottom-inset ${
+            showOverlay
+              ? 'translate-y-0 opacity-100 pointer-events-auto'
+              : 'translate-y-full opacity-0 pointer-events-none'
+          }`}
+        >
+          <div className="max-w-lg mx-auto space-y-4">
+            {/* Compact inline rating popover when user taps Rating button */}
+            {isRatingBarOpen && (
+              <div
+                id="reader-bottom-rating-popover"
+                className="rounded-xl border border-white/15 bg-zinc-950 px-3 py-2 flex items-center justify-between gap-2"
+              >
+                <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider shrink-0">
+                  Rate Ch. {chapter.number}
+                </span>
+                <StarRatingInput
+                  idPrefix={`reader-bottom-ch-${chapter.id}`}
+                  value={chapterRatingStats.userScore}
+                  averageRating={chapterRatingStats.averageRating}
+                  ratingCount={chapterRatingStats.ratingCount}
+                  onRate={handleRateCurrentChapter}
+                  size="sm"
+                  showAverageSummary={false}
+                />
+              </div>
+            )}
 
-        {/* Page Slider */}
-        <div className="flex items-center gap-3 max-w-lg mx-auto">
-          <span className="text-xs font-mono tabular-nums font-bold text-amber-400 min-w-[85px] text-right whitespace-nowrap">
-            {currentPageIndex + 1}/{totalPages || 1}
-            <span className="text-[10px] text-slate-300 font-semibold ml-1.5">
-              {Math.round(currentProgress)}%
-            </span>
-          </span>
+            {/* Row 1: Full-width orange button */}
+            {!isTargetUnlocked && onRequestRewardedAd ? (
+              <button
+                id="reader-bottom-watch-ad-btn"
+                type="button"
+                onClick={handleWatchAdUnlockNext}
+                className="min-h-[44px] w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2.5 text-xs transition active:scale-[0.99]"
+              >
+                <Play className="w-3.5 h-3.5 fill-black shrink-0" />
+                <span>Watch ad to unlock next chapter</span>
+              </button>
+            ) : isTargetUnlocked && nextChapter && onChapterChange ? (
+              <button
+                type="button"
+                onClick={() => onChapterChange(nextChapter.id)}
+                className="min-h-[44px] w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold px-4 py-2.5 text-xs transition active:scale-[0.99]"
+              >
+                <span>Read Next Chapter</span>
+                <ChevronRight className="w-4 h-4 shrink-0" />
+              </button>
+            ) : (
+              <div className="min-h-[40px] w-full flex items-center justify-center rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 font-bold px-4 py-2 text-xs">
+                <span>Next chapter pass unlocked</span>
+              </div>
+            )}
 
-          <input
-            type="range"
-            min={0}
-            max={Math.max(0, totalPages - 1)}
-            value={currentPageIndex}
-            onChange={(e) => {
-              resetAutoHideTimer();
-              const newIdx = parseInt(e.target.value, 10);
-              setSlideDirection(newIdx >= currentPageIndex ? 'forward' : 'backward');
-              setCurrentPageIndex(newIdx);
-              if (readingMode === 'vertical' && pageImageRefs.current[newIdx]) {
-                pageImageRefs.current[newIdx]?.scrollIntoView({ behavior: 'smooth' });
-              }
-            }}
-            className="flex-1 accent-amber-500 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-          />
-
-          <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold w-16">
-            Pages
-          </span>
-        </div>
-
-        {/* 3 Reading Modes Selector & Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-2 max-w-lg mx-auto text-xs">
-          <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl">
-            {/* Mode 1: Single Page (Default) */}
-            <button
-              type="button"
-              onClick={() => {
-                handleToggleReadingMode('single');
-                resetAutoHideTimer();
-              }}
-              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 text-xs ${
-                readingMode === 'single' || readingMode === 'horizontal_ltr'
-                  ? 'bg-amber-500 text-black shadow'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-              title="Single Page mode (250ms smooth slide)"
-            >
-              <BookOpen className="w-3.5 h-3.5 shrink-0" />
-              <span>Single</span>
-            </button>
-
-            {/* Mode 2: Continuous Vertical Scroll */}
-            <button
-              type="button"
-              onClick={() => {
-                handleToggleReadingMode('vertical');
-                resetAutoHideTimer();
-              }}
-              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 text-xs ${
-                readingMode === 'vertical'
-                  ? 'bg-amber-500 text-black shadow'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-              title="Continuous Vertical Scroll (0px gap)"
-            >
-              <ArrowUpDown className="w-3.5 h-3.5 shrink-0" />
-              <span>Continuous</span>
-            </button>
-
-            {/* Mode 3: Page Flip */}
-            <button
-              type="button"
-              onClick={() => {
-                handleToggleReadingMode('page_flip');
-                resetAutoHideTimer();
-              }}
-              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 text-xs ${
-                readingMode === 'page_flip'
-                  ? 'bg-amber-500 text-black shadow'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-              title="3D Page Flip mode"
-            >
-              <Layers className="w-3.5 h-3.5 shrink-0" />
-              <span>Flip</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => {
-                setIsSettingsOpen(true);
-                resetAutoHideTimer();
-              }}
-              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 font-semibold transition flex items-center gap-1 whitespace-nowrap shrink-0"
-              title="Reading Settings"
-            >
-              <Sliders className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="hidden sm:inline">Settings</span>
-            </button>
-
-            <button
-              id="reader-bottom-comments-btn"
-              type="button"
-              onClick={() => {
-                setIsCommentsOpen(true);
-                resetAutoHideTimer();
-              }}
-              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-100 font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="hidden sm:inline">Discussion</span>
-              <span className="font-mono tabular-nums text-amber-300">
-                ({chapterCommentCount})
+            {/* Row 2: Page slider ("1 / N" left, full-width slider middle, "PAGES" right) */}
+            <div className="flex items-center gap-3 w-full">
+              <span className="text-xs font-mono tabular-nums font-bold text-amber-400 whitespace-nowrap shrink-0">
+                {currentPageIndex + 1} / {totalPages || 1}
               </span>
-            </button>
 
-            <StarRatingInput
-              idPrefix={`reader-bottom-ch-${chapter.id}`}
-              label={`Ch. ${chapter.number}:`}
-              value={chapterRatingStats.userScore}
-              averageRating={chapterRatingStats.averageRating}
-              ratingCount={chapterRatingStats.ratingCount}
-              onRate={handleRateCurrentChapter}
-              size="xs"
-              showAverageSummary
-            />
+              <input
+                aria-label="Chapter page slider"
+                type="range"
+                min={0}
+                max={Math.max(0, totalPages - 1)}
+                value={currentPageIndex}
+                onChange={(e) => {
+                  resetAutoHideTimer();
+                  const newIdx = parseInt(e.target.value, 10);
+                  setSlideDirection(newIdx >= currentPageIndex ? 'forward' : 'backward');
+                  setCurrentPageIndex(newIdx);
+                  if (readingMode === 'vertical' && pageImageRefs.current[newIdx]) {
+                    pageImageRefs.current[newIdx]?.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
+                className="flex-1 min-w-0 accent-amber-500 h-1.5 bg-white/20 rounded-lg cursor-pointer"
+              />
+
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold whitespace-nowrap shrink-0">
+                PAGES
+              </span>
+            </div>
+
+            {/* Row 3: Reading mode pills [Single] [Continuous] [Flip] in ONE equal-width row */}
+            <div className="grid grid-cols-3 gap-1.5 bg-white/10 p-1 rounded-xl w-full text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  handleToggleReadingMode('single');
+                  resetAutoHideTimer();
+                }}
+                className={`min-h-[38px] px-2 py-1.5 rounded-lg font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                  readingMode === 'single' || readingMode === 'horizontal_ltr'
+                    ? 'bg-amber-500 text-black shadow'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                <span>Single</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleToggleReadingMode('vertical');
+                  resetAutoHideTimer();
+                }}
+                className={`min-h-[38px] px-2 py-1.5 rounded-lg font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                  readingMode === 'vertical'
+                    ? 'bg-amber-500 text-black shadow'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 shrink-0" />
+                <span>Continuous</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleToggleReadingMode('page_flip');
+                  resetAutoHideTimer();
+                }}
+                className={`min-h-[38px] px-2 py-1.5 rounded-lg font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                  readingMode === 'page_flip'
+                    ? 'bg-amber-500 text-black shadow'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 shrink-0" />
+                <span>Flip</span>
+              </button>
+            </div>
+
+            {/* Row 4: Bottom actions [Settings] [Comments (N)] [Rating] — one row, equal spacing */}
+            <div className="grid grid-cols-3 gap-2 w-full text-xs">
+              <button
+                id="reader-settings-btn"
+                type="button"
+                onClick={() => {
+                  setIsSettingsOpen(true);
+                  resetAutoHideTimer();
+                }}
+                className="min-h-[40px] px-2 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-100 font-semibold transition flex items-center justify-center gap-1.5 whitespace-nowrap"
+              >
+                <Sliders className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>Settings</span>
+              </button>
+
+              <button
+                id="reader-bottom-comments-btn"
+                type="button"
+                onClick={() => {
+                  setIsCommentsOpen(true);
+                  resetAutoHideTimer();
+                }}
+                className="min-h-[40px] px-2 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-100 font-semibold transition flex items-center justify-center gap-1.5 whitespace-nowrap"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>Comments ({chapterCommentCount})</span>
+              </button>
+
+              <button
+                id="reader-bottom-rating-btn"
+                type="button"
+                onClick={() => {
+                  setIsRatingBarOpen((prev) => !prev);
+                  resetAutoHideTimer();
+                }}
+                className={`min-h-[40px] px-2 py-1.5 rounded-xl font-semibold transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                  isRatingBarOpen || chapterRatingStats.userScore
+                    ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
+                    : 'bg-white/10 hover:bg-white/20 text-slate-100'
+                }`}
+              >
+                <Star
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    chapterRatingStats.userScore || chapterRatingStats.averageRating > 0
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'text-amber-400'
+                  }`}
+                />
+                <span>
+                  {chapterRatingStats.userScore
+                    ? `Rated ${chapterRatingStats.userScore}★`
+                    : chapterRatingStats.averageRating > 0
+                    ? chapterRatingStats.averageRating.toFixed(1)
+                    : 'Rating'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* READER SETTINGS DRAWER / MODAL */}
       {isSettingsOpen && (
@@ -1927,6 +1866,39 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               </p>
             </div>
 
+            {/* Quick Reader Tools (Bookmark & Fullscreen moved cleanly inside Settings drawer) */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                id="reader-bookmark-page-btn"
+                type="button"
+                onClick={handleBookmarkCurrentPage}
+                className={`min-h-[42px] flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                  bookmarkedPageIndex === currentPageIndex
+                    ? 'bg-amber-500/20 border-amber-500/60 text-amber-400'
+                    : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
+                }`}
+              >
+                <Bookmark
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    bookmarkedPageIndex === currentPageIndex
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'text-amber-400'
+                  }`}
+                />
+                <span>
+                  {bookmarkedPageIndex === currentPageIndex ? 'Bookmarked' : `Bookmark Pg ${currentPageIndex + 1}`}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="min-h-[42px] flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition"
+              >
+                <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+              </button>
+            </div>
+
             {/* Pure Black Background & Immersive Mode */}
             <div className="space-y-2 pt-2 border-t border-white/10 text-xs text-slate-400">
               <div className="flex items-center justify-between">
@@ -1935,7 +1907,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
               </div>
               <div className="flex items-center justify-between">
                 <span>Immersive Mode</span>
-                <span className="text-emerald-400">Auto-hide bars (2s)</span>
+                <span className="text-emerald-400">Auto-hide bars (3s)</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Touch Controls</span>

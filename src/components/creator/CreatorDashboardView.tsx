@@ -48,7 +48,7 @@ import {
   CreditCard,
   Pencil,
 } from 'lucide-react';
-import { Manga, Chapter, ChapterPage, Comment, SeriesType, getMangaType } from '../../types';
+import { Manga, Chapter, ChapterPage, Comment, SeriesType, ReleaseDay, getMangaType } from '../../types';
 import {
   UserProfile,
   getCurrentUserProfile,
@@ -56,6 +56,15 @@ import {
 } from '../../services/userProfile';
 import { getInMemoryAccessToken } from '../../services/oververseAuth';
 import { safeStorage } from '../../utils/safeStorage';
+import { uploadCompressedImageToCdn } from '../../services/cdnUpload';
+import { invalidateLayeredCaches } from '../../services/layeredApi';
+import {
+  RELEASE_DAYS_MON_SUN,
+  getCurrentSastDateString,
+  getNextReleaseDateForDay,
+  getSeedReleaseDay,
+  normalizeReleaseDay,
+} from '../../utils/releaseSchedule';
 
 interface CreatorDashboardViewProps {
   currentUserEmail: string;
@@ -236,6 +245,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
   const [newLanguage, setNewLanguage] = useState('English');
   const [newAgeRating, setNewAgeRating] = useState<'All Ages' | '13+' | '16+' | '18+'>('13+');
   const [newSeriesType, setNewSeriesType] = useState<SeriesType>('backdrop');
+  const [newReleaseDay, setNewReleaseDay] = useState<ReleaseDay>('WED');
   const [newBackdropUnderstood, setNewBackdropUnderstood] = useState(false);
 
   // Edit Manga Modal
@@ -243,6 +253,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
   const [editTitle, setEditTitle] = useState('');
   const [editCover, setEditCover] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editReleaseDay, setEditReleaseDay] = useState<ReleaseDay>('WED');
 
   // Section 2: Upload Chapter flow (inline + jump from card)
   const [uploadMangaId, setUploadMangaId] = useState<string>('');
@@ -250,10 +261,9 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
   const [uploadChapterTitle, setUploadChapterTitle] = useState<string>('');
   const [uploadPanels, setUploadPanels] = useState<string[]>([]);
   const [uploadMode, setUploadMode] = useState<'live' | 'schedule'>('live');
-  const [uploadScheduleDate, setUploadScheduleDate] = useState<string>(() => {
-    const tmr = new Date(Date.now() + 86400000);
-    return tmr.toISOString().split('T')[0];
-  });
+  const [uploadScheduleDate, setUploadScheduleDate] = useState<string>(() => getCurrentSastDateString());
+  const [uploadDraftChapterId, setUploadDraftChapterId] = useState<string>(() => `ch-${Date.now()}`);
+  const [isUploadingAsset, setIsUploadingAsset] = useState(false);
   const [isUploadingChapter, setIsUploadingChapter] = useState(false);
 
   // Section 4: Payout request state
@@ -301,6 +311,31 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       setUploadChapterTitle(`Episode ${nextNum}`);
     }
   }, [myMangas, uploadMangaId]);
+
+  const selectedUploadManga = useMemo(
+    () => myMangas.find((m) => m.id === uploadMangaId) || myMangas[0] || null,
+    [myMangas, uploadMangaId]
+  );
+
+  const selectedUploadReleaseDay = useMemo(
+    () =>
+      normalizeReleaseDay(
+        selectedUploadManga?.releaseDay,
+        selectedUploadManga?.id || getSeedReleaseDay(selectedUploadManga?.id)
+      ),
+    [selectedUploadManga]
+  );
+
+  const nextScheduledRelease = useMemo(
+    () => getNextReleaseDateForDay(selectedUploadReleaseDay, getCurrentSastDateString(), true),
+    [selectedUploadReleaseDay]
+  );
+
+  useEffect(() => {
+    if (uploadMode === 'schedule') {
+      setUploadScheduleDate(nextScheduledRelease.isoDate);
+    }
+  }, [uploadMode, nextScheduledRelease.isoDate]);
 
   const handleSelectUploadManga = (mangaId: string) => {
     setUploadMangaId(mangaId);
@@ -445,41 +480,59 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
     };
   }, [myMangas, allComments, profile.followersCount, dbEarnings, dbPayouts]);
 
-  // Helper: upload cover image
-  const handleCoverFileUpload = (e: React.ChangeEvent<HTMLInputElement>, isEditing = false) => {
+  // Helper: upload cover image (WebP compressed -> CDN signed PUT, never base64 in Neon)
+  const handleCoverFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEditing = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
+    setIsUploadingAsset(true);
+    try {
+      const uploaded = await uploadCompressedImageToCdn({
+        file,
+        kind: 'cover',
+        mangaId: isEditing && editingManga ? editingManga.id : `draft-${profile.uid}`,
+      });
       if (isEditing) {
-        setEditCover(result);
+        setEditCover(uploaded.cdnUrl);
       } else {
-        setNewCoverImage(result);
+        setNewCoverImage(uploaded.cdnUrl);
       }
-    };
-    reader.readAsDataURL(file);
+      showToast('Cover compressed to WebP & uploaded to CDN!');
+    } catch (err: any) {
+      showToast(err?.message || 'Image too big, compress and try again.');
+    } finally {
+      setIsUploadingAsset(false);
+    }
   };
 
-  // Helper: multiple chapter panel upload
-  const handlePanelsUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Helper: multiple chapter panel upload (WebP compressed -> CDN signed PUT)
+  const handlePanelsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     const sortedFiles = Array.from(files).sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { numeric: true })
     );
-    Promise.all(
-      sortedFiles.map(
-        (file) =>
-          new Promise<string>((resolve) => {
-            const r = new FileReader();
-            r.onload = (evt) => resolve(String(evt.target?.result || ''));
-            r.readAsDataURL(file);
-          })
-      )
-    ).then((loaded) => {
-      setUploadPanels((prev) => [...prev, ...loaded.filter(Boolean)]);
-    });
+    setIsUploadingAsset(true);
+    try {
+      const startPage = uploadPanels.length;
+      const uploadedUrls: string[] = [];
+      for (let i = 0; i < sortedFiles.length; i++) {
+        const file = sortedFiles[i];
+        const res = await uploadCompressedImageToCdn({
+          file,
+          kind: 'chapter-page',
+          mangaId: uploadMangaId || `draft-${profile.uid}`,
+          chapterId: uploadDraftChapterId,
+          pageNumber: startPage + i + 1,
+        });
+        uploadedUrls.push(res.cdnUrl);
+      }
+      setUploadPanels((prev) => [...prev, ...uploadedUrls]);
+      showToast(`${uploadedUrls.length} WebP panel(s) uploaded to CDN.`);
+    } catch (err: any) {
+      showToast(err?.message || 'Image too big, compress and try again.');
+    } finally {
+      setIsUploadingAsset(false);
+    }
   };
 
   const movePanel = (index: number, direction: -1 | 1) => {
@@ -507,6 +560,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       newCoverImage.trim() ||
       'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80';
     const creatorDisplayName = profile.displayName || profile.penName || 'Creator';
+    const safeReleaseDay = normalizeReleaseDay(newReleaseDay);
 
     const newManga: Manga = {
       id: mangaId,
@@ -519,6 +573,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       bannerImage: defaultCover,
       genres: newGenres,
       status: 'ONGOING',
+      releaseDay: safeReleaseDay,
       type: newSeriesType,
       isOriginal: newSeriesType === 'original',
       isBackdrop: newSeriesType === 'backdrop',
@@ -527,6 +582,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       rating: 0,
       ratingCount: 0,
       views: 0,
+      totalViewsCached: 0,
       bookmarksCount: 0,
       monetizationModel: 'hybrid',
       chapters: [],
@@ -543,6 +599,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
     setNewDescription('');
     setNewGenres(['Action']);
     setNewSeriesType('backdrop');
+    setNewReleaseDay('WED');
     setNewBackdropUnderstood(false);
 
     const token = getInMemoryAccessToken();
@@ -563,10 +620,13 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
           ageRating: newAgeRating,
           language: newLanguage,
           type: newSeriesType,
+          releaseDay: safeReleaseDay,
           status: 'Coming Soon',
           approvalStatus: 'pending_review',
         }),
-      }).catch(() => {});
+      })
+        .then(() => invalidateLayeredCaches())
+        .catch(() => {});
     }
 
     showToast('Series created! Upload Chapter 1 below (8-50 pages) to launch.');
@@ -578,6 +638,11 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
     if (!editingManga) return;
 
     const cleanCover = editCover.trim() || editingManga.cover;
+    const isReleaseDayLocked = (editingManga.chapters || []).length > 0;
+    const nextReleaseDay = isReleaseDayLocked
+      ? normalizeReleaseDay(editingManga.releaseDay, getSeedReleaseDay(editingManga.id))
+      : normalizeReleaseDay(editReleaseDay);
+
     const updated: Manga = {
       ...editingManga,
       title: editTitle.trim(),
@@ -585,14 +650,12 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       cover: cleanCover,
       coverImage: cleanCover,
       coverUrl: cleanCover,
+      releaseDay: nextReleaseDay,
     };
-
-    onUpdateManga(updated);
-    setEditingManga(null);
 
     const token = getInMemoryAccessToken();
     if (token) {
-      fetch(`/api/creator/mangas/${encodeURIComponent(updated.id)}`, {
+      const res = await fetch(`/api/creator/mangas/${encodeURIComponent(updated.id)}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -603,14 +666,23 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
           title: updated.title,
           synopsis: updated.synopsis,
           coverUrl: cleanCover,
+          ...(!isReleaseDayLocked ? { releaseDay: nextReleaseDay } : {}),
         }),
-      }).catch(() => {});
+      }).catch(() => null);
+      if (res && !res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || 'Could not update series.');
+        return;
+      }
+      invalidateLayeredCaches();
     }
 
+    onUpdateManga(updated);
+    setEditingManga(null);
     showToast('Series updated.');
   };
 
-  // Section 2: Submit Chapter Upload (strict 8-50 page count enforcement on new chapters)
+  // Section 2: Submit Chapter Upload (strict 8-50 page count enforcement & weekly limit)
   const handleUploadChapterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const targetManga = myMangas.find((m) => m.id === uploadMangaId);
@@ -633,6 +705,11 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       return;
     }
 
+    if (uploadPanels.some((u) => u.startsWith('data:'))) {
+      showToast('Raw base64 images are rejected. Upload image files so they compress to WebP CDN.');
+      return;
+    }
+
     setIsUploadingChapter(true);
     try {
       const finalPages: ChapterPage[] = uploadPanels.map((url, idx) => ({
@@ -642,14 +719,17 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       }));
 
       const isPublishNow = uploadMode === 'live';
+      const targetSeriesReleaseDay = normalizeReleaseDay(
+        targetManga.releaseDay,
+        targetManga.id || getSeedReleaseDay(targetManga.id)
+      );
       const releaseDate = isPublishNow
-        ? new Date().toISOString().split('T')[0]
-        : uploadScheduleDate || new Date().toISOString().split('T')[0];
+        ? getCurrentSastDateString()
+        : uploadScheduleDate || nextScheduledRelease.isoDate;
+      const scheduledForIso = isPublishNow ? null : `${releaseDate}T00:00:00+02:00`;
 
-      const chapterId = `ch-${targetManga.id}-${Date.now()}`;
-      const publishStatus = isPublishNow
-        ? 'Live'
-        : 'Coming Soon • Panels In Production';
+      const chapterId = uploadDraftChapterId;
+      const publishStatus = isPublishNow ? 'published' : 'scheduled';
 
       const newChapter: Chapter & { publishStatus?: string; scheduledFor?: string } = {
         id: chapterId,
@@ -663,8 +743,9 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
         likesCount: 0,
         commentsCount: 0,
         rating: 0,
+        status: publishStatus,
         publishStatus,
-        ...(isPublishNow ? {} : { scheduledFor: releaseDate }),
+        ...(isPublishNow ? {} : { scheduledFor: scheduledForIso || undefined }),
       };
 
       const token = getInMemoryAccessToken();
@@ -683,8 +764,9 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
             title: newChapter.title,
             panels: finalPages,
             publishMode: uploadMode,
-            scheduledFor: isPublishNow ? null : releaseDate,
+            scheduledFor: scheduledForIso,
             releaseDate,
+            releaseDay: targetSeriesReleaseDay,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -692,6 +774,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
           showToast(data.error || 'Chapter must be 8-50 pages.');
           return;
         }
+        invalidateLayeredCaches();
       }
 
       const updatedManga: Manga = {
@@ -703,6 +786,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
 
       onUpdateManga(updatedManga);
       setUploadPanels([]);
+      setUploadDraftChapterId(`ch-${Date.now()}`);
       const nextNum = updatedManga.chapters.length + 1;
       setUploadChapterNumber(nextNum);
       setUploadChapterTitle(`Episode ${nextNum}`);
@@ -711,7 +795,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
       showToast(
         isPublishNow
           ? `Ch. ${newChapter.number} is now LIVE on Updates & Reader!`
-          : `Ch. ${newChapter.number} saved as "Coming Soon • Panels In Production".`
+          : `Ch. ${newChapter.number} scheduled for ${releaseDate} (12:00 AM SAST).`
       );
     } finally {
       setIsUploadingChapter(false);
@@ -1256,6 +1340,9 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                               setEditTitle(manga.title);
                               setEditDescription(manga.synopsis);
                               setEditCover(manga.coverUrl || manga.cover || manga.coverImage);
+                              setEditReleaseDay(
+                                normalizeReleaseDay(manga.releaseDay, getSeedReleaseDay(manga.id))
+                              );
                             }}
                             className="px-3.5 py-2 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-bold transition flex items-center gap-1.5"
                           >
@@ -1514,7 +1601,7 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                       key={idx}
                       className="relative rounded-xl overflow-hidden border border-slate-700 bg-slate-900 aspect-[3/4] group"
                     >
-                      <img src={url} alt={`Panel ${idx + 1}`} className="w-full h-full object-cover" />
+                      <img src={url} alt={`Panel ${idx + 1}`} loading="lazy" className="w-full h-full object-cover" />
                       <span className="absolute top-1 left-1 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-amber-300">
                         #{idx + 1}
                       </span>
@@ -1554,60 +1641,76 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
               )}
             </div>
 
-            {/* 5. Publish Now / Schedule */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-800">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setUploadMode('live')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
-                    uploadMode === 'live'
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Publish Now (Moves to Updates / Reader)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUploadMode('schedule')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
-                    uploadMode === 'schedule'
-                      ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>Schedule / Panels In Production</span>
-                </button>
-                {uploadMode === 'schedule' && (
-                  <input
-                    type="date"
-                    value={uploadScheduleDate}
-                    onChange={(e) => setUploadScheduleDate(e.target.value)}
-                    className="rounded-xl bg-slate-950 border border-amber-500/40 px-2.5 py-1.5 text-xs text-white"
-                  />
-                )}
+            {/* 5. Publish Now / Schedule (Publish on Next Release Day 12:00 AM SAST) */}
+            <div className="space-y-2.5 pt-2 border-t border-slate-800">
+              <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                <span className="font-bold text-amber-300">
+                  Publish on: {nextScheduledRelease.formattedForUi}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Series release schedule: <strong className="text-white">{selectedUploadReleaseDay}</strong> · Max 1 chapter/week
+                </span>
               </div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setUploadMode('live')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                      uploadMode === 'live'
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Publish Now</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadMode('schedule');
+                      setUploadScheduleDate(nextScheduledRelease.isoDate);
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                      uploadMode === 'schedule'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Schedule ({nextScheduledRelease.label})</span>
+                  </button>
+                  {uploadMode === 'schedule' && (
+                    <input
+                      type="date"
+                      value={uploadScheduleDate}
+                      onChange={(e) => setUploadScheduleDate(e.target.value)}
+                      className="rounded-xl bg-slate-950 border border-amber-500/40 px-2.5 py-1.5 text-xs text-white"
+                    />
+                  )}
+                </div>
 
-              <button
-                type="submit"
-                id="dashboard-upload-chapter-submit-btn"
-                disabled={
-                  isUploadingChapter ||
-                  myMangas.length === 0 ||
-                  uploadPanels.length < 8 ||
-                  uploadPanels.length > 50
-                }
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-400 text-black font-black text-xs shadow-lg hover:brightness-105 disabled:opacity-45 disabled:cursor-not-allowed transition"
-              >
-                {isUploadingChapter
-                  ? 'Saving Chapter...'
-                  : uploadMode === 'live'
-                  ? 'Publish Chapter Live'
-                  : 'Save as Coming Soon'}
-              </button>
+                <button
+                  type="submit"
+                  id="dashboard-upload-chapter-submit-btn"
+                  disabled={
+                    isUploadingAsset ||
+                    isUploadingChapter ||
+                    myMangas.length === 0 ||
+                    uploadPanels.length < 8 ||
+                    uploadPanels.length > 50
+                  }
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-400 text-black font-black text-xs shadow-lg hover:brightness-105 disabled:opacity-45 disabled:cursor-not-allowed transition"
+                >
+                  {isUploadingAsset
+                    ? 'Uploading WebP...'
+                    : isUploadingChapter
+                    ? 'Saving Chapter...'
+                    : uploadMode === 'live'
+                    ? 'Publish Chapter Live'
+                    : `Schedule for ${nextScheduledRelease.label}`}
+                </button>
+              </div>
             </div>
           </form>
         </section>
@@ -2217,6 +2320,25 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                   )}
                 </div>
 
+                <div className="space-y-1">
+                  <label htmlFor="dashboard-new-release-day" className="text-[10px] font-bold uppercase text-amber-300 block">
+                    Release new chapter every: *
+                  </label>
+                  <select
+                    id="dashboard-new-release-day"
+                    required
+                    value={newReleaseDay}
+                    onChange={(e) => setNewReleaseDay(normalizeReleaseDay(e.target.value))}
+                    className="w-full rounded-xl bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400 font-bold"
+                  >
+                    {RELEASE_DAYS_MON_SUN.map((day) => (
+                      <option key={day} value={day}>
+                        {day} (12:00 AM SAST)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-slate-400 block">Language</label>
@@ -2365,15 +2487,42 @@ export const CreatorDashboardView: React.FC<CreatorDashboardViewProps> = ({
                       />
                     )}
                     <label className="flex-1 cursor-pointer px-3 py-2 rounded-xl border border-slate-800 bg-slate-900 text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition text-center">
-                      <span>Change Cover</span>
+                      <span>{isUploadingAsset ? 'Compressing WebP...' : 'Change Cover'}</span>
                       <input
                         type="file"
                         accept="image/*"
+                        disabled={isUploadingAsset}
                         onChange={(e) => handleCoverFileUpload(e, true)}
                         className="hidden"
                       />
                     </label>
                   </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold uppercase text-slate-400 block">
+                    Release new chapter every:
+                  </label>
+                  {(editingManga.chapters || []).length > 0 ? (
+                    <div className="rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-slate-300 flex items-center justify-between">
+                      <span className="font-bold text-amber-300">{editReleaseDay}</span>
+                      <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                        <Lock className="w-3 h-3" />
+                        Locked once chapters are published
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      value={editReleaseDay}
+                      onChange={(e) => setEditReleaseDay(normalizeReleaseDay(e.target.value))}
+                      className="w-full rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400 font-bold"
+                    >
+                      {RELEASE_DAYS_MON_SUN.map((day) => (
+                        <option key={day} value={day}>
+                          {day} (12:00 AM SAST)
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div className="pt-2 flex items-center justify-end gap-2.5">
                   <button

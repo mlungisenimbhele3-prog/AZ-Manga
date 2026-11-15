@@ -796,25 +796,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
         </section>
 
-        {/* SETTINGS FOOTER WITH EXACT USER TEXT */}
-        <footer className="pt-8 pb-12 border-t border-slate-800/80 text-center space-y-3">
-          <div className="flex items-center justify-center gap-2">
-            <span className="rounded bg-gradient-to-r from-amber-500 to-yellow-600 text-black font-black text-[9px] px-2 py-0.5 tracking-wider">
-              AZ OVERVERSE
-            </span>
-            <span className="text-xs text-slate-400">Produced by Mlungiseni Mbhele</span>
-            <span className="text-emerald-400">🇿🇦</span>
-          </div>
-
-          <div className="text-xs text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            All AZ Originals are © AZ Oververse / Mlungiseni Mbhele. All Canvas works remain © their respective creators. AZ Oververse has non-exclusive license to display Backdrop works. Any re-upload without permission is prohibited.
-          </div>
-
-          <div className="text-[11px] text-slate-500 font-mono">
-            Support & Legal: <span className="text-amber-400">mlungisenimbhele3@gmail.com</span> • Johannesburg, South Africa
-          </div>
-        </footer>
-
       </div>
 
       {/* Master Admin Password Popup Modal (Oververse Theme with Blur Background) */}

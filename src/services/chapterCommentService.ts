@@ -19,6 +19,7 @@ import {
 import { getCurrentUserProfile } from './userProfile';
 import { safeStorage } from '../utils/safeStorage';
 import { checkClientRateLimit, logSecurityEvent } from '../utils/securitySanitizer';
+import { fetchCommentsViaApi, postCommentViaApi } from './layeredApi';
 
 export const MAX_CHAPTER_COMMENT_LENGTH = 500;
 export const MAX_THREAD_DEPTH = 4;
@@ -445,10 +446,47 @@ function buildSeededThreadsForChapter(
   return [];
 }
 
+async function hydrateChapterCommentsFromApi(safeChapterId: string): Promise<void> {
+  if (typeof window === 'undefined' || !safeChapterId) return;
+  try {
+    const res = await fetchCommentsViaApi({ chapterId: safeChapterId, limit: 20, offset: 0 });
+    if (!res || !Array.isArray(res.comments) || res.comments.length === 0) return;
+    const chapterMap = cloudCommentsByChapter.get(safeChapterId) || new Map<string, ChapterCommentRecord>();
+    for (const c of res.comments) {
+      chapterMap.set(c.id, {
+        id: c.id,
+        mangaId: c.mangaId || 'manga',
+        chapterId: c.chapterId || safeChapterId,
+        chapterNumber: 1,
+        parentId: c.parentId ?? null,
+        rootId: c.rootId ?? null,
+        depth: (Number(c.depth) || 0) as 0 | 1 | 2 | 3 | 4,
+        replyToUserName: c.replyToUserName,
+        pageNumber: typeof c.pageNumber === 'number' ? c.pageNumber : undefined,
+        isSpoiler: Boolean(c.isSpoiler),
+        authorUid: c.userId || 'reader',
+        authorName: c.userName || 'Reader',
+        authorBadge: c.userBadge,
+        text: c.text,
+        status: c.status === 'deleted' ? 'deleted' : 'published',
+        createdAt: c.timestamp || new Date().toISOString(),
+        updatedAt: c.timestamp || new Date().toISOString(),
+        isCloudSynced: true,
+      });
+    }
+    cloudCommentsByChapter.set(safeChapterId, chapterMap);
+    emitDiscussionChange();
+  } catch {
+    // non-fatal when offline
+  }
+}
+
 function attachFirestoreChapterListeners(safeChapterId: string): () => void {
   if (typeof window === 'undefined' || !safeChapterId) {
     return () => {};
   }
+
+  void hydrateChapterCommentsFromApi(safeChapterId);
 
   const existing = activeChapterSubscriptions.get(safeChapterId);
   if (existing) {
@@ -729,6 +767,28 @@ export async function postChapterComment(
   localCommentsStore[commentId] = newRecord;
   persistLocalComments();
   emitDiscussionChange();
+
+  // Persist to Neon via REST API (/api/comments)
+  void postCommentViaApi({
+    chapterId: safeChapterId,
+    mangaId: safeMangaId,
+    userId: currentUid,
+    userName: resolvedAuthorName,
+    text: cleanText,
+    pageNumber: validPageNumber,
+    isSpoiler: Boolean(input.isSpoiler),
+    parentId,
+    rootId,
+    depth,
+    replyToUserName,
+    userBadge: resolvedBadge,
+  }).then((apiRes) => {
+    if (apiRes.success && localCommentsStore[commentId]) {
+      localCommentsStore[commentId].isCloudSynced = true;
+      persistLocalComments();
+      emitDiscussionChange();
+    }
+  });
 
   if (canWriteToFirestore && auth.currentUser) {
     const docPath = `chapter_comments/${commentId}`;

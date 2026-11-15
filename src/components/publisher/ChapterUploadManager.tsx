@@ -19,6 +19,14 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { SouthAfricaFlameLogo } from '../common/SouthAfricaFlameLogo';
+import { uploadCompressedImageToCdn } from '../../services/cdnUpload';
+import { createChapterViaApi } from '../../services/layeredApi';
+import {
+  getCurrentSastDateString,
+  getNextReleaseDateForDay,
+  getSeedReleaseDay,
+  normalizeReleaseDay,
+} from '../../utils/releaseSchedule';
 
 interface ChapterUploadManagerProps {
   mangaList: Manga[];
@@ -69,8 +77,11 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
   const [chapterTitle, setChapterTitle] = useState<string>('');
   const [accessType, setAccessType] = useState<AccessType>('free');
   const [releaseDate, setReleaseDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    getCurrentSastDateString()
   );
+  const [publishMode, setPublishMode] = useState<'live' | 'schedule'>('live');
+  const [draftChapterId, setDraftChapterId] = useState<string>(() => `ch-${Date.now()}`);
+  const [isUploadingPages, setIsUploadingPages] = useState<boolean>(false);
 
   // Uploaded Pages state (requires 8–50 pages per new chapter)
   const [pages, setPages] = useState<DraftPage[]>([]);
@@ -97,6 +108,16 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const seriesReleaseDay = normalizeReleaseDay(
+    selectedManga?.releaseDay,
+    selectedManga?.id || getSeedReleaseDay(selectedManga?.id)
+  );
+  const nextReleaseInfo = getNextReleaseDateForDay(
+    seriesReleaseDay,
+    getCurrentSastDateString(),
+    true
+  );
+
   // When selected series changes, recompute next chapter number
   useEffect(() => {
     if (selectedManga) {
@@ -111,8 +132,16 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
     }
   }, [targetMangaId]);
 
-  // Handle local file uploads (drag-drop or file picker)
-  const handleFiles = (fileList: FileList | null) => {
+  useEffect(() => {
+    if (publishMode === 'schedule') {
+      setReleaseDate(nextReleaseInfo.isoDate);
+    } else {
+      setReleaseDate(getCurrentSastDateString());
+    }
+  }, [publishMode, nextReleaseInfo.isoDate]);
+
+  // Handle local file uploads via WebP compression + signed CDN upload (never raw base64)
+  const handleFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     setValidationError(null);
 
@@ -123,26 +152,37 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
       return;
     }
 
-    validFiles.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          const newDraftPage: DraftPage = {
-            id: `page-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            imageUrl: e.target.result as string,
-            fileName: file.name,
-          };
-          setPages((prev) => [...prev, newDraftPage]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    setIsUploadingPages(true);
+    try {
+      const startPage = pages.length;
+      const uploaded: DraftPage[] = [];
+      for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i];
+        const res = await uploadCompressedImageToCdn({
+          file,
+          kind: 'chapter-page',
+          mangaId: targetMangaId || 'draft',
+          chapterId: draftChapterId,
+          pageNumber: startPage + i + 1,
+        });
+        uploaded.push({
+          id: `page-${Date.now()}-${i + 1}`,
+          imageUrl: res.cdnUrl,
+          fileName: file.name,
+        });
+      }
+      setPages((prev) => [...prev, ...uploaded]);
+    } catch (err: any) {
+      setValidationError(err?.message || 'Image too big, compress and try again.');
+    } finally {
+      setIsUploadingPages(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    handleFiles(e.dataTransfer.files);
+    void handleFiles(e.dataTransfer.files);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -157,13 +197,18 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
 
   // Add from URL
   const handleAddImageUrl = () => {
-    if (!urlInput.trim()) return;
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    if (trimmed.startsWith('data:')) {
+      setValidationError('Direct base64 images are not allowed. Upload image files to compress and store on CDN.');
+      return;
+    }
     setPages((prev) => [
       ...prev,
       {
         id: `page-url-${Date.now()}`,
-        imageUrl: urlInput.trim(),
-        fileName: `web_asset_${prev.length + 1}.jpg`,
+        imageUrl: trimmed,
+        fileName: `web_asset_${prev.length + 1}.webp`,
       },
     ]);
     setUrlInput('');
@@ -247,8 +292,8 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
     ? `A chapter can have max 50 pages. You have ${pages.length} pages. Remove ${pages.length - 50} pages or split into 2 chapters.`
     : null;
 
-  // Handle Publishing Action
-  const handlePublish = (e: React.FormEvent) => {
+  // Handle Publishing / Scheduling Action
+  const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetMangaId) {
       setValidationError('Please select a manga series to upload to.');
@@ -262,55 +307,74 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
 
     setValidationError(null);
     setIsSubmitting(true);
-    setUploadProgress(15);
+    setUploadProgress(25);
 
-    // Simulate realistic upload progress bar
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(interval);
-          return 95;
-        }
-        return prev + 25;
-      });
-    }, 150);
+    const effectiveReleaseDate =
+      publishMode === 'schedule'
+        ? nextReleaseInfo.isoDate
+        : releaseDate || getCurrentSastDateString();
+    const scheduledForIso =
+      publishMode === 'schedule' ? `${effectiveReleaseDate}T00:00:00+02:00` : null;
 
-    setTimeout(() => {
-      clearInterval(interval);
-      setUploadProgress(100);
+    const formattedPages: ChapterPage[] = pages.map((p, index) => ({
+      id: `page-${Date.now()}-${index + 1}`,
+      pageNumber: index + 1,
+      imageUrl: p.imageUrl,
+      dialogs: p.dialogs,
+    }));
 
-      const formattedPages: ChapterPage[] = pages.map((p, index) => ({
-        id: `page-${Date.now()}-${index + 1}`,
-        pageNumber: index + 1,
+    const apiResult = await createChapterViaApi({
+      id: draftChapterId,
+      mangaId: targetMangaId,
+      number: Number(chapterNumber),
+      title: chapterTitle.trim() || `Chapter ${chapterNumber}`,
+      panels: formattedPages.map((p) => ({
+        id: p.id,
+        pageNumber: p.pageNumber,
         imageUrl: p.imageUrl,
-        dialogs: p.dialogs,
-      }));
+      })),
+      publishMode,
+      scheduledFor: scheduledForIso,
+      releaseDate: effectiveReleaseDate,
+      releaseDay: seriesReleaseDay,
+    });
 
-      const newChapter: Chapter = {
-        id: `ch-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        mangaId: targetMangaId,
-        number: Number(chapterNumber),
-        volumeNumber: Math.max(1, Math.floor(Number(volumeNumber) || 1)),
-        title: chapterTitle.trim() || `Chapter ${chapterNumber}`,
-        releaseDate: releaseDate || new Date().toISOString().split('T')[0],
-        pageCount: pages.length,
-        accessType: accessType,
-        likesCount: 0,
-        commentsCount: 0,
-        rating: 0,
-        ratingCount: 0,
-        pages: formattedPages,
-      };
-
-      onPublishChapter(targetMangaId, newChapter);
-      setLastUploadedChapter(newChapter);
+    if (!apiResult.success && apiResult.status !== 401 && apiResult.status !== 403) {
       setIsSubmitting(false);
-      setIsPublishedSuccess(true);
+      setUploadProgress(0);
+      setValidationError(apiResult.error || 'Failed to publish chapter.');
+      return;
+    }
 
-      if (onSuccess) {
-        onSuccess(targetMangaId, newChapter);
-      }
-    }, 850);
+    setUploadProgress(100);
+
+    const newChapter: Chapter = {
+      id: apiResult.chapter?.id || draftChapterId,
+      mangaId: targetMangaId,
+      number: Number(chapterNumber),
+      volumeNumber: Math.max(1, Math.floor(Number(volumeNumber) || 1)),
+      title: chapterTitle.trim() || `Chapter ${chapterNumber}`,
+      releaseDate: effectiveReleaseDate,
+      pageCount: pages.length,
+      accessType: accessType,
+      likesCount: 0,
+      commentsCount: 0,
+      rating: 0,
+      ratingCount: 0,
+      publishStatus: publishMode === 'schedule' ? 'scheduled' : 'published',
+      status: publishMode === 'schedule' ? 'scheduled' : 'published',
+      scheduledFor: scheduledForIso || undefined,
+      pages: formattedPages,
+    };
+
+    onPublishChapter(targetMangaId, newChapter);
+    setLastUploadedChapter(newChapter);
+    setIsSubmitting(false);
+    setIsPublishedSuccess(true);
+
+    if (onSuccess) {
+      onSuccess(targetMangaId, newChapter);
+    }
   };
 
   const handleResetForAnotherUpload = () => {
@@ -318,6 +382,7 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
     setLastUploadedChapter(null);
     setChapterNumber((prev) => prev + 1);
     setChapterTitle(`Chapter ${chapterNumber + 1}`);
+    setDraftChapterId(`ch-${Date.now()}`);
     setPages([]);
   };
 
@@ -419,8 +484,14 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
         {selectedManga && (
           <div className="flex items-center gap-2.5 rounded-xl border border-slate-800 bg-slate-900/90 px-3 py-1.5 shrink-0">
             <img
-              src={selectedManga.coverImage}
+              src={selectedManga.coverImage || '/placeholder.png'}
               alt={selectedManga.title}
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (target.src && !target.src.endsWith('/placeholder.png')) {
+                  target.src = '/placeholder.png';
+                }
+              }}
               className="h-9 w-7 rounded object-cover border border-slate-700"
             />
             <div className="text-left">
@@ -539,17 +610,46 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-            {/* Release Date */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Scheduled Release Date</span>
-              </label>
+            {/* Release Date & Mode */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Publish on: {nextReleaseInfo.formattedForUi}</span>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  id="upload-mode-publish-now"
+                  type="button"
+                  onClick={() => setPublishMode('live')}
+                  className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                    publishMode === 'live'
+                      ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                      : 'border-slate-700 bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Publish Now
+                </button>
+                <button
+                  id="upload-mode-schedule"
+                  type="button"
+                  onClick={() => setPublishMode('schedule')}
+                  className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                    publishMode === 'schedule'
+                      ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                      : 'border-slate-700 bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Schedule ({nextReleaseInfo.label})
+                </button>
+              </div>
               <input
                 type="date"
                 value={releaseDate}
                 onChange={(e) => setReleaseDate(e.target.value)}
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2 text-xs sm:text-sm text-white focus:border-amber-500 focus:outline-none"
+                disabled={publishMode === 'schedule'}
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2 text-xs sm:text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-60"
               />
             </div>
 
@@ -568,7 +668,11 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
               >
                 <span className="font-bold">Pages: {pages.length} / 50</span>
                 <span className="text-[11px] font-sans font-bold">
-                  {pageCountErrorMessage ? 'Needs 8–50 pages' : 'Ready to publish'}
+                  {isUploadingPages
+                    ? 'Compressing & uploading WebP...'
+                    : pageCountErrorMessage
+                    ? 'Needs 8–50 pages'
+                    : 'Ready to publish'}
                 </span>
               </div>
             </div>
@@ -774,6 +878,7 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
                       <img
                         src={p.imageUrl}
                         alt={`Page ${idx + 1}`}
+                        loading="lazy"
                         className="h-full w-full object-cover group-hover:scale-105 transition-transform"
                       />
 
@@ -971,13 +1076,25 @@ export const ChapterUploadManager: React.FC<ChapterUploadManagerProps> = ({
             <button
               id="submit-publish-chapter-btn"
               type="submit"
-              disabled={isSubmitting || Boolean(pageCountErrorMessage)}
+              disabled={
+                isSubmitting ||
+                isUploadingPages ||
+                !targetMangaId ||
+                !chapterTitle.trim() ||
+                Boolean(pageCountErrorMessage)
+              }
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black px-6 py-2.5 text-xs font-bold transition shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <UploadCloud className="w-4 h-4" />
               <span>
-                {isSubmitting
-                  ? 'Publishing...'
+                {isUploadingPages
+                  ? 'Uploading WebP to CDN...'
+                  : isSubmitting
+                  ? publishMode === 'schedule'
+                    ? 'Scheduling...'
+                    : 'Publishing...'
+                  : publishMode === 'schedule'
+                  ? `Schedule Chapter ${chapterNumber} (${pages.length} / 50 Pages)`
                   : `Publish Chapter ${chapterNumber} (${pages.length} / 50 Pages)`}
               </span>
             </button>

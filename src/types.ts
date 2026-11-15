@@ -16,6 +16,9 @@ export interface ChapterPage {
   dialogs?: ChapterDialog[];
 }
 
+export type ReleaseDay = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
+export type ChapterStatus = 'draft' | 'scheduled' | 'published';
+
 export interface Chapter {
   id: string;
   mangaId: string;
@@ -23,6 +26,9 @@ export interface Chapter {
   volumeNumber?: number;
   title: string;
   releaseDate: string;
+  scheduledFor?: string | null;
+  status?: ChapterStatus;
+  publishStatus?: string;
   pageCount: number;
   accessType: AccessType;
   pages: ChapterPage[];
@@ -163,12 +169,14 @@ export interface Manga {
   rating: number;
   ratingCount?: number;
   views: number;
+  totalViewsCached?: number;
   bookmarksCount: number;
   monetizationModel: MonetizationModel;
   chapters: Chapter[];
   volumes?: MangaVolume[];
   featured?: boolean;
   type?: SeriesType;
+  releaseDay?: ReleaseDay;
   isOriginal?: boolean; // AZ Originals vs Backdrop
   isBackdrop?: boolean;
   isCanvas?: boolean; // backward compatibility alias
@@ -196,6 +204,10 @@ export const getMangaType = (manga?: Partial<Manga> | null): SeriesType => {
   if (!manga) return 'backdrop';
   if (manga.type === 'original') return 'original';
   if (manga.type === 'backdrop') return 'backdrop';
+  if (manga.id === 'nkosi-the-tale-of-myths') return 'original';
+  if (manga.id === 'last-shaman-of-zambezi' || manga.id === 'echoes-of-the-highveld') {
+    return 'backdrop';
+  }
   if (manga.isOriginal === true && manga.isBackdrop !== true) return 'original';
   return 'backdrop';
 };

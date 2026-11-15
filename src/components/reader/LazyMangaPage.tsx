@@ -31,8 +31,8 @@ const LazyMangaPageComponent: React.FC<LazyMangaPageProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const alreadyCached = isPagePreloaded(page.imageUrl);
-  // Pre-load first 4 pages or any page already warmed in the 3-page preloader cache
-  const [isInView, setIsInView] = useState<boolean>(() => index < 4 || alreadyCached);
+  // Load ONLY current page + next 1 page initially
+  const [isInView, setIsInView] = useState<boolean>(() => index < 2 || alreadyCached);
   const [isLoaded, setIsLoaded] = useState<boolean>(() => alreadyCached);
   const [hasError, setHasError] = useState<boolean>(false);
 
@@ -125,24 +125,34 @@ const LazyMangaPageComponent: React.FC<LazyMangaPageProps> = ({
               </div>
             )}
 
-            <img
-              src={page.imageUrl}
-              alt={`Page ${page.pageNumber}`}
-              className={`w-full h-auto object-cover block transition-opacity duration-200 ${
-                isLoaded ? 'opacity-100' : 'opacity-0'
-              }`}
-              referrerPolicy="no-referrer"
-              decoding="async"
-              loading={index < 4 || isLoaded ? 'eager' : 'lazy'}
-              onLoad={() => {
-                markPageLoadedExternally(page.imageUrl);
-                setIsLoaded(true);
-              }}
-              onError={() => {
-                setHasError(true);
-                setIsLoaded(true);
-              }}
-            />
+            {hasError ? (
+              <div className="w-full min-h-[360px] flex flex-col items-center justify-center p-6 text-center bg-slate-950 text-slate-300">
+                <BookOpen className="w-7 h-7 text-amber-400 mb-2" />
+                <p className="text-xs font-bold text-white">Image not available</p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Page {page.pageNumber} failed to load from CDN.
+                </p>
+              </div>
+            ) : (
+              <img
+                src={page.imageUrl}
+                alt={`Page ${page.pageNumber}`}
+                className={`w-full h-auto object-cover block transition-opacity duration-200 ${
+                  isLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
+                referrerPolicy="no-referrer"
+                decoding="async"
+                loading="lazy"
+                onLoad={() => {
+                  markPageLoadedExternally(page.imageUrl);
+                  setIsLoaded(true);
+                }}
+                onError={() => {
+                  setHasError(true);
+                  setIsLoaded(true);
+                }}
+              />
+            )}
 
             {/* Authentic Manga Dialogue Bubbles */}
             {page.dialogs && page.dialogs.length > 0 && isLoaded && (

@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
-import { db, withDbRetry } from './index.ts';
+import { db, hasLiveDatabase, pool, withDbRetry } from './index.ts';
 import { users, DbUser, NewDbUser } from './schema.ts';
+import { getDevLayeredStore } from './layeredStore.ts';
 
 export interface PublicUser {
   id: string;
@@ -15,7 +16,21 @@ export interface PublicUser {
   totp_recovery_codes_remaining: number;
   is_creator: boolean;
   role: 'reader' | 'creator' | 'admin';
+  followed_manga: string[];
   created_at: string;
+}
+
+function parseFollowedMangaList(rawJson: string | null | undefined): string[] {
+  if (!rawJson) return [];
+  try {
+    const parsed = JSON.parse(rawJson);
+    if (!Array.isArray(parsed)) return [];
+    return Array.from(
+      new Set(parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0))
+    );
+  } catch {
+    return [];
+  }
 }
 
 function parseRemainingRecoveryCodesCount(rawJson: string | null | undefined): number {
@@ -51,6 +66,7 @@ export function toPublicUser(row: DbUser): PublicUser {
       : 0,
     is_creator: normalizedRole === 'creator' || normalizedRole === 'admin',
     role: normalizedRole,
+    followed_manga: parseFollowedMangaList((row as any).followedManga),
     created_at:
       row.createdAt instanceof Date
         ? row.createdAt.toISOString()
@@ -338,4 +354,60 @@ export async function disableUserTotp(id: string): Promise<DbUser | null> {
     console.error('[DB] disableUserTotp failed:', error);
     throw error;
   }
+}
+
+export async function getUserFollowedManga(userId: string): Promise<string[]> {
+  if (!userId) return [];
+  if (!hasLiveDatabase()) {
+    return [...(getDevLayeredStore().userFollowedManga.get(userId) || [])];
+  }
+  try {
+    const rows = await withDbRetry(async () =>
+      db.select({ followedManga: users.followedManga }).from(users).where(eq(users.id, userId)).limit(1)
+    );
+    return parseFollowedMangaList(rows[0]?.followedManga);
+  } catch {
+    return [...(getDevLayeredStore().userFollowedManga.get(userId) || [])];
+  }
+}
+
+export async function updateUserFollowedManga(
+  userId: string,
+  mangaId: string,
+  action: 'follow' | 'unfollow' | 'toggle'
+): Promise<{ followedManga: string[]; isFollowing: boolean }> {
+  const cleanMangaId = mangaId.trim().slice(0, 120);
+  const current = await getUserFollowedManga(userId);
+  const set = new Set(current);
+  const currentlyFollowing = set.has(cleanMangaId);
+
+  if (action === 'follow' || (action === 'toggle' && !currentlyFollowing)) {
+    set.add(cleanMangaId);
+  } else {
+    set.delete(cleanMangaId);
+  }
+
+  const nextList = Array.from(set);
+  const isFollowing = set.has(cleanMangaId);
+
+  if (!hasLiveDatabase()) {
+    getDevLayeredStore().userFollowedManga.set(userId, nextList);
+    return { followedManga: nextList, isFollowing };
+  }
+
+  try {
+    await withDbRetry(async () => {
+      await db
+        .update(users)
+        .set({
+          followedManga: JSON.stringify(nextList),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+    });
+  } catch {
+    getDevLayeredStore().userFollowedManga.set(userId, nextList);
+  }
+
+  return { followedManga: nextList, isFollowing };
 }

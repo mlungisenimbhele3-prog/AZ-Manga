@@ -59,23 +59,38 @@ export function formatViews(views?: number | null): string {
   return String(Math.floor(safe));
 }
 
-export async function fetchCatalogSnapshot(): Promise<CatalogSnapshot | null> {
+export interface CatalogFetchResult {
+  snapshot: CatalogSnapshot | null;
+  error: string | null;
+}
+
+export async function fetchCatalogSnapshotWithStatus(): Promise<CatalogFetchResult> {
   try {
     const res = await fetch('/api/catalog', { cache: 'no-store' });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      return { snapshot: null, error: "Couldn't load. Tap to retry." };
+    }
     const data = await res.json();
     return {
-      dbConnected: Boolean(data.dbConnected),
-      mangas: Array.isArray(data.mangas) ? data.mangas : [],
-      chapters: Array.isArray(data.chapters) ? data.chapters : [],
-      activeIssue: data.activeIssue || DEFAULT_LAUNCH_ISSUE,
-      awards: data.awards || DEFAULT_AWARDS_STATE,
-      followerCounts:
-        data.followerCounts && typeof data.followerCounts === 'object' ? data.followerCounts : {},
+      snapshot: {
+        dbConnected: Boolean(data.dbConnected),
+        mangas: Array.isArray(data.mangas) ? data.mangas : [],
+        chapters: Array.isArray(data.chapters) ? data.chapters : [],
+        activeIssue: data.activeIssue || DEFAULT_LAUNCH_ISSUE,
+        awards: data.awards || DEFAULT_AWARDS_STATE,
+        followerCounts:
+          data.followerCounts && typeof data.followerCounts === 'object' ? data.followerCounts : {},
+      },
+      error: null,
     };
   } catch {
-    return null;
+    return { snapshot: null, error: "Couldn't load. Tap to retry." };
   }
+}
+
+export async function fetchCatalogSnapshot(): Promise<CatalogSnapshot | null> {
+  const { snapshot } = await fetchCatalogSnapshotWithStatus();
+  return snapshot;
 }
 
 export function applyCatalogMetricsToMangas(
@@ -96,9 +111,20 @@ export function applyCatalogMetricsToMangas(
       };
     });
 
+    const fallbackType: 'original' | 'backdrop' =
+      manga.type === 'original' ||
+      manga.id === 'nkosi-the-tale-of-myths' ||
+      (manga.isOriginal === true && manga.isBackdrop !== true)
+        ? 'original'
+        : 'backdrop';
+
     if (!dbM) {
       return {
         ...manga,
+        type: fallbackType,
+        isOriginal: fallbackType === 'original',
+        isBackdrop: fallbackType === 'backdrop',
+        isCanvas: fallbackType === 'backdrop',
         views: Number(manga.views || 0),
         chapters: updatedChapters,
       };
@@ -109,9 +135,7 @@ export function applyCatalogMetricsToMangas(
         ? 'original'
         : dbM.type === 'backdrop'
         ? 'backdrop'
-        : manga.type === 'original' || (manga.isOriginal && !manga.isBackdrop)
-        ? 'original'
-        : 'backdrop';
+        : fallbackType;
 
     return {
       ...manga,

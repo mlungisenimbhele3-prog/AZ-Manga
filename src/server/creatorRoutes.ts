@@ -3,6 +3,9 @@ import express, { Response, NextFunction } from 'express';
 import { AuthenticatedRequest, requireJwtAuth } from './authRoutes.ts';
 import { findUserById } from '../db/users.ts';
 import {
+  Base64ImageRejectedError,
+  ReleaseDayLockedError,
+  WeeklyChapterLimitError,
   listCreatorMangas,
   listChaptersForCreator,
   upsertCreatorManga,
@@ -10,11 +13,17 @@ import {
   deleteCreatorMangaRecord,
   createCreatorChapterRecord,
   publishCreatorChapterRecord,
+  publishDueScheduledChapters,
   listCreatorPayouts,
   listAllPayoutsForAdmin,
   createCreatorPayoutRecord,
   updatePayoutStatusRecord,
 } from '../db/creator.ts';
+import {
+  getCurrentSastDateString,
+  getNextReleaseDateForDay,
+  normalizeReleaseDay,
+} from '../utils/releaseSchedule.ts';
 
 const ADMIN_EMAILS = new Set(['mlungisenimbhele3@gmail.com']);
 const VALID_PAYOUT_METHODS = new Set(['Bank', 'Capitec', 'PayFast']);
@@ -124,6 +133,7 @@ function buildMonthlySeries(totalEarningsZar: number) {
 creatorRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
   const user = req.authUser!;
   try {
+    await publishDueScheduledChapters();
     const [dbMangas, dbChapters, dbPayouts] = await Promise.all([
       listCreatorMangas(user.id, user.email),
       listChaptersForCreator(user.id),
@@ -243,6 +253,7 @@ creatorRouter.post('/mangas', async (req: AuthenticatedRequest, res: Response) =
     ageRating,
     language,
     type,
+    releaseDay,
     status,
     approvalStatus,
   } = req.body || {};
@@ -257,6 +268,7 @@ creatorRouter.post('/mangas', async (req: AuthenticatedRequest, res: Response) =
   const cleanGenres = Array.isArray(genres) && genres.length > 0 ? genres.map(String) : ['Action'];
   const cleanStatus: 'Draft' | 'Coming Soon' | 'Live' =
     status === 'Live' || status === 'Coming Soon' || status === 'Draft' ? status : 'Coming Soon';
+  const cleanReleaseDay = normalizeReleaseDay(releaseDay);
 
   try {
     const created = await upsertCreatorManga({
@@ -270,25 +282,18 @@ creatorRouter.post('/mangas', async (req: AuthenticatedRequest, res: Response) =
       ageRating: typeof ageRating === 'string' ? ageRating : '13+',
       language: typeof language === 'string' ? language : 'English',
       type: seriesType,
+      releaseDay: cleanReleaseDay,
       status: cleanStatus,
       approvalStatus: typeof approvalStatus === 'string' ? approvalStatus : undefined,
     });
 
     return res.status(201).json({ success: true, dbPersisted: true, manga: created });
   } catch (error: any) {
+    if (error instanceof Base64ImageRejectedError || error instanceof ReleaseDayLockedError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     console.warn('[Creator API] POST /mangas DB fallback:', error?.message || error);
-    return res.status(200).json({
-      success: true,
-      dbPersisted: false,
-      manga: {
-        id: mangaId,
-        creatorId: user.id,
-        creatorEmail: user.email,
-        title: title.trim(),
-        type: seriesType,
-        status: cleanStatus,
-      },
-    });
+    return res.status(500).json({ error: error?.message || 'Failed to save manga.' });
   }
 });
 
@@ -298,7 +303,7 @@ creatorRouter.post('/mangas', async (req: AuthenticatedRequest, res: Response) =
 creatorRouter.patch('/mangas/:id', async (req: AuthenticatedRequest, res: Response) => {
   const user = req.authUser!;
   const mangaId = req.params.id;
-  const { title, synopsis, coverUrl, type, status, approvalStatus } = req.body || {};
+  const { title, synopsis, coverUrl, type, releaseDay, status, approvalStatus } = req.body || {};
 
   try {
     const updated = await updateCreatorMangaRecord(mangaId, user.id, {
@@ -306,12 +311,18 @@ creatorRouter.patch('/mangas/:id', async (req: AuthenticatedRequest, res: Respon
       ...(typeof synopsis === 'string' ? { synopsis: synopsis.trim().slice(0, 2000) } : {}),
       ...(typeof coverUrl === 'string' ? { coverUrl: coverUrl.trim() } : {}),
       ...(type === 'original' || type === 'backdrop' ? { type } : {}),
+      ...(typeof releaseDay === 'string' && releaseDay.trim()
+        ? { releaseDay: normalizeReleaseDay(releaseDay) }
+        : {}),
       ...(typeof status === 'string' ? { status } : {}),
       ...(typeof approvalStatus === 'string' ? { approvalStatus } : {}),
     });
 
     return res.status(200).json({ success: true, dbPersisted: Boolean(updated), manga: updated });
   } catch (error: any) {
+    if (error instanceof Base64ImageRejectedError || error instanceof ReleaseDayLockedError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     console.warn('[Creator API] PATCH /mangas DB fallback:', error?.message || error);
     return res.status(200).json({ success: true, dbPersisted: false });
   }
@@ -349,6 +360,7 @@ creatorRouter.post('/chapters', async (req: AuthenticatedRequest, res: Response)
     publishMode,
     scheduledFor,
     releaseDate,
+    releaseDay,
   } = req.body || {};
 
   if (!mangaId || typeof mangaId !== 'string') {
@@ -367,7 +379,7 @@ creatorRouter.post('/chapters', async (req: AuthenticatedRequest, res: Response)
         .map((p: any, idx: number) => ({
           id: typeof p.id === 'string' ? p.id : `p-${idx + 1}`,
           pageNumber: idx + 1,
-          imageUrl: String(p.imageUrl),
+          imageUrl: String(p.imageUrl).trim(),
         }))
     : [];
 
@@ -375,16 +387,30 @@ creatorRouter.post('/chapters', async (req: AuthenticatedRequest, res: Response)
     return res.status(400).json({ error: 'Chapter must be 8-50 pages' });
   }
 
-  const isLive = publishMode === 'live';
-  const publishStatus: 'Coming Soon • Panels In Production' | 'Live' | 'Scheduled' = isLive
-    ? 'Live'
-    : 'Coming Soon • Panels In Production';
+  const mode = String(publishMode || 'live').toLowerCase();
+  const publishStatus: 'Coming Soon • Panels In Production' | 'Live' | 'Scheduled' =
+    mode === 'schedule' || mode === 'scheduled'
+      ? 'Scheduled'
+      : mode === 'live' || mode === 'now'
+      ? 'Live'
+      : 'Coming Soon • Panels In Production';
+
+  const todaySast = getCurrentSastDateString();
+  let resolvedScheduledFor: string | null = null;
+  if (publishStatus === 'Scheduled') {
+    resolvedScheduledFor =
+      typeof scheduledFor === 'string' && /^\d{4}-\d{2}-\d{2}/.test(scheduledFor.trim())
+        ? scheduledFor.trim().slice(0, 10)
+        : getNextReleaseDateForDay(normalizeReleaseDay(releaseDay), todaySast, false).isoDate;
+  }
 
   const chapterId = typeof id === 'string' && id.trim() ? id.trim() : `ch-${mangaId}-${Date.now()}`;
   const cleanReleaseDate =
-    typeof releaseDate === 'string' && releaseDate.trim()
-      ? releaseDate.trim()
-      : new Date().toISOString().split('T')[0];
+    publishStatus === 'Scheduled' && resolvedScheduledFor
+      ? resolvedScheduledFor
+      : typeof releaseDate === 'string' && releaseDate.trim()
+      ? releaseDate.trim().slice(0, 10)
+      : todaySast;
 
   try {
     const saved = await createCreatorChapterRecord({
@@ -395,7 +421,7 @@ creatorRouter.post('/chapters', async (req: AuthenticatedRequest, res: Response)
       title: chapterTitle,
       panels: cleanPanels,
       publishStatus,
-      scheduledFor: typeof scheduledFor === 'string' ? scheduledFor : null,
+      scheduledFor: resolvedScheduledFor,
       releaseDate: cleanReleaseDate,
     });
 
@@ -408,22 +434,18 @@ creatorRouter.post('/chapters', async (req: AuthenticatedRequest, res: Response)
       },
     });
   } catch (error: any) {
-    console.warn('[Creator API] POST /chapters DB fallback:', error?.message || error);
-    return res.status(200).json({
-      success: true,
-      dbPersisted: false,
-      chapter: {
-        id: chapterId,
-        mangaId,
-        number: chapterNum,
-        title: chapterTitle,
-        panels: cleanPanels,
-        pageCount: cleanPanels.length,
-        publishStatus,
-        scheduledFor: scheduledFor || null,
-        releaseDate: cleanReleaseDate,
-      },
-    });
+    if (error instanceof WeeklyChapterLimitError) {
+      return res.status(409).json({
+        error: error.message,
+        nextReleaseDayLabel: error.nextReleaseDayLabel,
+        nextReleaseDateIso: error.nextReleaseDateIso,
+      });
+    }
+    if (error instanceof Base64ImageRejectedError) {
+      return res.status(400).json({ error: error.message });
+    }
+    console.warn('[Creator API] POST /chapters error:', error?.message || error);
+    return res.status(400).json({ error: error?.message || 'Failed to save chapter.' });
   }
 });
 

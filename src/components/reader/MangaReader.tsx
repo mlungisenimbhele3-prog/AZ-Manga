@@ -243,12 +243,10 @@ export const MangaReader: React.FC<MangaReaderProps> = ({
     }
   }, [manga?.id, currentChapter?.id]);
 
-  // Shared 3-page upcoming preloader (network-aware sequential/parallel + LRU cache)
+  // Load current page + next 1 page ahead
   useEffect(() => {
     if (!currentChapter || !currentChapter.pages || currentChapter.pages.length === 0) return;
-    const config = getProfileConfig();
-    const preloadCount = Math.max(3, config.imagePreloadCount);
-    preloadUpcomingPages(currentChapter.pages, currentPageIndex, preloadCount, {
+    preloadUpcomingPages(currentChapter.pages, currentPageIndex, 1, {
       nextChapterFirstPageUrl: nextChapter?.pages?.[0]?.imageUrl || null,
     });
   }, [currentChapter, currentPageIndex, nextChapter]);
@@ -965,6 +963,7 @@ export const MangaReader: React.FC<MangaReaderProps> = ({
                     alt={`Page ${currentPageIndex + 1}`}
                     className="max-h-[78vh] w-full mx-auto object-contain"
                     referrerPolicy="no-referrer"
+                    loading="lazy"
                     decoding="async"
                   />
                   <span className="absolute bottom-2 left-2 rounded bg-black/80 px-2 py-0.5 text-[10px] font-mono text-amber-400">
@@ -981,6 +980,7 @@ export const MangaReader: React.FC<MangaReaderProps> = ({
                     alt={`Page ${currentPageIndex + 2}`}
                     className="max-h-[78vh] w-full mx-auto object-contain"
                     referrerPolicy="no-referrer"
+                    loading="lazy"
                     decoding="async"
                   />
                   <span className="absolute bottom-2 right-2 rounded bg-black/80 px-2 py-0.5 text-[10px] font-mono text-slate-300">
@@ -1042,6 +1042,7 @@ export const MangaReader: React.FC<MangaReaderProps> = ({
                   filter: settings.theme === 'sepia' ? 'sepia(0.3)' : undefined,
                 }}
                 referrerPolicy="no-referrer"
+                loading="lazy"
                 decoding="async"
               />
 

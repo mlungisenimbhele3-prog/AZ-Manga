@@ -66,8 +66,8 @@ const MangaCoverImageComponent: React.FC<MangaCoverImageProps> = ({
         <span className="font-['Bebas_Neue',sans-serif] text-sm sm:text-base tracking-wide text-white line-clamp-2 leading-tight px-1">
           {displayTitle}
         </span>
-        <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90 mt-1">
-          AZ OVERVERSE
+        <span className="text-[10px] font-bold text-slate-300 mt-1">
+          Image not available
         </span>
       </div>
     );

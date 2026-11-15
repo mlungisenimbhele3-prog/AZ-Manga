@@ -72,12 +72,21 @@ import {
 } from './utils/devicePerformance';
 import { safeStorage } from './utils/safeStorage';
 import {
-  fetchMangasFromSupabase,
-  publishMangaToSupabase,
-  publishChapterToSupabase,
-  fetchUserLibraryFromSupabase,
-  saveUserLibraryItemInSupabase,
-} from './services/supabase';
+  fetchPaginatedMangasSWR,
+  fetchPaginatedChaptersSWR,
+  trackViewViaBeacon,
+  createMangaViaApi,
+  createChapterViaApi,
+  fetchFollowedMangaViaApi,
+  toggleFollowMangaViaApi,
+  invalidateLayeredCaches,
+  UpcomingScheduleItem,
+} from './services/layeredApi';
+import {
+  getCurrentSastDateString,
+  getSeedReleaseDay,
+  normalizeReleaseDay,
+} from './utils/releaseSchedule';
 import {
   initFcmMessaging,
   dispatchChapterDropPush,
@@ -108,9 +117,8 @@ import {
   CatalogSnapshot,
   DEFAULT_LAUNCH_ISSUE,
   DEFAULT_AWARDS_STATE,
-  fetchCatalogSnapshot,
+  fetchCatalogSnapshotWithStatus,
   applyCatalogMetricsToMangas,
-  recordRealChapterView,
 } from './services/catalogApi';
 import { syncCreatorFollowerCountsFromDb } from './services/creatorFollowService';
 import {
@@ -126,6 +134,7 @@ import {
   LogOut,
   Lock,
   Pencil,
+  RefreshCw,
 } from 'lucide-react';
 
 // Lazy-loaded Full-Screen Reader & Secondary Routes (keeps initial Reader home bundle fast & resilient)
@@ -352,10 +361,16 @@ function getMangaSearchBlob(manga: Manga): string {
 
 export default function App() {
   const [mangaList, setMangaList] = useState<Manga[]>(INITIAL_MANGA_LIST);
+  const [upcomingSchedules, setUpcomingSchedules] = useState<UpcomingScheduleItem[]>([]);
+  const [followedMangaIds, setFollowedMangaIds] = useState<string[]>(() =>
+    safeStorage.getJSON<string[]>('az_followed_manga_ids_v1', [])
+  );
   const [creatorStats, setCreatorStats] = useState<CreatorStats>(INITIAL_CREATOR_STATS);
   const [ads] = useState<AdData[]>(ADS_DATABASE);
   const [activeIssue, setActiveIssue] = useState<CatalogIssue>(DEFAULT_LAUNCH_ISSUE);
   const [awardsState, setAwardsState] = useState<CatalogAwardsState>(DEFAULT_AWARDS_STATE);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [isRetryingCatalog, setIsRetryingCatalog] = useState<boolean>(false);
   const catalogSnapshotRef = useRef<CatalogSnapshot | null>(null);
   const lastCountedChapterOpenRef = useRef<string | null>(null);
 
@@ -505,42 +520,87 @@ export default function App() {
   const mangaListRef = useRef<Manga[]>(mangaList);
   mangaListRef.current = mangaList;
 
-  // Supabase Core Relational Data Initialization (deferred off first paint via scheduleIdleTask)
+  const isMountedRef = useRef<boolean>(true);
   React.useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-    const cancelBootFetch = scheduleIdleTask(() => {
-      if (!isMounted) return;
+  const mergePagedMangasIntoList = useCallback((incoming: Manga[], existing: Manga[]): Manga[] => {
+    const seedById = new Map(INITIAL_MANGA_LIST.map((m) => [m.id, m]));
+    const existingById = new Map(existing.map((m) => [m.id, m]));
 
-      // 1. Fetch core mangas & chapters from Supabase and sync real DB metrics from /api/catalog
-      fetchMangasFromSupabase().then((supaMangas) => {
-        if (!isMounted || !supaMangas || supaMangas.length === 0) return;
-        const hydrated = catalogSnapshotRef.current
-          ? applyCatalogMetricsToMangas(supaMangas, catalogSnapshotRef.current)
-          : supaMangas;
-        startTransition(() => {
-          setMangaList((prev) => {
-            if (
-              prev.length === hydrated.length &&
-              prev.every(
-                (m, i) =>
-                  m.id === hydrated[i]?.id &&
-                  m.coverImage === hydrated[i]?.coverImage &&
-                  m.rating === hydrated[i]?.rating &&
-                  m.views === hydrated[i]?.views &&
-                  m.genres.join('|') === (hydrated[i]?.genres || []).join('|') &&
-                  m.chapters.length === hydrated[i]?.chapters.length
-              )
-            ) {
-              return prev;
+    return incoming.map((m) => {
+      const seed = seedById.get(m.id);
+      const prev = existingById.get(m.id);
+      const cover =
+        (m.coverUrl && !m.coverUrl.includes('undefined') ? m.coverUrl : '') ||
+        prev?.coverImage ||
+        seed?.coverImage ||
+        '';
+      return {
+        ...seed,
+        ...prev,
+        ...m,
+        cover: cover,
+        coverImage: cover,
+        coverUrl: cover,
+        bannerImage: prev?.bannerImage || seed?.bannerImage || cover,
+        award: prev?.award || seed?.award,
+        chapters:
+          m.chapters && m.chapters.length > 0
+            ? m.chapters
+            : prev?.chapters || seed?.chapters || [],
+      };
+    });
+  }, []);
+
+  const loadCatalogData = useCallback(async (isManualRetry = false) => {
+    if (isManualRetry) {
+      setIsRetryingCatalog(true);
+    }
+
+    try {
+      const [pagedResult, catalogResult] = await Promise.all([
+        fetchPaginatedMangasSWR({
+          limit: 20,
+          offset: 0,
+          forceRefresh: isManualRetry,
+          onBackgroundUpdate: (fresh) => {
+            if (!isMountedRef.current) return;
+            if (Array.isArray(fresh.upcomingSchedules)) {
+              setUpcomingSchedules(fresh.upcomingSchedules);
             }
-            return hydrated;
-          });
-        });
-      });
+            if (Array.isArray(fresh.mangas) && fresh.mangas.length > 0) {
+              startTransition(() => {
+                setMangaList((prev) => mergePagedMangasIntoList(fresh.mangas, prev));
+              });
+            }
+          },
+        }),
+        fetchCatalogSnapshotWithStatus(),
+      ]);
 
-      fetchCatalogSnapshot().then((snapshot) => {
-        if (!isMounted || !snapshot) return;
+      if (!isMountedRef.current) return;
+
+      if (pagedResult.data) {
+        if (Array.isArray(pagedResult.data.upcomingSchedules)) {
+          setUpcomingSchedules(pagedResult.data.upcomingSchedules);
+        }
+        if (Array.isArray(pagedResult.data.mangas) && pagedResult.data.mangas.length > 0) {
+          startTransition(() => {
+            setMangaList((prev) => mergePagedMangasIntoList(pagedResult.data!.mangas, prev));
+          });
+        }
+      }
+
+      if (pagedResult.error || catalogResult.error || !catalogResult.snapshot) {
+        setCatalogError(pagedResult.error || catalogResult.error || "Couldn't load. Tap to retry.");
+      } else {
+        setCatalogError(null);
+        const snapshot = catalogResult.snapshot;
         catalogSnapshotRef.current = snapshot;
         syncCreatorFollowerCountsFromDb(snapshot.followerCounts);
         startTransition(() => {
@@ -552,26 +612,37 @@ export default function App() {
           }
           setMangaList((prev) => applyCatalogMetricsToMangas(prev, snapshot));
         });
-      });
+      }
+    } catch {
+      if (isMountedRef.current) {
+        setCatalogError("Couldn't load. Tap to retry.");
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsRetryingCatalog(false);
+      }
+    }
+  }, [mergePagedMangasIntoList]);
 
-      // 2. Fetch User Library from Supabase
-      fetchUserLibraryFromSupabase(currentUserEmail).then((libraryRecords) => {
-        if (!isMounted || !libraryRecords || libraryRecords.length === 0) return;
-        const favIds = libraryRecords.filter((r) => r.isFavorite).map((r) => r.mangaId);
-        if (favIds.length > 0) {
-          startTransition(() => {
-            setFavoriteIds((prev) => {
-              if (prev.length === favIds.length && prev.every((id, i) => id === favIds[i])) {
-                return prev;
-              }
-              return favIds;
-            });
-          });
-        }
-      });
-    }, 500);
+  // Layered API Initialization (SWR /api/manga + /api/catalog + /api/users/follow-manga; zero direct browser DB connections)
+  React.useEffect(() => {
+    let isMounted = true;
 
-    // 3. Initialize Firebase Cloud Messaging (FCM) during later idle time
+    const cancelBootFetch = scheduleIdleTask(() => {
+      if (!isMounted) return;
+
+      void loadCatalogData(false);
+
+      fetchFollowedMangaViaApi()
+        .then((followed) => {
+          if (!isMounted || followed.length === 0) return;
+          setFollowedMangaIds(followed);
+          safeStorage.setJSONDeferred('az_followed_manga_ids_v1', followed);
+        })
+        .catch(() => {});
+    }, 350);
+
+    // Initialize Firebase Cloud Messaging (FCM) during later idle time
     const cancelFcmIdle = scheduleIdleTask(() => {
       if (!isMounted) return;
       initFcmMessaging().catch((err) => {
@@ -584,7 +655,28 @@ export default function App() {
       cancelBootFetch();
       cancelFcmIdle();
     };
-  }, [currentUserEmail]);
+  }, [currentUserEmail, creatorAuthState.authUser?.id, loadCatalogData]);
+
+  const handleToggleFollowSeries = useCallback(
+    (mangaId: string) => {
+      setFollowedMangaIds((prev) => {
+        const isAlreadyFollowing = prev.includes(mangaId);
+        const next = isAlreadyFollowing
+          ? prev.filter((id) => id !== mangaId)
+          : [...prev, mangaId];
+        safeStorage.setJSONDeferred('az_followed_manga_ids_v1', next);
+        return next;
+      });
+
+      void toggleFollowMangaViaApi(mangaId, 'toggle').then((res) => {
+        if (res && Array.isArray(res.followedManga)) {
+          setFollowedMangaIds(res.followedManga);
+          safeStorage.setJSONDeferred('az_followed_manga_ids_v1', res.followedManga);
+        }
+      });
+    },
+    []
+  );
 
   const handleToggleFavorite = useCallback(
     (mangaId: string) => {
@@ -595,13 +687,11 @@ export default function App() {
 
         const currentCatalog = mangaListRef.current;
 
-        // Sync with Supabase User Library (Relational core)
-        saveUserLibraryItemInSupabase({
-          userEmail: currentUserEmail,
-          mangaId,
-          isFavorite: isFav,
-          readingStatus: isFav ? 'reading' : 'on_hold',
-          notifyChapterDrops: isFav,
+        void toggleFollowMangaViaApi(mangaId, isFav ? 'follow' : 'unfollow').then((res) => {
+          if (res && Array.isArray(res.followedManga)) {
+            setFollowedMangaIds(res.followedManga);
+            safeStorage.setJSONDeferred('az_followed_manga_ids_v1', res.followedManga);
+          }
         });
 
         // Auto-subscribe to FCM chapter drops when favoriting
@@ -616,7 +706,7 @@ export default function App() {
         return next;
       });
     },
-    [currentUserEmail]
+    []
   );
 
   // Navigation & Modal states
@@ -639,10 +729,11 @@ export default function App() {
   // Active Reader state
   const [activeReaderManga, setActiveReaderManga] = useState<Manga | null>(null);
   const [activeReaderChapterId, setActiveReaderChapterId] = useState<string>('');
+  const activeReaderMangaRef = useRef<Manga | null>(null);
+  activeReaderMangaRef.current = activeReaderManga;
 
   // Fullscreen Bottom Navigation & Ad Banner Visibility (Single-tap hide / Double-tap show)
   const [isBottomBarsVisible, setIsBottomBarsVisible] = useState<boolean>(true);
-  const [showTapHint, setShowTapHint] = useState<boolean>(false);
 
   // Tab & Route Navigation state
   type AppRouteTab =
@@ -885,6 +976,10 @@ export default function App() {
         now - lastTap.time <= 300 &&
         Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 60;
 
+      if (activeReaderMangaRef.current) {
+        return;
+      }
+
       if (isDoubleTap) {
         // Double-tap confirmed: cancel any pending single-tap hide timer (Rule 4)
         if (singleTapTimerRef.current) {
@@ -895,7 +990,6 @@ export default function App() {
 
         // Rule 2: Double tap anywhere on screen = show bottom navigation bar + show bottom ad bar
         setIsBottomBarsVisible(true);
-        setShowTapHint(false);
       } else {
         // First tap: record for double-tap comparison
         lastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
@@ -910,10 +1004,6 @@ export default function App() {
           singleTapTimerRef.current = setTimeout(() => {
             singleTapTimerRef.current = null;
             setIsBottomBarsVisible(false);
-            setShowTapHint(true);
-            setTimeout(() => {
-              setShowTapHint(false);
-            }, 3000);
           }, 300);
         }
       }
@@ -1078,13 +1168,7 @@ export default function App() {
           const openKey = `${target.id}:${chObj.id}`;
           if (lastCountedChapterOpenRef.current !== openKey) {
             lastCountedChapterOpenRef.current = openKey;
-            recordRealChapterView(target.id, chObj.id).then((result) => {
-              if (result.counted && typeof result.views === 'number') {
-                setMangaList((prev) =>
-                  prev.map((m) => (m.id === target.id ? { ...m, views: result.views! } : m))
-                );
-              }
-            });
+            trackViewViaBeacon(target.id, chObj.id);
           }
         }
       }
@@ -1254,17 +1338,23 @@ export default function App() {
         Boolean(chObj) &&
         (chObj?.pages?.length || 0) > 0;
 
+      // Hydrate latest paginated chapters via 5-minute SWR cache
+      void fetchPaginatedChaptersSWR({ mangaId: manga.id, limit: 20, offset: 0 })
+        .then((res) => {
+          if (res.data?.chapters && res.data.chapters.length > 0) {
+            setMangaList((prev) =>
+              prev.map((m) => (m.id === manga.id ? { ...m, chapters: res.data!.chapters } : m))
+            );
+          }
+        })
+        .catch(() => {});
+
       if (isLiveRealChapter && chObj) {
         const openKey = `${manga.id}:${chObj.id}`;
         if (lastCountedChapterOpenRef.current !== openKey) {
           lastCountedChapterOpenRef.current = openKey;
-          recordRealChapterView(manga.id, chObj.id).then((result) => {
-            if (result.counted && typeof result.views === 'number') {
-              setMangaList((prev) =>
-                prev.map((m) => (m.id === manga.id ? { ...m, views: result.views! } : m))
-              );
-            }
-          });
+          // Insert lightweight row into page_views table via sendBeacon (aggregated every 5 mins)
+          trackViewViaBeacon(manga.id, chObj.id);
         }
         setCreatorStats((prev) => ({
           ...prev,
@@ -1367,8 +1457,24 @@ export default function App() {
       })
     );
 
-    // 1. Sync to Supabase Core Relational DB (chapters table)
-    publishChapterToSupabase(sanitizedChapter);
+    // 1. Invalidate SWR caches & dispatch push notifications (ChapterUploadManager persists via /api/chapters)
+    invalidateLayeredCaches();
+    if (!sanitizedChapter.id?.startsWith('ch-')) {
+      void createChapterViaApi({
+        id: sanitizedChapter.id,
+        mangaId,
+        number: sanitizedChapter.number,
+        title: sanitizedChapter.title,
+        panels: (sanitizedChapter.pages || []).map((p, idx) => ({
+          id: p.id || `p-${idx + 1}`,
+          pageNumber: p.pageNumber || idx + 1,
+          imageUrl: p.imageUrl,
+        })),
+        publishMode: sanitizedChapter.publishStatus === 'scheduled' ? 'schedule' : 'live',
+        scheduledFor: sanitizedChapter.scheduledFor || null,
+        releaseDate: sanitizedChapter.releaseDate,
+      }).catch(() => {});
+    }
 
     // 2. Dispatch Firebase Cloud Messaging (FCM) Push Notification with followed creator recognition
     const targetManga = mangaList.find((m) => m.id === mangaId);
@@ -1383,7 +1489,7 @@ export default function App() {
     }
   };
 
-  // Publish new manga series with Supabase sync
+  // Publish new manga series through 3-layer API
   const handlePublishManga = (newManga: Manga) => {
     // Defense 2: Anti-XSS Sanitizer
     const sanitizedManga: Manga = {
@@ -1395,10 +1501,9 @@ export default function App() {
 
     setMangaList((prev) => [sanitizedManga, ...prev]);
 
-    // 1. Sync to Supabase Core Relational DB (mangas table)
-    publishMangaToSupabase(sanitizedManga);
+    invalidateLayeredCaches();
 
-    // 2. If new series is released by a followed creator, dispatch new series push alert!
+    // If new series is released by a followed creator, dispatch new series push alert!
     const isFollowed = isFollowingCreator(sanitizedManga.author) || isFollowingCreator(sanitizedManga.artist);
     if (isFollowed) {
       dispatchNewSeriesPush(sanitizedManga, sanitizedManga.author).then(() => {
@@ -1526,7 +1631,17 @@ export default function App() {
     });
 
     if (sanitizedManga.approvalStatus === 'pending_review') {
-      publishMangaToSupabase(sanitizedManga);
+      void createMangaViaApi({
+        id: sanitizedManga.id,
+        title: sanitizedManga.title,
+        synopsis: sanitizedManga.synopsis,
+        coverUrl: sanitizedManga.coverUrl || sanitizedManga.coverImage,
+        genres: sanitizedManga.genres,
+        type: getMangaType(sanitizedManga),
+        releaseDay: normalizeReleaseDay(sanitizedManga.releaseDay, getSeedReleaseDay(sanitizedManga.id)),
+        status: isMangaComingSoon(sanitizedManga) ? 'Coming Soon' : 'Live',
+        approvalStatus: sanitizedManga.approvalStatus,
+      }).catch(() => {});
       if (sanitizedManga.chapters && sanitizedManga.chapters.length > 0) {
         dispatchChapterDropPush(sanitizedManga, sanitizedManga.chapters[0]).then(() => {
           setUnreadNotificationsCount((c) => c + 1);
@@ -2131,6 +2246,22 @@ export default function App() {
           activeTab === 'readers' ? 'px-0 py-0 space-y-0' : 'px-4 sm:px-6 py-6 space-y-6'
         }`}
       >
+        {catalogError && !activeRatedReaderManga && (
+          <div className="mx-auto max-w-2xl px-4 pt-3">
+            <button
+              id="catalog-retry-banner"
+              type="button"
+              onClick={() => void loadCatalogData(true)}
+              disabled={isRetryingCatalog}
+              className="w-full rounded-xl border border-amber-500/40 bg-amber-950/30 hover:bg-amber-950/50 px-4 py-3 text-xs text-amber-200 flex items-center justify-center gap-2 transition active:scale-[0.99] disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-400 shrink-0 ${isRetryingCatalog ? 'animate-spin' : ''}`} />
+              <span className="font-semibold">
+                {isRetryingCatalog ? 'Retrying...' : catalogError}
+              </span>
+            </button>
+          </div>
+        )}
         {isAdmin && showPlayUploadKeyCard && !activeRatedReaderManga && (
           <PlayUploadKeyCard
             isAdmin={isAdmin}
@@ -2337,6 +2468,9 @@ export default function App() {
                   onOpenTasteProfileModal={handleOpenTasteProfileModal}
                   userTasteProfile={userTasteProfile}
                   isAdmin={isAdmin}
+                  upcomingSchedules={upcomingSchedules}
+                  loadError={catalogError}
+                  onRetryLoad={() => void loadCatalogData(true)}
                 />
               </div>
             )}
@@ -2606,7 +2740,23 @@ export default function App() {
         onTabChange={handleTabChange}
         isCreator={isCreator}
         isAdmin={isAdmin}
-        isVisible={isBottomBarsVisible}
+        isVisible={!activeRatedReaderManga && isBottomBarsVisible}
+        hasFollowDot={(() => {
+          const followedSet = new Set([...followedMangaIds, ...favoriteIds]);
+          if (followedSet.size === 0) return false;
+          const todaySast = getCurrentSastDateString();
+          return mangaList.some((m) => {
+            if (!followedSet.has(m.id)) return false;
+            return (m.chapters || []).some(
+              (ch) =>
+                ch.publishStatus !== 'scheduled' &&
+                ch.status !== 'scheduled' &&
+                Array.isArray(ch.pages) &&
+                ch.pages.length > 0 &&
+                String(ch.releaseDate || '').slice(0, 10) === todaySast
+            );
+          });
+        })()}
       />
 
       {/* Footer */}
@@ -2811,6 +2961,11 @@ export default function App() {
             }}
             isFavorite={favoriteIdSet.has(activeRatedDetailManga.id)}
             onToggleFavorite={handleToggleFavorite}
+            isFollowedSeries={
+              followedMangaIds.includes(activeRatedDetailManga.id) ||
+              favoriteIdSet.has(activeRatedDetailManga.id)
+            }
+            onToggleFollowSeries={handleToggleFollowSeries}
             comments={selectedMangaComments}
             onAddComment={handleAddComment}
             onLikeComment={handleLikeComment}
@@ -3136,35 +3291,10 @@ export default function App() {
       {/* DAILY READING GOAL REWARD NOTIFICATION */}
       <DailyRewardNotification onOpenProfileModal={() => setIsProfileModalOpen(true)} />
 
-      {/* Floating Immersion Mode Hint Pill (When Bottom Bars are Hidden) */}
-      <AnimatePresence>
-        {!isBottomBarsVisible && showTapHint && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            transition={{ duration: 0.25 }}
-            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[130] pointer-events-auto"
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setIsBottomBarsVisible(true);
-                setShowTapHint(false);
-              }}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-2xl backdrop-blur-md text-[11px] font-medium hover:bg-slate-800 transition active:scale-95"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-              <span>Double-tap screen to show navigation</span>
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Persistent Bottom Google AdMob Banner (Always Visible Across Entire App) */}
+      {/* Persistent Bottom Google AdMob Banner (Hidden inside full-screen ReaderView to avoid overlapping reader controls) */}
       <AdMobBanner
         variant="persistent-bottom"
-        isVisible={isBottomBarsVisible}
+        isVisible={!activeRatedReaderManga && isBottomBarsVisible}
         onUpgradeClick={() => setIsSubscriptionModalOpen(true)}
       />
 

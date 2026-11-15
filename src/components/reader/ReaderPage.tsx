@@ -2,6 +2,7 @@ import React from 'react';
 import { Manga } from '../../types';
 import { MangaPlusUpdatesHome } from '../manga/MangaPlusUpdatesHome';
 import { UserTasteProfile } from '../../services/recommendationEngine';
+import type { UpcomingScheduleItem } from '../../services/layeredApi';
 
 export interface ReaderPageProps {
   mangaList: Manga[];
@@ -34,6 +35,9 @@ export interface ReaderPageProps {
   onOpenTasteProfileModal?: () => void;
   userTasteProfile?: UserTasteProfile;
   isAdmin?: boolean;
+  upcomingSchedules?: UpcomingScheduleItem[];
+  loadError?: string | null;
+  onRetryLoad?: () => void;
 }
 
 const ReaderPageComponent: React.FC<ReaderPageProps> = (props) => {
@@ -46,6 +50,9 @@ const ReaderPageComponent: React.FC<ReaderPageProps> = (props) => {
         onStartReading={props.onStartReading}
         onOpenSubscriptionModal={props.onOpenSubscriptionModal}
         isVipUser={props.isVipUser}
+        upcomingSchedules={props.upcomingSchedules}
+        loadError={props.loadError}
+        onRetryLoad={props.onRetryLoad}
       />
     </div>
   );

@@ -30,6 +30,14 @@ function isPlaceholderDatabaseUrl(urlString?: string): boolean {
   return false;
 }
 
+export function hasLiveDatabase(): boolean {
+  const hasCloudSqlEnv = Boolean(
+    process.env.SQL_HOST && process.env.SQL_USER && process.env.SQL_DB_NAME
+  );
+  if (hasCloudSqlEnv) return true;
+  return !isPlaceholderDatabaseUrl(process.env.DATABASE_URL);
+}
+
 /**
  * Normalizes PostgreSQL connection string for Neon pooled connections:
  * - Appends ?pgbouncer=true if using pooled endpoint (or missing)

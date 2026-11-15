@@ -10,8 +10,18 @@ import { authRouter } from './src/server/authRoutes.ts';
 import { creatorRouter } from './src/server/creatorRoutes.ts';
 import { catalogRouter } from './src/server/catalogRoutes.ts';
 import { usersRouter } from './src/server/usersRoutes.ts';
+import {
+  CDN_BUCKET,
+  cdnRouter,
+  getCdnBucketStorageRoot,
+  handleLocalCdnBinaryPut,
+  handleR2RelayBinaryPut,
+} from './src/server/cdnService.ts';
+import { layeredRouter } from './src/server/layeredRoutes.ts';
 import { verifyPurposeToken } from './src/server/jwt.ts';
 import { pingDatabaseWithRetry } from './src/db/index.ts';
+import { aggregatePageViewsBatch } from './src/db/catalog.ts';
+import { publishDueScheduledChapters } from './src/db/creator.ts';
 
 const SUSPICIOUS_PAYLOAD_REGEX = /<script\b|javascript:|UNION\s+SELECT/i;
 const BINARY_SKIP_KEYS = new Set(['fileData', 'imageBase64', 'avatarData']);
@@ -57,13 +67,29 @@ async function startServer() {
 
   // DEFENSE 1: Hardened HTTP Security Headers
   app.use((_req, res, next) => {
+    const extraCdnOrigins: string[] = [];
+    for (const rawEnv of [
+      process.env.CDN_PUBLIC_URL,
+      process.env.S3_ENDPOINT,
+      process.env.CDN_ENDPOINT,
+    ]) {
+      if (rawEnv && /^https?:\/\//i.test(rawEnv.trim())) {
+        try {
+          extraCdnOrigins.push(new URL(rawEnv.trim()).origin);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    const cdnConnectSources = extraCdnOrigins.join(' ');
+
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; manifest-src 'self'; worker-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googlesyndication.com https://*.google.com https://*.ai.studio; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.googlesyndication.com https://*.run.app https://*.ai.studio https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://*.google.com https://*.googlesyndication.com https://*.ai.studio; frame-ancestors 'self' https://*.google.com https://*.run.app https://*.ai.studio;"
+      `default-src 'self'; manifest-src 'self'; worker-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googlesyndication.com https://*.google.com https://*.ai.studio; connect-src 'self' https://*.r2.cloudflarestorage.com https://*.r2.dev ${cdnConnectSources} https://*.supabase.co wss://*.supabase.co https://*.googlesyndication.com https://*.run.app https://*.ai.studio https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://*.google.com https://*.googlesyndication.com https://*.ai.studio; frame-ancestors 'self' https://*.google.com https://*.run.app https://*.ai.studio;`
     );
     next();
   });
@@ -128,6 +154,18 @@ async function startServer() {
     next();
   });
 
+  // Signed CDN binary PUT handlers MUST be mounted BEFORE express.json() so raw WebP buffers remain intact
+  app.put(
+    '/api/cdn/upload/*',
+    express.raw({ type: '*/*', limit: '6mb' }),
+    handleLocalCdnBinaryPut
+  );
+  app.put(
+    '/api/cdn/r2-upload/*',
+    express.raw({ type: '*/*', limit: '6mb' }),
+    handleR2RelayBinaryPut
+  );
+
   // Cookie parser for httpOnly refreshToken cookies + JSON body parsing
   app.use(cookieParser());
   app.use(express.json({ limit: '25mb' }));
@@ -140,6 +178,31 @@ async function startServer() {
     }
     return next(err);
   });
+
+  // Serve CDN bucket with immutable long cache headers
+  const cdnBucketPath = getCdnBucketStorageRoot();
+  app.use(
+    `/${CDN_BUCKET}`,
+    express.static(cdnBucketPath, {
+      maxAge: '365d',
+      etag: true,
+      immutable: true,
+      setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      },
+    })
+  );
+  app.use(
+    '/cdn',
+    express.static(path.join(process.cwd(), 'public', 'cdn'), {
+      maxAge: '365d',
+      etag: true,
+      immutable: true,
+      setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      },
+    })
+  );
 
   // Serve public/covers & public/avatars directories statically with strong caching
   const coversStaticPath = path.join(process.cwd(), 'public', 'covers');
@@ -165,9 +228,12 @@ async function startServer() {
   // Rate limiting with IPv6 subnet handling and proxy normalization
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 200,
+    max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) =>
+      req.path.startsWith('/views') ||
+      req.path.startsWith('/cdn/upload'),
     keyGenerator: (req) => {
       const forwarded = req.headers['x-forwarded-for'];
       const rawIp = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.ip;
@@ -310,21 +376,19 @@ async function startServer() {
   // AZ OVERVERSE Custom Production Auth System (PostgreSQL + bcrypt 12 + JWT 15m/7d + Resend + Zod)
   app.use('/api/auth', authRouter);
 
-  // AZ OVERVERSE Authenticated User Self-Profile Update (/api/users/me)
+  // AZ OVERVERSE Authenticated User Self-Profile & Followed Manga (/api/users/me, /api/users/follow-manga)
   app.use('/api/users', usersRouter);
+
+  // AZ OVERVERSE CDN Signing API (/api/cdn/sign-upload)
+  app.use('/api/cdn', cdnRouter);
+
+  // AZ OVERVERSE 3-Layer Public & Creator API (/api/manga, /api/chapters, /api/comments, /api/views)
+  app.use('/api', layeredRouter);
 
   // AZ OVERVERSE Creator Studio & Monetization API (Role-gated to Creator/Admin + Neon Postgres)
   app.use('/api/creator', creatorRouter);
 
-  // Canonical REST aliases for chapter & manga endpoints
-  app.post('/api/chapters', (req, res, next) => {
-    req.url = '/chapters';
-    creatorRouter(req, res, next);
-  });
-  app.post('/api/manga', (req, res, next) => {
-    req.url = '/mangas';
-    creatorRouter(req, res, next);
-  });
+  // Plural alias for creator manga creation
   app.post('/api/mangas', (req, res, next) => {
     req.url = '/mangas';
     creatorRouter(req, res, next);
@@ -441,6 +505,28 @@ async function startServer() {
   // Tune HTTP keep-alive above reverse-proxy idle timeout (60s) to prevent reset races
   httpServer.keepAliveTimeout = 65000;
   httpServer.headersTimeout = 66000;
+
+  // 5-minute background view batch aggregator & 1-minute SAST release scheduler
+  setTimeout(() => {
+    publishDueScheduledChapters().catch((err) =>
+      console.warn('[Scheduler] Startup chapter check skipped:', err?.message || err)
+    );
+    aggregatePageViewsBatch().catch((err) =>
+      console.warn('[Views Cron] Startup batch aggregation skipped:', err?.message || err)
+    );
+  }, 2000);
+
+  setInterval(() => {
+    publishDueScheduledChapters().catch((err) =>
+      console.warn('[Scheduler] Cron error:', err?.message || err)
+    );
+  }, 60 * 1000);
+
+  setInterval(() => {
+    aggregatePageViewsBatch().catch((err) =>
+      console.warn('[Views Cron] 5-minute batch error:', err?.message || err)
+    );
+  }, 5 * 60 * 1000);
 }
 
 startServer();

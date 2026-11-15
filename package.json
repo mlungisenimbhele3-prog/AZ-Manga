@@ -20,6 +20,8 @@
     "release:v1": "bash scripts/build-signed-aab.sh"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1169.0",
+    "@aws-sdk/s3-request-presigner": "^3.1169.0",
     "@capacitor-community/admob": "^6.2.0",
     "@capacitor/android": "^6.2.2",
     "@capacitor/cli": "^6.2.2",

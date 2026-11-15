@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
@@ -66,7 +66,7 @@ interface TotpSetupPayload {
 /**
  * Skeleton loader matching CreatorDashboardPage layout to eliminate layout shift during initial fetch.
  */
-export const CreatorDashboardSkeleton = memo(function CreatorDashboardSkeleton() {
+export const CreatorDashboardSkeleton = React.memo(function CreatorDashboardSkeleton() {
   return (
     <section
       id="creator-dashboard-skeleton"
@@ -177,7 +177,7 @@ interface DashboardTopBarProps {
   onLogout: () => void;
 }
 
-const DashboardTopBar = memo(function DashboardTopBar({
+const DashboardTopBar = React.memo(function DashboardTopBar({
   onBack,
   onLogout,
 }: DashboardTopBarProps) {
@@ -217,7 +217,7 @@ interface CreatorIdentityHeaderProps {
   onOpenStudio: () => void;
 }
 
-const CreatorIdentityHeader = memo(function CreatorIdentityHeader({
+const CreatorIdentityHeader = React.memo(function CreatorIdentityHeader({
   avatarUrl,
   penName,
   role,
@@ -307,7 +307,7 @@ interface CreatorProfileSettingsFormProps {
   onUserUpdated: (nextUser: OververseAuthUser) => void;
 }
 
-const CreatorProfileSettingsForm = memo(function CreatorProfileSettingsForm({
+const CreatorProfileSettingsForm = React.memo(function CreatorProfileSettingsForm({
   user,
   backupEmailInput,
   backupEmailError,
@@ -792,7 +792,7 @@ interface BackupRecoveryEmailSectionProps {
   onCancelRemoveBackupEmail: () => void;
 }
 
-const BackupRecoveryEmailSection = memo(function BackupRecoveryEmailSection({
+const BackupRecoveryEmailSection = React.memo(function BackupRecoveryEmailSection({
   primaryEmail,
   emailVerified,
   backupEmail,
@@ -1146,7 +1146,105 @@ interface TwoFactorSecuritySectionProps {
   onUserUpdated: (nextUser: OververseAuthUser) => void;
 }
 
-const TwoFactorSecuritySection = memo(function TwoFactorSecuritySection({
+interface RecoveryCodesVaultPanelProps {
+  recoveryCodes: string[];
+  copiedRecoveryCodes: boolean;
+  onCopyRecoveryCodes: () => void;
+  onDownloadRecoveryCodes: () => void;
+  onDismiss: () => void;
+}
+
+const RecoveryCodesVaultPanel = React.memo(function RecoveryCodesVaultPanel({
+  recoveryCodes,
+  copiedRecoveryCodes,
+  onCopyRecoveryCodes,
+  onDownloadRecoveryCodes,
+  onDismiss,
+}: RecoveryCodesVaultPanelProps) {
+  return (
+    <div
+      id="dashboard-2fa-recovery-codes-panel"
+      className="rounded-xl border border-amber-500/40 bg-slate-900/80 p-5 space-y-4"
+    >
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+            <h3 className="text-sm font-bold text-white">
+              Save Your One-Time Recovery Codes
+            </h3>
+          </div>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Store these {recoveryCodes.length} recovery codes in a password manager
+            or safe offline location. Each code works{' '}
+            <strong className="text-white">once</strong> to sign in if you lose access
+            to your authenticator device, and will not be shown in plaintext again.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {recoveryCodes.map((code, index) => (
+          <div
+            key={code}
+            className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 flex items-center justify-between gap-2 font-mono text-xs tabular-nums"
+          >
+            <span className="text-slate-500">
+              {String(index + 1).padStart(2, '0')}.
+            </span>
+            <span className="font-semibold text-amber-300 tracking-wider">
+              {code}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            id="dashboard-2fa-copy-recovery-codes-btn"
+            type="button"
+            onClick={onCopyRecoveryCodes}
+            className="min-h-[40px] inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-100 transition"
+          >
+            {copiedRecoveryCodes ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-emerald-400">Codes Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 text-amber-400" />
+                <span>Copy Recovery Codes</span>
+              </>
+            )}
+          </button>
+
+          <button
+            id="dashboard-2fa-download-recovery-codes-btn"
+            type="button"
+            onClick={onDownloadRecoveryCodes}
+            className="min-h-[40px] inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-100 transition"
+          >
+            <Download className="w-3.5 h-3.5 text-amber-400" />
+            <span>Download .txt</span>
+          </button>
+        </div>
+
+        <button
+          id="dashboard-2fa-dismiss-recovery-codes-btn"
+          type="button"
+          onClick={onDismiss}
+          className="min-h-[40px] rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-4 py-2 transition"
+        >
+          I Have Saved These Codes
+        </button>
+      </div>
+    </div>
+  );
+});
+
+const TwoFactorSecuritySection = React.memo(function TwoFactorSecuritySection({
   userEmail,
   totpEnabled,
   isCreatorOrAdmin,
@@ -1294,7 +1392,7 @@ const TwoFactorSecuritySection = memo(function TwoFactorSecuritySection({
     ].join('\n');
   };
 
-  const handleCopyRecoveryCodes = async () => {
+  const handleCopyRecoveryCodes = useCallback(async () => {
     if (!freshRecoveryCodes?.length || typeof navigator === 'undefined') return;
     try {
       await navigator.clipboard.writeText(freshRecoveryCodes.join('\n'));
@@ -1303,9 +1401,9 @@ const TwoFactorSecuritySection = memo(function TwoFactorSecuritySection({
     } catch {
       setTotpBannerError('Clipboard access is unavailable. Use Download .txt to save your codes.');
     }
-  };
+  }, [freshRecoveryCodes]);
 
-  const handleDownloadRecoveryCodes = () => {
+  const handleDownloadRecoveryCodes = useCallback(() => {
     if (!freshRecoveryCodes?.length || typeof window === 'undefined') return;
     const textContent = formatRecoveryCodesDocument(freshRecoveryCodes);
     const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
@@ -1317,7 +1415,11 @@ const TwoFactorSecuritySection = memo(function TwoFactorSecuritySection({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  };
+  }, [freshRecoveryCodes, userEmail]);
+
+  const handleDismissRecoveryCodes = useCallback(() => {
+    setFreshRecoveryCodes(null);
+  }, []);
 
   const handleEnableTotpSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1528,85 +1630,13 @@ const TwoFactorSecuritySection = memo(function TwoFactorSecuritySection({
 
       {/* Newly Generated One-Time Recovery Codes Vault View */}
       {freshRecoveryCodes && freshRecoveryCodes.length > 0 && (
-        <div
-          id="dashboard-2fa-recovery-codes-panel"
-          className="rounded-xl border border-amber-500/40 bg-slate-900/80 p-5 space-y-4"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-                <h3 className="text-sm font-bold text-white">
-                  Save Your One-Time Recovery Codes
-                </h3>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Store these {freshRecoveryCodes.length} recovery codes in a password manager
-                or safe offline location. Each code works{' '}
-                <strong className="text-white">once</strong> to sign in if you lose access
-                to your authenticator device, and will not be shown in plaintext again.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {freshRecoveryCodes.map((code, index) => (
-              <div
-                key={code}
-                className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 flex items-center justify-between gap-2 font-mono text-xs tabular-nums"
-              >
-                <span className="text-slate-500">
-                  {String(index + 1).padStart(2, '0')}.
-                </span>
-                <span className="font-semibold text-amber-300 tracking-wider">
-                  {code}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <button
-                id="dashboard-2fa-copy-recovery-codes-btn"
-                type="button"
-                onClick={handleCopyRecoveryCodes}
-                className="min-h-[40px] inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-100 transition"
-              >
-                {copiedRecoveryCodes ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">Codes Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Copy Recovery Codes</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                id="dashboard-2fa-download-recovery-codes-btn"
-                type="button"
-                onClick={handleDownloadRecoveryCodes}
-                className="min-h-[40px] inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-100 transition"
-              >
-                <Download className="w-3.5 h-3.5 text-amber-400" />
-                <span>Download .txt</span>
-              </button>
-            </div>
-
-            <button
-              id="dashboard-2fa-dismiss-recovery-codes-btn"
-              type="button"
-              onClick={() => setFreshRecoveryCodes(null)}
-              className="min-h-[40px] rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-4 py-2 transition"
-            >
-              I Have Saved These Codes
-            </button>
-          </div>
-        </div>
+        <RecoveryCodesVaultPanel
+          recoveryCodes={freshRecoveryCodes}
+          copiedRecoveryCodes={copiedRecoveryCodes}
+          onCopyRecoveryCodes={handleCopyRecoveryCodes}
+          onDownloadRecoveryCodes={handleDownloadRecoveryCodes}
+          onDismiss={handleDismissRecoveryCodes}
+        />
       )}
 
       {!isCreatorOrAdmin ? (
@@ -2247,7 +2277,7 @@ interface DashboardSessionSummaryProps {
   onExploreCatalog: () => void;
 }
 
-const DashboardSessionSummary = memo(function DashboardSessionSummary({
+const DashboardSessionSummary = React.memo(function DashboardSessionSummary({
   emailVerified,
   backupEmail,
   totpEnabled,
@@ -2390,53 +2420,57 @@ export function CreatorDashboardPage({
     }
   }, [user?.backup_email]);
 
-  const validateBackupEmailDraft = useCallback(
-    (input: string) => {
-      const trimmed = input.trim();
-      if (!trimmed) {
-        setBackupEmailError('Enter a secondary recovery email address.');
-        return null;
-      }
-      if (user && trimmed.toLowerCase() === user.email.toLowerCase()) {
-        setBackupEmailError(
-          'Backup recovery email cannot be identical to your primary account email.'
-        );
-        return null;
-      }
-      const parsed = backupEmailFormSchema.safeParse({ backup_email: trimmed });
-      if (!parsed.success) {
-        const msg = parsed.error.issues[0]?.message || 'Enter a valid email address.';
-        setBackupEmailError(msg);
-        return null;
-      }
-      setBackupEmailError(null);
-      return parsed.data.backup_email;
-    },
-    [user]
-  );
+  const userEmailRef = useRef(user?.email ?? '');
+  userEmailRef.current = user?.email ?? '';
+  const backupEmailInputRef = useRef(backupEmailInput);
+  backupEmailInputRef.current = backupEmailInput;
+  const backupEmailTouchedRef = useRef(backupEmailTouched);
+  backupEmailTouchedRef.current = backupEmailTouched;
+
+  const validateBackupEmailDraft = useCallback((input: string) => {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      setBackupEmailError('Enter a secondary recovery email address.');
+      return null;
+    }
+    if (userEmailRef.current && trimmed.toLowerCase() === userEmailRef.current.toLowerCase()) {
+      setBackupEmailError(
+        'Backup recovery email cannot be identical to your primary account email.'
+      );
+      return null;
+    }
+    const parsed = backupEmailFormSchema.safeParse({ backup_email: trimmed });
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message || 'Enter a valid email address.';
+      setBackupEmailError(msg);
+      return null;
+    }
+    setBackupEmailError(null);
+    return parsed.data.backup_email;
+  }, []);
 
   const handleBackupEmailChange = useCallback(
     (nextValue: string) => {
       setBackupEmailInput(nextValue);
       setBackupEmailBannerError(null);
-      if (backupEmailTouched) {
+      if (backupEmailTouchedRef.current) {
         validateBackupEmailDraft(nextValue);
       }
     },
-    [backupEmailTouched, validateBackupEmailDraft]
+    [validateBackupEmailDraft]
   );
 
   const handleBackupEmailBlur = useCallback(() => {
     setBackupEmailTouched(true);
-    validateBackupEmailDraft(backupEmailInput);
-  }, [backupEmailInput, validateBackupEmailDraft]);
+    validateBackupEmailDraft(backupEmailInputRef.current);
+  }, [validateBackupEmailDraft]);
 
   const persistBackupEmail = useCallback(async () => {
     setBackupEmailBannerError(null);
     setBackupEmailBannerMessage(null);
     setBackupEmailTouched(true);
 
-    const validEmail = validateBackupEmailDraft(backupEmailInput);
+    const validEmail = validateBackupEmailDraft(backupEmailInputRef.current);
     if (!validEmail) return;
 
     setIsSavingBackupEmail(true);
@@ -2456,7 +2490,7 @@ export function CreatorDashboardPage({
     setBackupEmailBannerMessage(
       `Secondary recovery email updated to ${res.user.backup_email || validEmail}. Emergency access alerts will be sent here.`
     );
-  }, [backupEmailInput, validateBackupEmailDraft]);
+  }, [validateBackupEmailDraft]);
 
   const handleSaveBackupEmail = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {

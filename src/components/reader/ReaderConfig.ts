@@ -26,7 +26,7 @@ export interface ReaderSettings {
 
 export const DEFAULT_READER_CONFIG: ReaderSettings = {
   readingMode: 'single',
-  preloadAheadCount: 5, // Proactively preload next 5 pages of the manga chapter in background
+  preloadAheadCount: 1, // Lazy-load rule: load ONLY current page + next 1 page
   backgroundColor: '#000000',
   fitMode: 'width',
   centerTapThresholdRatio: 0.35,
@@ -359,10 +359,10 @@ export function preloadUpcomingPages(
 ): void {
   if (typeof window === 'undefined' || !pages || pages.length === 0) return;
 
-  const effectiveAhead = Math.max(5, aheadCount);
+  const effectiveAhead = Math.max(1, Math.min(1, aheadCount));
   const pinnedUrls = new Set<string>();
 
-  // Pin previous, current, and upcoming 5+ pages so LRU never evicts active reading window
+  // Pin current page and next 1 page so LRU keeps only active window
   for (
     let i = Math.max(0, currentIndex - 1);
     i <= Math.min(pages.length - 1, currentIndex + effectiveAhead);
@@ -388,7 +388,7 @@ export function preloadUpcomingPages(
     nextTasks.push({ url: currentUrl, priority: 'high' });
   }
 
-  // Queue the next 5 pages in strict forward order: X+1 -> X+2 -> X+3 -> X+4 -> X+5
+  // Queue ONLY the next 1 page ahead
   for (let offset = 1; offset <= effectiveAhead; offset++) {
     const nextIdx = currentIndex + offset;
     if (nextIdx >= pages.length) break;
@@ -397,23 +397,14 @@ export function preloadUpcomingPages(
     seen.add(url);
     nextTasks.push({
       url,
-      priority: offset === 1 ? 'high' : 'low',
+      priority: 'high',
     });
   }
 
-  // Keep immediate previous page warm for instant back-swipe if not yet loaded
-  if (currentIndex > 0) {
-    const prevUrl = pages[currentIndex - 1]?.imageUrl;
-    if (prevUrl && !seen.has(prevUrl) && !isPagePreloaded(prevUrl) && !inFlightPreloads.has(prevUrl)) {
-      seen.add(prevUrl);
-      nextTasks.push({ url: prevUrl, priority: 'low' });
-    }
-  }
-
-  // When within the last 5 pages of the chapter, prewarm Page 1 of the next chapter
+  // Prewarm next chapter first page only on final page
   if (
     options.nextChapterFirstPageUrl &&
-    currentIndex >= Math.max(0, pages.length - 5) &&
+    currentIndex >= Math.max(0, pages.length - 1) &&
     !seen.has(options.nextChapterFirstPageUrl) &&
     !isPagePreloaded(options.nextChapterFirstPageUrl) &&
     !inFlightPreloads.has(options.nextChapterFirstPageUrl)

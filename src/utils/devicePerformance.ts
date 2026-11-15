@@ -50,9 +50,9 @@ const PROFILE_CONFIGS: Record<DeviceTier, PerformanceProfileConfig> = {
     targetFps: 120,
     enableBackdropBlur: true,
     enableComplexAnimations: true,
-    imagePreloadCount: 6,
-    preloadConcurrency: 4,
-    maxDecodedPagesInMemory: 32,
+    imagePreloadCount: 1,
+    preloadConcurrency: 2,
+    maxDecodedPagesInMemory: 16,
     supportDoublePage: true,
     enableHardwareAcceleration: true,
     cacheLimitMB: 500,
@@ -63,9 +63,9 @@ const PROFILE_CONFIGS: Record<DeviceTier, PerformanceProfileConfig> = {
     targetFps: 90,
     enableBackdropBlur: true,
     enableComplexAnimations: true,
-    imagePreloadCount: 5,
-    preloadConcurrency: 3,
-    maxDecodedPagesInMemory: 20,
+    imagePreloadCount: 1,
+    preloadConcurrency: 2,
+    maxDecodedPagesInMemory: 12,
     supportDoublePage: true,
     enableHardwareAcceleration: true,
     cacheLimitMB: 300,
@@ -76,9 +76,9 @@ const PROFILE_CONFIGS: Record<DeviceTier, PerformanceProfileConfig> = {
     targetFps: 60,
     enableBackdropBlur: true,
     enableComplexAnimations: true,
-    imagePreloadCount: 5,
+    imagePreloadCount: 1,
     preloadConcurrency: 2,
-    maxDecodedPagesInMemory: 14,
+    maxDecodedPagesInMemory: 10,
     supportDoublePage: true,
     enableHardwareAcceleration: true,
     cacheLimitMB: 150,
@@ -89,9 +89,7 @@ const PROFILE_CONFIGS: Record<DeviceTier, PerformanceProfileConfig> = {
     targetFps: 60,
     enableBackdropBlur: false,
     enableComplexAnimations: false,
-    // Preload next 5 pages sequentially (concurrency 1) so slow networks
-    // and low-RAM phones still get seamless reading without bandwidth contention or OOM
-    imagePreloadCount: 5,
+    imagePreloadCount: 1,
     preloadConcurrency: 1,
     maxDecodedPagesInMemory: 8,
     supportDoublePage: false,
@@ -577,11 +575,11 @@ export function prewarmHighEndAppChunks(tier?: DeviceTier): void {
   }, 1800);
 }
 
-export function preloadMangaImages(imageUrls: string[], priorityCount = 3): void {
+export function preloadMangaImages(imageUrls: string[], priorityCount = 1): void {
   if (typeof window === 'undefined' || !imageUrls || imageUrls.length === 0) return;
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
 
-  const targets = imageUrls.slice(0, priorityCount);
+  const targets = imageUrls.slice(0, Math.max(1, Math.min(1, priorityCount)));
 
   targets.forEach((url) => {
     if (!url || preloadedUrlCache.has(url)) return;
@@ -592,7 +590,7 @@ export function preloadMangaImages(imageUrls: string[], priorityCount = 3): void
     try {
       const img = new Image();
       img.decoding = 'async';
-      img.loading = 'eager';
+      img.loading = 'lazy';
       img.src = url;
     } catch {
       // Safe fallback

@@ -240,11 +240,6 @@ export const BackdropPage: React.FC<BackdropPageProps> = ({
           })}
         </div>
       )}
-
-      {/* Official IP & Backdrop License Mandate */}
-      <div className="pt-4 border-t border-slate-800 text-slate-400 text-xs text-center leading-relaxed">
-        All AZ Originals are © AZ Oververse / Mlungiseni Mbhele. All Canvas works remain © their respective creators. AZ Oververse has non-exclusive license to display Backdrop works. Any re-upload without permission is prohibited.
-      </div>
     </div>
   );
 };

@@ -260,11 +260,20 @@ export async function fetchMangasFromSupabase(): Promise<Manga[]> {
           return acc;
         }, {});
 
+        const coreById = new Map(INITIAL_MANGA_LIST.map((item) => [item.id, item]));
         // Map to application Manga interface
         const mappedMangas: Manga[] = mangasData.map((row: any) => {
           const isNkosi = row.id === 'nkosi-the-tale-of-myths';
+          const coreMatch = coreById.get(row.id);
           const resolvedCover = isNkosi ? NKOSI_COVER_SRC : row.cover_image;
           const resolvedBanner = isNkosi ? NKOSI_COVER_SRC : row.banner_image;
+          const resolvedType: 'original' | 'backdrop' =
+            row.type === 'original'
+              ? 'original'
+              : row.type === 'backdrop'
+              ? 'backdrop'
+              : coreMatch?.type || (row.is_original && !row.is_backdrop ? 'original' : 'backdrop');
+          const resolvedChapters = chaptersByManga[row.id] || [];
           return {
             id: row.id,
             title: row.title,
@@ -275,18 +284,26 @@ export async function fetchMangasFromSupabase(): Promise<Manga[]> {
             coverUrl: resolvedCover,
             coverImage: resolvedCover,
             bannerImage: resolvedBanner,
-          genres: row.genres || [],
-          status: row.status,
-          synopsis: row.synopsis,
-          rating: Number(row.rating) || 0,
-          views: Number(row.views) || 0,
-          bookmarksCount: Number(row.bookmarks_count) || 0,
-          monetizationModel: row.monetization_model || 'hybrid',
-          chapters: chaptersByManga[row.id] || [],
-          featured: row.featured,
-          weeklyRank: row.weekly_rank,
-          isAiGenerated: row.is_ai_generated,
-          aiConfidenceScore: row.ai_confidence_score,
+            genres: row.genres || [],
+            status: row.status,
+            synopsis: row.synopsis,
+            rating: Number(row.rating) || 0,
+            views: Number(row.views) || 0,
+            bookmarksCount: Number(row.bookmarks_count) || 0,
+            monetizationModel: row.monetization_model || 'hybrid',
+            chapters: resolvedChapters,
+            featured: row.featured,
+            weeklyRank: row.weekly_rank,
+            type: resolvedType,
+            isOriginal: resolvedType === 'original',
+            isBackdrop: resolvedType === 'backdrop',
+            isCanvas: resolvedType === 'backdrop',
+            isComingSoon:
+              typeof row.is_coming_soon === 'boolean'
+                ? row.is_coming_soon
+                : resolvedChapters.length === 0,
+            isAiGenerated: row.is_ai_generated,
+            aiConfidenceScore: row.ai_confidence_score,
             isBanned: row.is_banned,
             banReason: row.ban_reason,
           };

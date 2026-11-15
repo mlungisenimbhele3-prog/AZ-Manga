@@ -15,7 +15,8 @@ import {
   useRatingRevision,
 } from '../../services/ratingService';
 import { uploadCoverFile } from '../../services/coverStorage';
-import { publishMangaToSupabase } from '../../services/supabase';
+import { createMangaViaApi } from '../../services/layeredApi';
+import { getSeedReleaseDay, normalizeReleaseDay } from '../../utils/releaseSchedule';
 import { getCurrentUserProfile, isMangaBookmarked, toggleMangaBookmark } from '../../services/userProfile';
 import {
   isFollowingCreator,
@@ -78,6 +79,8 @@ interface MangaDetailModalProps {
   onUploadChapterClick?: (mangaId: string) => void;
   isFavorite?: boolean;
   onToggleFavorite?: (mangaId: string) => void;
+  isFollowedSeries?: boolean;
+  onToggleFollowSeries?: (mangaId: string) => void;
   comments: Comment[];
   onAddComment: (text: string, chapterNumber?: number, parentComment?: Comment) => void;
   onLikeComment?: (commentId: string) => void;
@@ -97,6 +100,8 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
   onUploadChapterClick,
   isFavorite = false,
   onToggleFavorite,
+  isFollowedSeries,
+  onToggleFollowSeries,
   comments,
   onAddComment,
   onLikeComment,
@@ -215,6 +220,8 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
     setIsFollowPulsing(true);
     setTimeout(() => setIsFollowPulsing(false), 500);
 
+    onToggleFollowSeries?.(activeManga.id);
+
     const nextState = await toggleFollowCreator({
       name: activeManga.author,
       role: 'Author',
@@ -228,7 +235,7 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
     setIsFollowingAuthor(nextState);
     setFollowFeedback(
       nextState
-        ? `Following ${activeManga.author}! You'll receive instant push alerts for new releases.`
+        ? `Following ${activeManga.author}! You'll receive instant alerts for ${normalizeReleaseDay(activeManga.releaseDay, activeManga.id)} drops.`
         : `Unfollowed ${activeManga.author}.`
     );
     setTimeout(() => setFollowFeedback(null), 3500);
@@ -292,7 +299,7 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
     if (!file || !activeManga) return;
     try {
       setIsUploadingCover(true);
-      const newCoverUrl = await uploadCoverFile(file);
+      const newCoverUrl = await uploadCoverFile(file, activeManga.id);
       if (newCoverUrl) {
         const updated: Manga = {
           ...activeManga,
@@ -301,12 +308,23 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
           cover: newCoverUrl,
         };
         setCachedManga(updated);
-        await publishMangaToSupabase(updated);
-        setCoverUploadToast('Cover artwork uploaded & synced to cloud storage successfully!');
+        await createMangaViaApi({
+          id: updated.id,
+          title: updated.title,
+          synopsis: updated.synopsis,
+          coverUrl: newCoverUrl,
+          genres: updated.genres || [],
+          type: getMangaType(updated),
+          releaseDay: normalizeReleaseDay(updated.releaseDay, updated.id),
+          status: isMangaComingSoon(updated) ? 'Coming Soon' : 'Live',
+          approvalStatus: updated.approvalStatus,
+        }).catch(() => {});
+        setCoverUploadToast('Cover artwork compressed & uploaded to CDN!');
         setTimeout(() => setCoverUploadToast(null), 4500);
       }
-    } catch (err) {
-      console.error('Failed to upload cover:', err);
+    } catch (err: any) {
+      setCoverUploadToast(err?.message || 'Image too big, compress and try again.');
+      setTimeout(() => setCoverUploadToast(null), 4500);
     } finally {
       setIsUploadingCover(false);
     }
@@ -710,6 +728,9 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                       <span className="rounded-md bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[10px] font-bold text-amber-300">
                         {isMangaComingSoon(activeManga) ? 'COMING SOON' : activeManga.status}
                       </span>
+                      <span className="rounded-md bg-slate-800 border border-slate-700 px-2 py-0.5 text-[10px] font-bold text-slate-200">
+                        Drops {normalizeReleaseDay(activeManga.releaseDay, getSeedReleaseDay(activeManga.id))}
+                      </span>
                       <span className="inline-flex items-center gap-1.5 text-xs text-slate-300 font-mono tabular-nums">
                         <RatingAverageDisplay
                           rating={mangaRatingStats.averageRating}
@@ -804,7 +825,7 @@ export const MangaDetailModal: React.FC<MangaDetailModalProps> = ({
                     }`}
                     title={isFollowingAuthor ? `Unfollow ${activeManga.author}` : `Follow ${activeManga.author} for new chapter push notifications`}
                   >
-                    {isFollowingAuthor ? (
+                    {(isFollowedSeries ?? isFollowingAuthor) ? (
                       <>
                         <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
                         <span className="truncate">Following</span>

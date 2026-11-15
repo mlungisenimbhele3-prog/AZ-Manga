@@ -2,7 +2,13 @@ import express, { Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { AuthenticatedRequest, requireJwtAuth } from './authRoutes.ts';
-import { findUserById, toPublicUser, updateUserCreatorProfile } from '../db/users.ts';
+import {
+  findUserById,
+  getUserFollowedManga,
+  toPublicUser,
+  updateUserCreatorProfile,
+  updateUserFollowedManga,
+} from '../db/users.ts';
 import { signAccessToken } from './jwt.ts';
 import { editMyProfileSchema } from './validation.ts';
 
@@ -156,6 +162,48 @@ usersRouter.put(
       return res.status(500).json({
         error: error?.message || 'Unable to save profile updates right now.',
       });
+    }
+  }
+);
+
+usersRouter.get(
+  '/follow-manga',
+  requireJwtAuth,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const authUserId = req.authUser?.id;
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    try {
+      const followedManga = await getUserFollowedManga(authUserId);
+      return res.status(200).json({ followedManga });
+    } catch {
+      return res.status(200).json({ followedManga: [] });
+    }
+  }
+);
+
+usersRouter.post(
+  '/follow-manga',
+  requireJwtAuth,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const authUserId = req.authUser?.id;
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    const mangaId = typeof req.body?.mangaId === 'string' ? req.body.mangaId.trim() : '';
+    if (!mangaId) {
+      return res.status(400).json({ error: 'mangaId is required.' });
+    }
+    const rawAction = String(req.body?.action || 'toggle').toLowerCase();
+    const action: 'follow' | 'unfollow' | 'toggle' =
+      rawAction === 'follow' || rawAction === 'unfollow' ? rawAction : 'toggle';
+
+    try {
+      const result = await updateUserFollowedManga(authUserId, mangaId, action);
+      return res.status(200).json({ success: true, ...result });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || 'Failed to update followed manga.' });
     }
   }
 );

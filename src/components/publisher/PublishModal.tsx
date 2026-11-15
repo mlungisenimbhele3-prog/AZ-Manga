@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Chapter, Manga, MonetizationModel, SeriesType, AiDetectionResult } from '../../types';
+import { Chapter, Manga, MonetizationModel, SeriesType, ReleaseDay, AiDetectionResult } from '../../types';
 import {
   UploadCloud,
   Plus,
@@ -20,6 +20,8 @@ import { ChapterUploadManager } from './ChapterUploadManager';
 import { detectAiContent } from '../../utils/aiDetector';
 import { uploadCoverFile } from '../../services/coverStorage';
 import { MangaCoverImage } from '../common/MangaCoverImage';
+import { RELEASE_DAYS_MON_SUN, normalizeReleaseDay } from '../../utils/releaseSchedule';
+import { createMangaViaApi } from '../../services/layeredApi';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -64,6 +66,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [newSynopsis, setNewSynopsis] = useState<string>('');
   const [newMonetization, setNewMonetization] = useState<MonetizationModel>('hybrid');
   const [seriesType, setSeriesType] = useState<SeriesType>('backdrop');
+  const [releaseDay, setReleaseDay] = useState<ReleaseDay>('WED');
   const [backdropAcknowledged, setBackdropAcknowledged] = useState<boolean>(false);
   const [declaredAi, setDeclaredAi] = useState<boolean>(false);
   const [strictAutoBan, setStrictAutoBan] = useState<boolean>(true);
@@ -71,18 +74,21 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [coverImageUrl, setCoverImageUrl] = useState<string>(SAMPLE_PAGE_IMAGES[0]);
   const [isUploadingCover, setIsUploadingCover] = useState<boolean>(false);
   const [coverUploadMsg, setCoverUploadMsg] = useState<string | null>(null);
+  const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCoverUploadError(null);
+    setCoverUploadMsg(null);
     try {
       setIsUploadingCover(true);
       const url = await uploadCoverFile(file);
       setCoverImageUrl(url);
-      setCoverUploadMsg('Cover uploaded to cloud storage successfully!');
+      setCoverUploadMsg('Cover compressed & uploaded to CDN!');
       setTimeout(() => setCoverUploadMsg(null), 3500);
-    } catch (err) {
-      console.error('Failed to upload cover in PublishModal:', err);
+    } catch (err: any) {
+      setCoverUploadError(err?.message || 'Image too big, compress and try again.');
     } finally {
       setIsUploadingCover(false);
     }
@@ -147,6 +153,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     const isAi = scan.isAiGenerated;
     const isOrig = seriesType === 'original';
 
+    const safeReleaseDay = normalizeReleaseDay(releaseDay);
     const createdManga: Manga = {
       id: `manga-${Date.now()}`,
       title: newTitle || 'Untitled Chronicle',
@@ -158,9 +165,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       bannerImage: coverImageUrl || SAMPLE_PAGE_IMAGES[1],
       genres: newGenres.split(',').map((g) => g.trim()),
       status: 'ONGOING',
+      releaseDay: safeReleaseDay,
       synopsis: newSynopsis || 'A newly published manga journey on AZ OVERVERSE.',
       rating: 0,
       views: 0,
+      totalViewsCached: 0,
       bookmarksCount: 0,
       monetizationModel: newMonetization,
       type: seriesType,
@@ -179,6 +188,18 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       createdAt: new Date().toISOString(),
       chapters: [],
     };
+
+    void createMangaViaApi({
+      id: createdManga.id,
+      title: createdManga.title,
+      synopsis: createdManga.synopsis,
+      coverUrl: createdManga.coverUrl || createdManga.coverImage,
+      genres: createdManga.genres,
+      type: isOrig ? 'original' : 'backdrop',
+      releaseDay: safeReleaseDay,
+      status: 'Coming Soon',
+      approvalStatus: 'approved',
+    }).catch(() => {});
 
     onPublishManga(createdManga);
     setPublishedMangaSummary({
@@ -422,6 +443,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   <span>{coverUploadMsg}</span>
                 </p>
               )}
+              {coverUploadError && (
+                <p className="text-[11px] text-rose-400 font-bold mb-2 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>{coverUploadError}</span>
+                </p>
+              )}
 
               <div className="flex items-center gap-3">
                 <div className="h-20 w-16 rounded-xl overflow-hidden border border-slate-700 bg-slate-900 shrink-0">
@@ -490,19 +517,40 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               )}
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Monetization Model
-              </label>
-              <select
-                value={newMonetization}
-                onChange={(e) => setNewMonetization(e.target.value as MonetizationModel)}
-                className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm text-white"
-              >
-                <option value="hybrid">Hybrid (Free Ad-Supported + VIP Fast Pass)</option>
-                <option value="ad_supported">100% Ad-Supported (Free for all)</option>
-                <option value="subscription_only">VIP Subscribers Exclusive</option>
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="publish-release-day-select" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Release new chapter every: *
+                </label>
+                <select
+                  id="publish-release-day-select"
+                  required
+                  value={releaseDay}
+                  onChange={(e) => setReleaseDay(normalizeReleaseDay(e.target.value))}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
+                >
+                  {RELEASE_DAYS_MON_SUN.map((day) => (
+                    <option key={day} value={day}>
+                      {day} (12:00 AM SAST)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Monetization Model
+                </label>
+                <select
+                  value={newMonetization}
+                  onChange={(e) => setNewMonetization(e.target.value as MonetizationModel)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm text-white"
+                >
+                  <option value="hybrid">Hybrid (Free Ad-Supported + VIP Fast Pass)</option>
+                  <option value="ad_supported">100% Ad-Supported (Free for all)</option>
+                  <option value="subscription_only">VIP Subscribers Exclusive</option>
+                </select>
+              </div>
             </div>
 
             {/* Original IP Ownership Checkbox */}
@@ -644,7 +692,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               <button
                 id="submit-launch-series-btn"
                 type="submit"
-                disabled={seriesType === 'backdrop' && !backdropAcknowledged}
+                disabled={
+                  !newTitle.trim() ||
+                  !newAuthor.trim() ||
+                  (seriesType === 'backdrop' && !backdropAcknowledged)
+                }
                 className="flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black px-5 py-2 text-xs font-bold transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <UploadCloud className="w-4 h-4" />

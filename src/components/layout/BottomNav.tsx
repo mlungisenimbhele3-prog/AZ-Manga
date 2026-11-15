@@ -7,12 +7,14 @@ interface BottomNavProps {
   isCreator: boolean;
   isAdmin?: boolean;
   isVisible?: boolean;
+  hasFollowDot?: boolean;
 }
 
 const BottomNavComponent: React.FC<BottomNavProps> = ({
   activeTab,
   onTabChange,
   isVisible = true,
+  hasFollowDot = false,
 }) => {
   // 5 primary tabs: Reader, Awards, Backdrop, Account, Follow
   const tabs = useMemo(
@@ -69,6 +71,7 @@ const BottomNavComponent: React.FC<BottomNavProps> = ({
             (tab.id === 'backdrop' && (activeTab === 'canvas' || activeTab === 'browse')) ||
             (tab.id === 'creators' && activeTab === 'account') ||
             (tab.id === 'following' && (activeTab === 'shelf' || activeTab === 'follow'));
+          const showDot = tab.id === 'following' && hasFollowDot;
           return (
             <button
               key={`bottom-tab-${tab.id}-${index}`}
@@ -80,7 +83,16 @@ const BottomNavComponent: React.FC<BottomNavProps> = ({
                   : 'text-zinc-500 hover:text-zinc-300 font-medium'
               }`}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+              <span className="relative inline-flex">
+                <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+                {showDot && (
+                  <span
+                    id="bottom-nav-follow-dot"
+                    aria-label="New chapter released today"
+                    className="absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-[#0A0A0A]"
+                  />
+                )}
+              </span>
               <span className="text-[10px] tracking-wide">{tab.label}</span>
             </button>
           );
