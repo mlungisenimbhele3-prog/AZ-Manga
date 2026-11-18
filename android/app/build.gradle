@@ -3,11 +3,11 @@ apply plugin: 'kotlin-android'
 
 android {
     namespace "com.azoververse.manga"
-    compileSdk = rootProject.ext.compileSdkVersion
+    compileSdk = 36
     defaultConfig {
         applicationId "com.azoververse.manga"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
+        minSdk = 30
+        targetSdk = 36
         versionCode((System.getenv("ANDROID_VERSION_CODE") ?: "104").toInteger())
         versionName(System.getenv("ANDROID_VERSION_NAME") ?: "1.0.4")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
